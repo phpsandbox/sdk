@@ -3,7 +3,7 @@
 	"source": true,
 	"private": true,
 	"version": "0.0.1",
-	"main": "index.ts",
+	"main": "src/index.ts",
 	"dependencies": {
         "nanoid": "^5.1.2",
         "mitt": "^3.0.1",
