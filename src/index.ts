@@ -39,7 +39,12 @@ export type Events = TerminalEvents &
 	NotebookEvents &
 	ReplEvents;
 
-export type Invokable = TerminalActions &
+interface SystemActions {
+    ping: Action<object, "pong">;
+}
+
+export type Invokable = SystemActions &
+    TerminalActions &
 	ContainerActions &
 	FilesystemActions &
 	AuthActions &
@@ -93,6 +98,10 @@ export default class Okra {
 	): Promise<Invokable[T]["response"]> {
 		return this.socket.invoke(action, data || {}, options);
 	}
+
+    public ping() {
+        return this.invoke("ping");
+    }
 
 	public listen<T extends keyof Events>(event: T, handler: (data: Events[T]) => void): void {
 		this.socket.listen(event as string, handler);
