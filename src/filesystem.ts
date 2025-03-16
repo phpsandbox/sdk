@@ -439,7 +439,7 @@ export class Filesystem {
 
 	public find(
 		query: string,
-		options: FileSearchOptions = {
+		options: Partial<FileSearchOptions> = {
 			includes: [],
 			excludes: [],
 			useIgnoreFiles: true,
@@ -448,7 +448,14 @@ export class Filesystem {
 			useParentIgnoreFiles: true,
 		}
 	): Promise<FileResult[]> {
-		return this.okra.invoke("fs.find", {query, options});
+		return this.okra.invoke("fs.find", {query, options: Object.assign(options, {
+			includes: [],
+			excludes: [],
+			useIgnoreFiles: true,
+			followSymlinks: true,
+			useGlobalIgnoreFiles: true,
+			useParentIgnoreFiles: true,
+		})});
 	}
 
 	public search(
@@ -529,13 +536,19 @@ export class Filesystem {
 
 	public watch(path: string, options: WatchOptions, onDidChange: (e: FileChange) => void): FilesystemSubscription {
 		this.okra.socket.listen(`fs.watch.${path}`, onDidChange);
-		const subscription = new FilesystemSubscription(path, this.okra, options);
+		const subscription = new FilesystemSubscription(path, this.okra);
 		this.watches.set(path, {options, path, onDidChange});
 
 		this.okra.invoke("fs.watch", {path, options});
 
 		return subscription;
 	}
+
+    public exists(path: string): Promise<boolean> {
+        return this.stat(path)
+            .then(() => true)
+            .catch(() => false);
+    }
 
 	protected handleError(e: unknown): never {
 		if (e instanceof ErrorEvent && "name" in e.raw) {

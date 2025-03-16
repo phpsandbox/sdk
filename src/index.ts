@@ -8,12 +8,14 @@ import Log, {LogActions, LogEvents} from "./log";
 import Laravel, {LaravelActions, LaravelEvents} from "./laravel";
 import Notebook, {NotebookActions, NotebookEvents} from "./notebook";
 import Repl, {ReplActions, ReplEvents} from "./repl";
+import Shell, {ShellEvents, ShellActions} from "./shell";
 import {Transport} from "./socket";
 
 export * from "./types";
 export * from "./lsp";
 export * from "./filesystem";
 export * from "./container";
+export * from "./shell";
 
 export interface CallOption {
 	responseEvent?: string;
@@ -37,7 +39,8 @@ export type Events = TerminalEvents &
 	LogEvents &
 	LaravelEvents &
 	NotebookEvents &
-	ReplEvents;
+	ReplEvents &
+    ShellEvents;
 
 interface SystemActions {
     ping: Action<object, "pong">;
@@ -53,7 +56,8 @@ export type Invokable = SystemActions &
 	ComposerActions &
 	LogActions &
 	NotebookActions &
-	ReplActions;
+	ReplActions &
+    ShellActions;
 
 export default class Okra {
 	public readonly file: Filesystem;
@@ -66,6 +70,7 @@ export default class Okra {
 	public readonly repl: Repl;
 	public readonly container: Container = new Container(this);
 	public readonly laravel: Laravel = new Laravel(this);
+    public readonly shell: Shell;
 
 	private static instance?: Okra;
 
@@ -81,6 +86,7 @@ export default class Okra {
 		this.lsp = new Lsp(this);
 		this.notebook = new Notebook(this);
 		this.repl = new Repl(this);
+        this.shell = new Shell(this);
 	}
 
 	public call<T extends keyof Invokable>(
