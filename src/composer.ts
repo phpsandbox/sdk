@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 
 export interface ComposerEvents {
 	"composer.log": string;
@@ -35,7 +35,7 @@ export type Options<
 > = Record<Name, Type>;
 
 export default class Composer {
-	constructor(protected okra: Okra) {}
+	constructor(protected okra: NotebookInstance) {}
 
 	public invoke(command: ComposerCommand, args: Argument = {}, options: Options = {}) {
 		return this.okra.invoke("composer.invoke", {command, args, options});

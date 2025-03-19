@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 
 export interface AuthActions {
 	"auth.login": Action<{newConnectionData: string}, boolean>;
@@ -6,7 +6,7 @@ export interface AuthActions {
 }
 
 export default class Auth {
-	constructor(protected okra: Okra) {}
+	constructor(protected okra: NotebookInstance) {}
 
 	public logout() {
 		return this.okra.invoke("auth.logout");

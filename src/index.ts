@@ -6,16 +6,37 @@ import Lsp, {LspActions, LspEvents} from "./lsp";
 import Composer, {ComposerActions, ComposerEvents} from "./composer";
 import Log, {LogActions, LogEvents} from "./log";
 import Laravel, {LaravelActions, LaravelEvents} from "./laravel";
-import Notebook, {NotebookActions, NotebookEvents} from "./notebook";
 import Repl, {ReplActions, ReplEvents} from "./repl";
 import Shell, {ShellEvents, ShellActions} from "./shell";
 import {Transport} from "./socket";
+import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 export * from "./types";
 export * from "./lsp";
 export * from "./filesystem";
 export * from "./container";
 export * from "./shell";
+
+interface Result<T extends object> {
+    type: "success" | "error" | "running";
+    message: string;
+    data: T;
+}
+
+export interface NotebookActions {
+    "notebook.init": Action<
+        {force?: boolean; files: {[path: string]: string}},
+        Result<{env: {name: string; value: string}[]; previewUrl: string}>
+    >;
+    "notebook.update": Action<null>;
+}
+
+export interface NotebookEvents {
+    "lsp.response": object;
+    "lsp.close": {code: number; reason: string};
+    "init.event": {message: string};
+    "notebook.initialized": null;
+}
 
 export interface CallOption {
 	responseEvent?: string;
@@ -59,37 +80,130 @@ export type Invokable = SystemActions &
 	ReplActions &
     ShellActions;
 
-export default class Okra {
-	public readonly file: Filesystem;
-	public readonly terminal: Terminal;
-	public readonly auth: Auth;
-	public readonly lsp: Lsp;
-	public readonly composer: Composer = new Composer(this);
-	public readonly log: Log = new Log(this);
-	public readonly notebook: Notebook;
-	public readonly repl: Repl;
-	public readonly container: Container = new Container(this);
-	public readonly laravel: Laravel = new Laravel(this);
-    public readonly shell: Shell;
 
-	private static instance?: Okra;
+const defaultAxiosConfig = (baseURL: string, token: string): AxiosRequestConfig => ({
+    /**
+     * withCredentials must be false so that `Allow-Control-Allow-Origin` header is set to `*`
+     * This is required for the PHPSandbox API to work in the browser.
+     */
+    withCredentials: false,
+    timeout: 30000,
+    baseURL,
+    headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+    },
+});
+
+export interface CreateNotebookInput {
+    title: string;
+    visibility: "public" | "private" | "unlisted";
+}
+
+class NotebookInitError extends Error {
+    constructor(public message: string) {
+        super(message);
+    }
+}
+
+export class NotebookApi {
+    public constructor(private readonly client: Client) {}
+
+    public async create(template: string, input: Partial<CreateNotebookInput> = {}): Promise<NotebookInstance> {
+        const response = await this.client.http.post<NotebookData>("/notebook", {template, ...input});
+
+        return this.init(response.data);
+    }
+
+    public async fork(id: string): Promise<NotebookInstance> {
+        const response = await this.client.http.post<NotebookData>(`/notebook/${id}/fork`);
+
+        return this.init(response.data);
+    }
+
+    public async open(id: string): Promise<NotebookInstance> {
+        const response = await this.client.http.get<NotebookData>(`/notebook/${id}`);
+
+        return this.init(response.data);
+    }
+
+    public openFromData(data: NotebookData): Promise<NotebookInstance> {
+        return this.init(data);
+    }
+
+    private async init(data: NotebookData): Promise<NotebookInstance> {
+        const instance = new NotebookInstance(data, this.client);
+        await instance.connected();
+
+        const result = await instance.init();
+        if (result.type === "error") {
+            throw new NotebookInitError(result.message);
+        }
+
+        return instance;
+    }
+}
+
+export class Client {
+    public readonly http: AxiosInstance;
+    public readonly notebook: NotebookApi;
+
+	public constructor(token: string, url: string = "https://api.phpsandbox.io/v1") {
+        this.http = axios.create(defaultAxiosConfig(url, token));
+        this.notebook = new NotebookApi(this);
+    }
+}
+
+export class PHPSandbox extends Client {}
+
+export interface NotebookData {
+    id: string;
+    okraUrl: string;
+}
+
+export class NotebookInstance {
+    public readonly file: Filesystem;
+    public readonly terminal: Terminal;
+    public readonly auth: Auth;
+    public readonly lsp: Lsp;
+    public readonly composer: Composer;
+    public readonly log: Log;
+    public readonly repl: Repl;
+    public readonly container: Container;
+    public readonly laravel: Laravel;
+    public readonly shell: Shell;
 
     public readonly socket: Transport;
 
-	private constructor(url: string) {
-        this.socket = new Transport(url);
-		this.watchConnection();
+    public constructor(protected data: NotebookData, protected client: Client) {
+        this.socket = new Transport(data.okraUrl);
+        this.watchConnection();
 
-		this.file = new Filesystem(this);
-		this.terminal = new Terminal(this);
-		this.auth = new Auth(this);
-		this.lsp = new Lsp(this);
-		this.notebook = new Notebook(this);
-		this.repl = new Repl(this);
+        this.file = new Filesystem(this);
+        this.terminal = new Terminal(this);
+        this.auth = new Auth(this);
+        this.lsp = new Lsp(this);
+        this.composer = new Composer(this);
+        this.log = new Log(this);
+        this.repl = new Repl(this);
+        this.container = new Container(this);
+        this.laravel = new Laravel(this);
         this.shell = new Shell(this);
-	}
+    }
 
-	public call<T extends keyof Invokable>(
+    public fork(): Promise<NotebookInstance> {
+        return this.client.notebook.fork(this.data.id);
+    }
+
+    public stop(): Promise<void> {
+        return this.container.stop();
+    }
+
+    public restart(): Promise<void> {
+        return this.container.start();
+    }
+
+    public call<T extends keyof Invokable>(
 		action: T,
 		data: Invokable[T]["args"] = {},
 		options: CallOption = {}
@@ -113,27 +227,11 @@ export default class Okra {
 		this.socket.listen(event as string, handler);
 	}
 
-	public static createInstance(url: string, fresh: boolean = false): Okra {
-		if (fresh || !this.instance) {
-			this.instance = new Okra(url);
-		}
-
-		return this.instance;
+	public dispose(): void {
+        this.socket.disconnect();
 	}
 
-	public static getInstance(): Okra | undefined {
-		return this.instance;
-	}
-
-	public static dispose(): void {
-		if (this.instance) {
-			this.instance.socket.disconnect();
-		}
-
-		this.instance = undefined;
-	}
-
-	public connected(): Promise<Okra> {
+	public connected(): Promise<NotebookInstance> {
 		if (this.socket.isConnected) {
 			return Promise.resolve(this);
 		}
@@ -148,7 +246,7 @@ export default class Okra {
 		});
 	}
 
-	public whenConnected(): Promise<Okra> {
+	public whenConnected(): Promise<NotebookInstance> {
 		if (this.socket.isConnected) {
 			return Promise.resolve(this);
 		}
@@ -164,17 +262,30 @@ export default class Okra {
 
 	private watchConnection(): void {
         this.socket.onDidConnect(() => this.socket.emit("okra.connected"));
-
         this.socket.onDidClose(() => this.socket.emit("okra.disconnected"));
 	}
 
 	public onDidConnect(handler: () => void): void {
 		this.socket.removeListener("okra.connected", handler);
-
 		this.socket.listen("okra.connected", handler);
 	}
 
 	public onDidDisconnect(handler: () => void): void {
 		this.socket.listen("okra.disconnected", handler);
+	}
+
+    public async init(files: {[path: string]: string} = {}) {
+		const result = await this.invoke("notebook.init", {files});
+		this.onDidConnect(this.init.bind(this));
+
+		return result;
+	}
+
+	public update() {
+		return this.invoke("notebook.update");
+	}
+
+	public onDidInitialize(handler: () => void) {
+		this.listen("notebook.initialized", handler);
 	}
 }

@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 
 interface Stat {
 	usage: number;
@@ -33,17 +33,22 @@ export interface PortInfo {
 }
 
 export interface ContainerActions {
-	"container.start": Action;
+	"container.start": Action<{}, void>;
+	"container.stop": Action<{}, void>;
 	"container.state": Action<{}, {state: NotebookState}>;
 	"container.opened-ports": Action<{}, PortInfo[]>;
 	"container.set-php": Action<{version: string}, {version: string}>;
 }
 
 export default class Container {
-	constructor(protected okra: Okra) {}
+	constructor(protected okra: NotebookInstance) {}
 
 	public start() {
 		return this.okra.invoke("container.start");
+	}
+
+    public stop() {
+		return this.okra.invoke("container.stop");
 	}
 
 	public state() {

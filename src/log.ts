@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 
 export interface LogEvents {
 	"notebook.log": string;
@@ -7,7 +7,7 @@ export interface LogEvents {
 export interface LogActions {}
 
 export default class Log {
-	constructor(protected okra: Okra) {}
+	constructor(protected okra: NotebookInstance) {}
 
 	public stream(fn: (data: string) => void) {
 		return this.okra.listen("notebook.log", fn);

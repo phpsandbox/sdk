@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 
 interface ReplOption {
 	prependWith?: string;
@@ -23,7 +23,7 @@ export interface ReplEvents {
 }
 
 export default class Repl {
-	constructor(protected okra: Okra) {}
+	constructor(protected okra: NotebookInstance) {}
 
 	public eval(code: string, args: string = "", repl: ReplOption = {prependWith: "", appendWith: ""}) {
 		return this.okra.invoke("repl.eval", {code, args, repl});

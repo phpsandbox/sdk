@@ -45,7 +45,7 @@ export class Transport {
             maxEnqueuedMessages: 0,
         });
 
-		this.eventEmitter = EventManager.make();
+		this.eventEmitter = EventManager.createInstance();
 		this.sendingAsBinary = !options.debug;
 
 		this.registerWatchers();
@@ -287,15 +287,5 @@ export class Transport {
 
     public onDidClose(listener: () => void): void {
         this.rws.addEventListener("close", listener);
-    }
-
-    private oncifyForSocket(listener: () => void, event: "open" | "close" | "error"): () => void {
-        const handler = () => {
-            Promise.resolve(listener()).then(() => {
-                this.rws.removeEventListener(event, handler);
-            });
-        };
-
-        return handler;
     }
 }

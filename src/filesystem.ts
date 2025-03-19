@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 import {ErrorEvent} from "./types";
 import {nanoid} from "nanoid";
 
@@ -404,7 +404,7 @@ export class FilesystemError extends ErrorEvent {
 class FilesystemSubscription {
 	public constructor(
 		private path: string,
-		private okra: Okra
+		private okra: NotebookInstance
 	) {}
 
 	public dispose(): void {
@@ -417,7 +417,7 @@ export class Filesystem {
 	private watches: Map<string, {options: WatchOptions; path: string; onDidChange: (e: FileChange) => void}> =
 		new Map();
 
-	public constructor(protected okra: Okra) {
+	public constructor(protected okra: NotebookInstance) {
 		this.watchOkraConnection();
 	}
 

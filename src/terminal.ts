@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 
 export interface Task {
 	id: string;
@@ -29,7 +29,7 @@ export interface TerminalActions {
 }
 
 export default class Terminal {
-	constructor(protected okra: Okra) {}
+	constructor(protected okra: NotebookInstance) {}
 
 	public list() {
 		return this.okra.invoke("terminal.list");

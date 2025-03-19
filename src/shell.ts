@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 
 export interface ShellEvents {}
 
@@ -25,7 +25,7 @@ class Result {
 }
 
 export default class Shell {
-	constructor(protected okra: Okra) {}
+	constructor(protected okra: NotebookInstance) {}
 
     public async exec(command: string): Promise<Result> {
         const result = await this.okra.invoke("shell.exec", {command});

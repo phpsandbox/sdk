@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 
 export interface Down {
 	except: string[];
@@ -17,7 +17,7 @@ export interface LaravelActions {
 }
 
 export default class Lravel {
-	constructor(protected okra: Okra) {}
+	constructor(protected okra: NotebookInstance) {}
 
 	public maintenanceInfo() {
 		return this.okra.invoke("laravel.maintenance.info", {});

@@ -1,4 +1,4 @@
-import Okra, {Action} from "./";
+import {Action, NotebookInstance} from "./";
 import {ErrorEvent} from "./types";
 
 export interface LspActions {
@@ -13,7 +13,7 @@ export interface LspEvents {
 }
 
 export default class Lsp {
-	constructor(protected okra: Okra) {}
+	constructor(protected okra: NotebookInstance) {}
 
 	public message(id: string, message: string) {
 		return this.okra.invoke("lsp.message", {id, message});
