@@ -372,8 +372,8 @@ export interface FilesystemActions {
 	"fs.move": Action<{from: string; to: string}, boolean>;
 	"fs.find": Action<{query: string; options: FileSearchOptions}, FileResult[]>;
 	"fs.textSearch": Action<{query: TextSearchQuery; options: TextSearchOptions}, [boolean, TextSearchMatch[]]>;
-	"fs.readFile": Action<{path: string}, string>;
-	"fs.writeFile": Action<{path: string; contents: string; options: FileWriteOptions}, void>;
+	"fs.readFile": Action<{path: string}, string | Uint8Array>;
+	"fs.writeFile": Action<{path: string; contents: Uint8Array; options: FileWriteOptions}, void>;
 	"fs.stat": Action<{path: string}, Stats>;
 	"fs.rename": Action<{from: string; to: string; options: FileOverwriteOptions}, void>;
 	"fs.delete": Action<{path: string; options: FileDeleteOptions}, void>;
@@ -434,7 +434,7 @@ export class Filesystem {
 	}
 
 	public write(path: string, contents: string): Promise<boolean> {
-		return this.okra.invoke("fs.write", {path, contents});
+		return this.okra.invoke("fs.write", {path, contents: contents});
 	}
 
 	public find(
@@ -500,13 +500,23 @@ export class Filesystem {
 	public readFile(path: string): Promise<Uint8Array> {
 		return this.okra
 			.invoke("fs.readFile", {path})
-			.then((content) => new TextEncoder().encode(content))
+            .then((content) => {
+                if (content instanceof Uint8Array) {
+                    return content;
+                }
+
+                return new TextEncoder().encode(content);
+            })
 			.catch((e) => this.handleError(e));
 	}
 
 	public writeFile(path: string, contents: Uint8Array, options: FileWriteOptions): Promise<void> {
 		return this.okra
-			.invoke("fs.writeFile", {path, contents: new TextDecoder().decode(contents), options})
+			.invoke("fs.writeFile", {
+                path,
+                contents,
+                options
+            })
 			.catch((e) => this.handleError(e));
 	}
 

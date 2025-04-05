@@ -1,4 +1,5 @@
 import {nanoid} from "nanoid";
+import { encode, decode } from "@msgpack/msgpack";
 import {ErrorEvent} from "../types";
 import retry from "async-retry";
 import ReconnectingWebSocket, { CloseEvent, ErrorEvent as WsErrorEvent } from "reconnecting-websocket";
@@ -56,30 +57,27 @@ export class Transport {
 	}
 
 	private async registerWatchers(): Promise<void> {
-        this.rws.addEventListener("message", (e) => {
-            this.handleRawMessage(e);
+        this.rws.addEventListener("message", (ev) => {
+            if (!(ev.data instanceof Blob)) {
+                throw new Error("Unexpected message type: " + typeof ev.data);
+            }
+
+            ev.data.arrayBuffer().then((buffer) => {
+                this.handleRawMessage(decode(buffer));
+            });
         });
 
 		window.addEventListener("beforeunload", this.disconnect.bind(this));
 		window.addEventListener("unload", this.disconnect.bind(this));
 	}
 
-    private async handleRawMessage(ev: MessageEvent<string | Blob | ArrayBuffer>): Promise<void> {
-        let jsonText = ev.data;
-        if (typeof jsonText === "string" && jsonText === "") {
+    private async handleRawMessage(ev: unknown): Promise<void> {
+        if (typeof ev !== "object" || ev === null) {
             return;
         }
 
-        if (jsonText instanceof ArrayBuffer) {
-            jsonText = new TextDecoder().decode(jsonText);
-        }
-
-        if (jsonText instanceof Blob) {
-            jsonText = await jsonText.text();
-        }
-
         try {
-            const {data, event, as} = JSON.parse(jsonText || "");
+            const {data, event, as} = ev as {data: any, event: string, as: string};
             if (event === SocketEvent.ClientId) {
                 this.clientId = data.id;
 
@@ -108,7 +106,7 @@ export class Transport {
 
             await this.handleMessage(event, data, as);
         } catch (e) {
-            console.log("Failed to parse message", {jsonText, ev, e, data: ev});
+            console.log("Failed to parse message", {ev, e, data: ev});
             console.error(e);
 
             throw e;
@@ -196,12 +194,6 @@ export class Transport {
 			this.listenOnce(responseEvent, resolve);
 			this.listenOnce(errorEvent, (e) => reject(new ErrorEvent(e.code, e.message, e)));
 
-			if (!this.isConnected) {
-				reject(brokenConnection);
-
-				return;
-			}
-
 			/**
 			 * We will only reject if the connection is broken and not that the connection was closed
 			 * by the user delibrately. This prevents unnecessary errors being thrown.
@@ -231,11 +223,7 @@ export class Transport {
 	}
 
     private pack(data: string | ArrayBuffer | Blob | object): string | Blob | ArrayBuffer {
-        if (typeof data === "object") {
-            data = JSON.stringify(data);
-        }
-
-        return this.sendingAsBinary ? new Blob([data]) : data;
+        return new Blob([encode(data)]);
     }
 
 	private async sendWithRetry(message: object, retries = 10): Promise<boolean> {

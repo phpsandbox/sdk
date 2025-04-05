@@ -144,13 +144,18 @@ export class NotebookApi {
     }
 }
 
+export interface PHPSandboxClientOptions {
+    debug?: boolean;
+}
 export class Client {
     public readonly http: AxiosInstance;
     public readonly notebook: NotebookApi;
+    public readonly options: PHPSandboxClientOptions;
 
-	public constructor(token: string, url: string = "https://api.phpsandbox.io/v1") {
+	public constructor(token: string, url: string = "https://api.phpsandbox.io/v1", options: PHPSandboxClientOptions = {}) {
         this.http = axios.create(defaultAxiosConfig(url, token));
         this.notebook = new NotebookApi(this);
+        this.options = options;
     }
 }
 
@@ -176,7 +181,9 @@ export class NotebookInstance {
     public readonly socket: Transport;
 
     public constructor(protected data: NotebookData, protected client: Client) {
-        this.socket = new Transport(data.okraUrl);
+        this.socket = new Transport(data.okraUrl, {
+            debug: client.options.debug
+        });
         this.watchConnection();
 
         this.file = new Filesystem(this);
