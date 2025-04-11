@@ -10,6 +10,7 @@ import Repl, {ReplActions, ReplEvents} from "./repl";
 import Shell, {ShellEvents, ShellActions} from "./shell";
 import {Transport} from "./socket";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
+import EventManager, { EventDispatcher } from "./events";
 
 export * from "./types";
 export * from "./lsp";
@@ -179,9 +180,11 @@ export class NotebookInstance {
     public readonly shell: Shell;
 
     public readonly socket: Transport;
+    public readonly emitter: EventDispatcher;
 
     public constructor(protected data: NotebookData, protected client: Client) {
-        this.socket = new Transport(data.okraUrl, {
+        this.emitter = EventManager.createInstance();
+        this.socket = new Transport(data.okraUrl, this.emitter, {
             debug: client.options.debug
         });
         this.watchConnection();
@@ -230,8 +233,8 @@ export class NotebookInstance {
         return this.invoke("ping");
     }
 
-	public listen<T extends keyof Events>(event: T, handler: (data: Events[T]) => void): void {
-		this.socket.listen(event as string, handler);
+	public listen<T extends keyof Events>(event: T, handler: (data: Events[T]) => void) {
+		return this.socket.listen(event as string, handler);
 	}
 
 	public dispose(): void {

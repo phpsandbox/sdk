@@ -7,3 +7,7 @@ export class ErrorEvent {
 		public readonly raw: object = {}
 	) {}
 }
+
+export interface Disposable {
+    dispose: () => void;
+}

@@ -1,11 +1,12 @@
 export interface EventDispatcher {
-    listen: (event: any, callback: (data: any) => void, context?: any) => void;
+    listen: (event: any, callback: (data: any) => void, context?: any) => Disposable;
     once: (event: any, callback: (data: any) => void, context?: any) => void;
     emit: (event: any, ...args: any) => void;
     removeListener: (event?: any, callbackSignature?: any) => void;
 }
 
 import mitt, {Emitter, EventHandlerMap, EventType, Handler} from "mitt";
+import { Disposable } from "../types";
 
 export function mittWithOnce<Events extends Record<EventType, unknown>>(all?: EventHandlerMap<Events>) {
     const inst = mitt(all);
@@ -23,8 +24,14 @@ let EE = mittWithOnce();
 export default class EventManager implements EventDispatcher {
     public static instance: EventDispatcher;
 
-    public listen(event: any, callback: (data: any) => void): void {
+    public listen(event: any, callback: (data: any) => void): Disposable {
+        const dispose = () => {
+            this.removeListener(event, callback);
+        };
+
         EE.on(event, callback);
+
+        return {dispose};
     }
 
     public emit(event: string, data: any): void {

@@ -27,8 +27,6 @@ export enum SocketEvent {
 }
 
 export class Transport {
-	private readonly eventEmitter: EventDispatcher;
-
 	private clientId: string = "";
 
 	private readonly sendingAsBinary: boolean = false;
@@ -37,7 +35,7 @@ export class Transport {
 
     private readonly rws: ReconnectingWebSocket;
 
-	public constructor(private readonly url: string, private readonly options: WsOptions = {}) {
+	public constructor(private readonly url: string, private readonly eventEmitter: EventDispatcher, private readonly options: WsOptions = {}) {
         this.rws = new ReconnectingWebSocket(this.url, [], {
             WebSocket: WebSocket,
             connectionTimeout: 1000,
@@ -46,7 +44,6 @@ export class Transport {
             maxEnqueuedMessages: 0,
         });
 
-		this.eventEmitter = EventManager.createInstance();
 		this.sendingAsBinary = !options.debug;
 
 		this.registerWatchers();
@@ -124,8 +121,8 @@ export class Transport {
 		event && this.eventEmitter.emit(as || event, data);
 	}
 
-	public listen(event: string, listener: (data: any) => void, context?: any): void {
-		this.eventEmitter.listen(event, listener);
+	public listen(event: string, listener: (data: any) => void, context?: any) {
+		return this.eventEmitter.listen(event, listener);
 	}
 
 	public removeListener(event: string, listener?: (data: any) => void): void {
