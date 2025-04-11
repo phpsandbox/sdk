@@ -3,7 +3,7 @@ import { encode, decode } from "@msgpack/msgpack";
 import {ErrorEvent} from "../types";
 import retry from "async-retry";
 import ReconnectingWebSocket, { CloseEvent, ErrorEvent as WsErrorEvent } from "reconnecting-websocket";
-import EventManager, { EventDispatcher } from "../events";
+import { EventDispatcher } from "../events";
 import { timeout } from "../utils/promise";
 
 interface WsOptions {
