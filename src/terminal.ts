@@ -1,5 +1,5 @@
 import {Action, Disposable, NotebookInstance} from "./";
-
+import { nanoid } from 'nanoid';
 export interface Task {
 	id: string;
 	command: string;
@@ -21,12 +21,21 @@ export interface TerminalSpawnInput {
     opts?: SpawnOptions;
 }
 
-export interface TerminalEvents {
+export interface TerminalEventData {
 	"terminal.output": {
 		output: string;
         id: string;
 	};
 	"terminal.started": Task;
+    "terminal.stopped": Task & { exitCode: number };
+    "terminal.close": Task & { exitCode: number };
+}
+
+type TerminalEventPattern = `${keyof TerminalEventData}.${string}`;
+export type TerminalEvents = TerminalEventData & {
+    [K in TerminalEventPattern]: K extends `terminal.output.${string}`
+        ? TerminalEventData["terminal.output"]
+        : Task & { exitCode: number };
 }
 
 export interface TerminalActions {
@@ -39,7 +48,7 @@ export interface TerminalActions {
     "terminal.close": Action<{id: string}, boolean>;
 }
 
-interface SandboxProcess {
+export interface SandboxProcess {
     exit: Promise<number>;
 
     input: WritableStream<string>;
@@ -65,6 +74,8 @@ export interface SpawnOptions {
         cols: number;
         rows: number;
     };
+
+    id?: string;
 }
 
 export default class Terminal {
@@ -98,16 +109,15 @@ export default class Terminal {
 		return this.okra.invoke("terminal.input", {id, input});
 	}
 
-	public listen<T extends keyof TerminalEvents>(event: T, handler: (data: TerminalEvents[T]) => void) {
+	public listen<T extends keyof TerminalEvents>(
+		event: T, 
+		handler: (data: TerminalEvents[T]) => void
+	): Disposable {
 		return this.okra.listen(event, handler);
 	}
 
-    public async spawn(command: string, args: string[], opts?: SpawnOptions): Promise<SandboxProcess> {
-        const result = await this.okra.invoke("terminal.spawn", {
-            command: [command, ...args],
-            opts,
-        });
-
+    public async spawn(command: string, args: string[], opts?: SpawnOptions): Promise<SandboxProcess & Task> {
+        const id = nanoid();
         const disposables = new Set<Disposable>();
         const dispose = () => {
             for (const disposable of disposables) {
@@ -118,7 +128,7 @@ export default class Terminal {
 
         const input = new WritableStream<string>({
             write: (chunk) => {
-                this.input(result.id, chunk);
+                this.input(id, chunk);
             },
             close: dispose,
         });
@@ -126,10 +136,8 @@ export default class Terminal {
         const output = new ReadableStream<string>({
             start: (controller) => {
                 disposables.add(
-                    this.listen(`terminal.output`, (data) => {
-                        if (data.id === result.id) {
-                            controller.enqueue(data.output);
-                        }
+                    this.listen(`terminal.output.${id}`, (data) => {
+                        controller.enqueue(data.output);
                     })
                 );
             },
@@ -137,22 +145,31 @@ export default class Terminal {
         });
 
         const exit = new Promise<number>((resolve) => {
-            this.listen("terminal.started", (data) => {
-                if (data.id === result.id) {
-                    resolve(0);
-                }
-            });
+            disposables.add(
+                this.listen(`terminal.close.${id}`, (data) => {
+                    dispose();
+                    resolve(data.exitCode);
+                })
+            );
         });
 
         const kill = () => {
             dispose();
 
-            this.okra.invoke("terminal.close", {id: result.id});
+            this.okra.invoke("terminal.close", {id});
         }
 
         const resize = (dimensions: {cols: number; rows: number}) => {
-            this.okra.invoke("terminal.resize", {id: result.id, width: dimensions.cols, height: dimensions.rows});
+            this.okra.invoke("terminal.resize", {id, width: dimensions.cols, height: dimensions.rows});
         }
+
+        const result = await this.okra.invoke("terminal.spawn", {
+            command: [command, ...args],
+            opts: {
+                ...opts,
+                id,
+            },
+        });
 
         return {
             exit,
@@ -160,6 +177,7 @@ export default class Terminal {
             output,
             kill,
             resize,
+            ...result,
         };
     }
 }

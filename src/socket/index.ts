@@ -29,8 +29,6 @@ export enum SocketEvent {
 export class Transport {
 	private clientId: string = "";
 
-	private readonly sendingAsBinary: boolean = false;
-
 	private closed = false;
 
     private readonly rws: ReconnectingWebSocket;
@@ -43,8 +41,6 @@ export class Transport {
             minReconnectionDelay: 200,
             maxEnqueuedMessages: 0,
         });
-
-		this.sendingAsBinary = !options.debug;
 
 		this.registerWatchers();
 	}
@@ -63,9 +59,6 @@ export class Transport {
                 this.handleRawMessage(decode(buffer));
             });
         });
-
-		window.addEventListener("beforeunload", this.disconnect.bind(this));
-		window.addEventListener("unload", this.disconnect.bind(this));
 	}
 
     private async handleRawMessage(ev: unknown): Promise<void> {
@@ -121,7 +114,7 @@ export class Transport {
 		event && this.eventEmitter.emit(as || event, data);
 	}
 
-	public listen(event: string, listener: (data: any) => void, context?: any) {
+	public listen(event: string, listener: (data: any) => void, _context?: any) {
 		return this.eventEmitter.listen(event, listener);
 	}
 
@@ -135,12 +128,6 @@ export class Transport {
 
 	public emit(event: string, ...data: any): void {
 		this.eventEmitter.emit(event, ...data);
-	}
-
-	public send(action: string, data: object | string, buffer = true): boolean {
-		this.rws.send(this.pack({action, data}));
-
-        return true;
 	}
 
 	public get isConnected(): boolean {
@@ -187,7 +174,7 @@ export class Transport {
 			this.eventEmitter.removeListener(errorEvent);
 		};
 
-		const handler = async (resolve, reject): Promise<void> => {
+		const handler = async (resolve: (value: any) => void, reject: (reason?: any) => void): Promise<void> => {
 			this.listenOnce(responseEvent, resolve);
 			this.listenOnce(errorEvent, (e) => reject(new ErrorEvent(e.code, e.message, e)));
 
@@ -196,7 +183,7 @@ export class Transport {
 			 * by the user delibrately. This prevents unnecessary errors being thrown.
 			 * A delibrate close, for example, is when the user closes the notebook or navigates away.
 			 */
-            closeHandler = (ev: CloseEvent|WsErrorEvent) => {
+            closeHandler = (_ev: CloseEvent|WsErrorEvent) => {
                 reject(brokenConnection);
             };
 
@@ -225,7 +212,7 @@ export class Transport {
 
 	private async sendWithRetry(message: object, retries = 10): Promise<boolean> {
 		return retry(
-			async (bail, retries) => {
+			async (_bail: (error: Error) => void, _retries: number) => {
 				/**
 				 * We don't want to buffer the message if we are retrying so that we will
 				 * not have same message sent multiple times to the server.
