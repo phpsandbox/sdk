@@ -17,6 +17,7 @@ export * from "./lsp";
 export * from "./filesystem";
 export * from "./container";
 export * from "./shell";
+export * from "./terminal";
 
 interface Result<T extends object> {
     type: "success" | "error" | "running";
@@ -182,6 +183,8 @@ export class NotebookInstance {
     public readonly socket: Transport;
     public readonly emitter: EventDispatcher;
 
+    public initialized: NotebookActions['notebook.init']['response'] | false = false;
+
     public constructor(protected data: NotebookData, protected client: Client) {
         this.emitter = EventManager.createInstance();
         this.socket = new Transport(data.okraUrl, this.emitter, {
@@ -213,21 +216,41 @@ export class NotebookInstance {
         return this.container.start();
     }
 
-    public call<T extends keyof Invokable>(
+    public async call<T extends keyof Invokable>(
 		action: T,
 		data: Invokable[T]["args"] = {},
 		options: CallOption = {}
 	): Promise<Invokable[T]["response"]> {
+        const result = await this.ensureInitialized();
+        if (result.type === "error") {
+            throw new NotebookInitError(result.message);
+        }
+
 		return this.socket.call(action, data || {}, options);
 	}
 
-	public invoke<T extends keyof Invokable>(
+	public async invoke<T extends keyof Invokable>(
 		action: T,
 		data: Invokable[T]["args"] = {},
 		options: CallOption = {}
 	): Promise<Invokable[T]["response"]> {
+        const result = await this.ensureInitialized();
+        if (result.type === "error") {
+            throw new NotebookInitError(result.message);
+        }
+
 		return this.socket.invoke(action, data || {}, options);
 	}
+
+    private async ensureInitialized(files: {[path: string]: string} = {}) {
+        await this.connected();
+
+        if (!this.initialized) {
+            this.initialized = (await this.socket.invoke("notebook.init", {files})) as NotebookActions['notebook.init']['response'];
+        }
+
+        return this.initialized;
+    }
 
     public ping() {
         return this.invoke("ping");
@@ -271,8 +294,14 @@ export class NotebookInstance {
 	}
 
 	private watchConnection(): void {
-        this.socket.onDidConnect(() => this.socket.emit("okra.connected"));
-        this.socket.onDidClose(() => this.socket.emit("okra.disconnected"));
+        this.socket.onDidConnect(() => {
+            this.socket.emit("okra.connected");
+        });
+
+        this.socket.onDidClose(() => {
+            this.socket.emit("okra.disconnected");
+            this.initialized = false;
+        });
 	}
 
 	public onDidConnect(handler: () => void): void {
@@ -285,10 +314,7 @@ export class NotebookInstance {
 	}
 
     public async init(files: {[path: string]: string} = {}) {
-		const result = await this.invoke("notebook.init", {files});
-		this.onDidConnect(this.init.bind(this));
-
-		return result;
+        return this.ensureInitialized(files);
 	}
 
 	public update() {
