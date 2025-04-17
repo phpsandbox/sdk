@@ -25,10 +25,11 @@ interface Result<T extends object> {
     data: T;
 }
 
+type NotebookInitResult = Result<{env: {name: string; value: string}[]; previewUrl: string}>;
 export interface NotebookActions {
     "notebook.init": Action<
         {force?: boolean; files: {[path: string]: string}},
-        Result<{env: {name: string; value: string}[]; previewUrl: string}>
+        NotebookInitResult
     >;
     "notebook.update": Action<null>;
 }
@@ -37,7 +38,7 @@ export interface NotebookEvents {
     "lsp.response": object;
     "lsp.close": {code: number; reason: string};
     "init.event": {message: string};
-    "notebook.initialized": null;
+    "notebook.initialized": NotebookInitResult;
 }
 
 export interface CallOption {
