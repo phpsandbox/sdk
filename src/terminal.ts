@@ -101,8 +101,8 @@ export default class Terminal {
 		return this.okra.invoke("terminal.resize", {id, width: size[0], height: size[1]});
 	}
 
-	public onOutput(handler: (data: TerminalEvents["terminal.output"]) => void): void {
-		this.okra.listen("terminal.output", handler);
+	public onOutput(id: string, handler: (data: TerminalEvents["terminal.output"]) => void): void {
+		this.okra.listen(`terminal.output.${id}`, handler);
 	}
 
 	public input(id: string, input: string) {
@@ -110,7 +110,7 @@ export default class Terminal {
 	}
 
 	public listen<T extends keyof TerminalEvents>(
-		event: T, 
+		event: T,
 		handler: (data: TerminalEvents[T]) => void
 	): Disposable {
 		return this.okra.listen(event, handler);
