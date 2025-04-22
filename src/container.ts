@@ -1,4 +1,4 @@
-import {Action, NotebookInstance} from "./";
+import {Action, Disposable, NotebookInstance} from "./";
 
 interface Stat {
 	usage: number;
@@ -29,7 +29,7 @@ export interface PortInfo {
 	subdomain: string;
 	url: string;
 	default: boolean;
-	port: number | null;
+	port: number;
 }
 
 export interface ContainerActions {
@@ -66,4 +66,24 @@ export default class Container {
 	public listen<T extends keyof ContainerEvents>(event: T, handler: (data: ContainerEvents[T]) => void): void {
 		this.okra.listen(event, handler);
 	}
+
+  public onPort(handler: (port: PortInfo, type: 'open' | 'close') => void): Disposable {
+    let ports: PortInfo[] = [];
+    const id = setInterval(async () => {
+      const newPorts = await this.openedPorts();
+      for (const port of newPorts) {
+        if (!ports.some(p => p.port === port.port)) {
+          handler(port, 'open');
+        }
+      }
+      for (const port of ports) {
+        if (!newPorts.some(p => p.port === port.port)) {
+          handler(port, 'close');
+        }
+      }
+      ports = newPorts;
+    }, 2000);
+
+    return { dispose: () => clearInterval(id) };
+  }
 }

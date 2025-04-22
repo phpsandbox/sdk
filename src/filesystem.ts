@@ -378,7 +378,7 @@ export interface FilesystemActions {
 	"fs.rename": Action<{from: string; to: string; options: FileOverwriteOptions}, void>;
 	"fs.delete": Action<{path: string; options: FileDeleteOptions}, void>;
 	"fs.copy": Action<{source: string; destination: string; options: FileOverwriteOptions}, void>;
-	"fs.readDirectory": Action<{path: string}, [string, FileType][]>;
+	"fs.readDirectory": Action<{path: string; include: string[]; exclude: string[]}, [string, FileType][]>;
 	"fs.createDirectory": Action<{path: string}, void>;
 	"fs.watch": Action<{path: string; options: WatchOptions}, void>;
 }
@@ -536,8 +536,8 @@ export class Filesystem {
 		return this.okra.invoke("fs.copy", {source, destination, options}).catch((e) => this.handleError(e));
 	}
 
-	public readDirectory(path: string): Promise<[string, FileType][]> {
-		return this.okra.invoke("fs.readDirectory", {path}).catch((e) => this.handleError(e));
+	public readDirectory(path: string, include: string[] = [], exclude: string[] = []): Promise<[string, FileType][]> {
+		return this.okra.invoke("fs.readDirectory", {path, include, exclude}).catch((e) => this.handleError(e));
 	}
 
 	public createDirectory(path: string): Promise<void> {
