@@ -76,6 +76,7 @@ export interface SpawnOptions {
     };
 
     id?: string;
+    osc?: boolean;
 }
 
 export default class Terminal {
