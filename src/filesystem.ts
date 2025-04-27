@@ -273,7 +273,7 @@ export interface TextSearchContext {
 
 export type TextSearchResult = TextSearchMatch | TextSearchContext;
 
-interface IRelativePattern {
+interface RelativePattern {
   /**
    * A base file path to which this pattern will be matched against relatively.
    */
@@ -309,7 +309,7 @@ interface WatchOptionsWithoutCorrelation {
    * resolved against the watched folder. Glob patterns are
    * always matched relative to the watched folder.
    */
-  includes?: Array<string | IRelativePattern>;
+  includes?: Array<string | RelativePattern>;
   /**
    * If provided, allows to filter the events that the watcher should consider
    * for emitting. If not provided, all events are emitted.
