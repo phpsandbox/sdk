@@ -2,7 +2,7 @@
 	"name": "@phpsandbox/sdk",
 	"private": true,
 	"version": "0.0.1",
-	"main": "src/index.ts",
+	"main": "src/index.js",
   "type": "module",
 	"dependencies": {
 		"@msgpack/msgpack": "^3.1.1",
