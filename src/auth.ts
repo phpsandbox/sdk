@@ -1,18 +1,18 @@
-import {Action, NotebookInstance} from "./index.js";
+import { Action, NotebookInstance } from './index.js';
 
 export interface AuthActions {
-	"auth.login": Action<{newConnectionData: string}, boolean>;
-	"auth.logout": Action<null>;
+  'auth.login': Action<{ newConnectionData: string }, boolean>;
+  'auth.logout': Action<null>;
 }
 
 export default class Auth {
-	constructor(protected okra: NotebookInstance) {}
+  constructor(protected okra: NotebookInstance) {}
 
-	public logout() {
-		return this.okra.invoke("auth.logout");
-	}
+  public logout() {
+    return this.okra.invoke('auth.logout');
+  }
 
-	public login(newConnectionData: string) {
-		return this.okra.invoke("auth.login", {newConnectionData});
-	}
+  public login(newConnectionData: string) {
+    return this.okra.invoke('auth.login', { newConnectionData });
+  }
 }

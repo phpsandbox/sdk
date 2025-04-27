@@ -1,59 +1,59 @@
-import { Filesystem, FilesystemActions } from './filesystem.js'
-import Terminal, { TerminalEvents, TerminalActions } from './terminal.js'
-import Container, { ContainerActions, ContainerEvents } from './container.js'
-import Auth, { AuthActions } from './auth.js'
-import Lsp, { LspActions, LspEvents } from './lsp.js'
-import Composer, { ComposerActions, ComposerEvents } from './composer.js'
-import Log, { LogActions, LogEvents } from './log.js'
-import Laravel, { LaravelActions, LaravelEvents } from './laravel.js'
-import Repl, { ReplActions, ReplEvents } from './repl.js'
-import Shell, { ShellEvents, ShellActions } from './shell.js'
-import { Transport } from './socket/index.js'
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios'
-import EventManager, { EventDispatcher } from './events/index.js'
+import { Filesystem, FilesystemActions } from './filesystem.js';
+import Terminal, { TerminalEvents, TerminalActions } from './terminal.js';
+import Container, { ContainerActions, ContainerEvents } from './container.js';
+import Auth, { AuthActions } from './auth.js';
+import Lsp, { LspActions, LspEvents } from './lsp.js';
+import Composer, { ComposerActions, ComposerEvents } from './composer.js';
+import Log, { LogActions, LogEvents } from './log.js';
+import Laravel, { LaravelActions, LaravelEvents } from './laravel.js';
+import Repl, { ReplActions, ReplEvents } from './repl.js';
+import Shell, { ShellEvents, ShellActions } from './shell.js';
+import { Transport } from './socket/index.js';
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import EventManager, { EventDispatcher } from './events/index.js';
 
-export * from './types.js'
-export * from './lsp.js'
-export * from './filesystem.js'
-export * from './container.js'
-export * from './shell.js'
-export * from './terminal.js'
+export * from './types.js';
+export * from './lsp.js';
+export * from './filesystem.js';
+export * from './container.js';
+export * from './shell.js';
+export * from './terminal.js';
 
 interface Result<T extends object> {
-  type: 'success' | 'error' | 'running'
-  message: string
-  data: T
+  type: 'success' | 'error' | 'running';
+  message: string;
+  data: T;
 }
 
-type NotebookInitResult = Result<{ env: { name: string; value: string }[]; previewUrl: string }>
+type NotebookInitResult = Result<{ env: { name: string; value: string }[]; previewUrl: string }>;
 export interface NotebookActions {
   'notebook.init': Action<
     { force?: boolean; files: { [path: string]: string } },
     NotebookInitResult
-  >
-  'notebook.update': Action<null>
+  >;
+  'notebook.update': Action<null>;
 }
 
 export interface NotebookEvents {
-  'lsp.response': object
-  'lsp.close': { code: number; reason: string }
-  'init.event': { message: string }
-  'notebook.initialized': NotebookInitResult
+  'lsp.response': object;
+  'lsp.close': { code: number; reason: string };
+  'init.event': { message: string };
+  'notebook.initialized': NotebookInitResult;
 }
 
 export interface CallOption {
-  responseEvent?: string
-  timeout?: number
+  responseEvent?: string;
+  timeout?: number;
 }
 
 export interface OkraError {
-  code: number
-  message: string
+  code: number;
+  message: string;
 }
 
 export interface Action<Args = object, Response = null> {
-  args: Args
-  response: Response
+  args: Args;
+  response: Response;
 }
 
 export type Events = TerminalEvents &
@@ -64,10 +64,10 @@ export type Events = TerminalEvents &
   LaravelEvents &
   NotebookEvents &
   ReplEvents &
-  ShellEvents
+  ShellEvents;
 
 interface SystemActions {
-  ping: Action<object, 'pong'>
+  ping: Action<object, 'pong'>;
 }
 
 export type Invokable = SystemActions &
@@ -81,7 +81,7 @@ export type Invokable = SystemActions &
   LogActions &
   NotebookActions &
   ReplActions &
-  ShellActions
+  ShellActions;
 
 const defaultAxiosConfig = (baseURL: string, token: string): AxiosRequestConfig => ({
   /**
@@ -95,16 +95,16 @@ const defaultAxiosConfig = (baseURL: string, token: string): AxiosRequestConfig 
     Accept: 'application/json',
     Authorization: `Bearer ${token}`,
   },
-})
+});
 
 export interface CreateNotebookInput {
-  title: string
-  visibility: 'public' | 'private' | 'unlisted'
+  title: string;
+  visibility: 'public' | 'private' | 'unlisted';
 }
 
 class NotebookInitError extends Error {
   constructor(public message: string) {
-    super(message)
+    super(message);
   }
 }
 
@@ -116,127 +116,127 @@ export class NotebookApi {
     input: Partial<CreateNotebookInput> = {},
     init = true
   ): Promise<NotebookInstance> {
-    const response = await this.client.http.post<NotebookData>('/notebook', { template, ...input })
-    const instance = new NotebookInstance(response.data, this.client)
+    const response = await this.client.http.post<NotebookData>('/notebook', { template, ...input });
+    const instance = new NotebookInstance(response.data, this.client);
 
     if (!init) {
-      return instance
+      return instance;
     }
 
-    return this.init(instance)
+    return this.init(instance);
   }
 
   public async get(id: string): Promise<NotebookInstance> {
-    const response = await this.client.http.get<NotebookData>(`/notebook/${id}`)
+    const response = await this.client.http.get<NotebookData>(`/notebook/${id}`);
 
-    return new NotebookInstance(response.data, this.client)
+    return new NotebookInstance(response.data, this.client);
   }
 
   public async fork(id: string): Promise<NotebookInstance> {
-    const response = await this.client.http.post<NotebookData>(`/notebook/${id}/fork`)
+    const response = await this.client.http.post<NotebookData>(`/notebook/${id}/fork`);
 
-    return this.init(new NotebookInstance(response.data, this.client))
+    return this.init(new NotebookInstance(response.data, this.client));
   }
 
   public async open(id: string): Promise<NotebookInstance> {
-    const response = await this.client.http.get<NotebookData>(`/notebook/${id}`)
+    const response = await this.client.http.get<NotebookData>(`/notebook/${id}`);
 
-    return this.init(new NotebookInstance(response.data, this.client))
+    return this.init(new NotebookInstance(response.data, this.client));
   }
 
   public openFromData(data: NotebookData): Promise<NotebookInstance> {
-    return this.init(new NotebookInstance(data, this.client))
+    return this.init(new NotebookInstance(data, this.client));
   }
 
   private async init(instance: NotebookInstance): Promise<NotebookInstance> {
-    await instance.connected()
+    await instance.connected();
 
-    const result = await instance.init()
+    const result = await instance.init();
     if (result.type === 'error') {
-      throw new NotebookInitError(result.message)
+      throw new NotebookInitError(result.message);
     }
 
-    return instance
+    return instance;
   }
 }
 
 export interface PHPSandboxClientOptions {
-  debug?: boolean
-  startClosed?: boolean
+  debug?: boolean;
+  startClosed?: boolean;
 }
 export class Client {
-  public readonly http: AxiosInstance
-  public readonly notebook: NotebookApi
-  public readonly options: PHPSandboxClientOptions
+  public readonly http: AxiosInstance;
+  public readonly notebook: NotebookApi;
+  public readonly options: PHPSandboxClientOptions;
 
   public constructor(
     token: string,
     url: string = 'https://api.phpsandbox.io/v1',
     options: PHPSandboxClientOptions = {}
   ) {
-    this.http = axios.create(defaultAxiosConfig(url, token))
-    this.notebook = new NotebookApi(this)
-    this.options = options
+    this.http = axios.create(defaultAxiosConfig(url, token));
+    this.notebook = new NotebookApi(this);
+    this.options = options;
   }
 }
 
 export class PHPSandbox extends Client {}
 
 export interface NotebookData {
-  id: string
-  okraUrl: string
+  id: string;
+  okraUrl: string;
 }
 
 export class NotebookInstance {
-  public readonly file: Filesystem
-  public readonly terminal: Terminal
-  public readonly auth: Auth
-  public readonly lsp: Lsp
-  public readonly composer: Composer
-  public readonly log: Log
-  public readonly repl: Repl
-  public readonly container: Container
-  public readonly laravel: Laravel
-  public readonly shell: Shell
+  public readonly file: Filesystem;
+  public readonly terminal: Terminal;
+  public readonly auth: Auth;
+  public readonly lsp: Lsp;
+  public readonly composer: Composer;
+  public readonly log: Log;
+  public readonly repl: Repl;
+  public readonly container: Container;
+  public readonly laravel: Laravel;
+  public readonly shell: Shell;
 
-  public readonly socket: Transport
-  public readonly emitter: EventDispatcher
+  public readonly socket: Transport;
+  public readonly emitter: EventDispatcher;
 
-  public initialized: NotebookActions['notebook.init']['response'] | false = false
+  public initialized: NotebookActions['notebook.init']['response'] | false = false;
 
   public constructor(
     public readonly data: NotebookData,
     protected client: Client
   ) {
-    this.emitter = EventManager.createInstance()
+    this.emitter = EventManager.createInstance();
     this.socket = new Transport(data.okraUrl, this.emitter, {
       debug: client.options.debug,
       startClosed: client.options.startClosed,
-    })
-    this.watchConnection()
+    });
+    this.watchConnection();
 
-    this.file = new Filesystem(this)
-    this.terminal = new Terminal(this)
-    this.auth = new Auth(this)
-    this.lsp = new Lsp(this)
-    this.composer = new Composer(this)
-    this.log = new Log(this)
-    this.repl = new Repl(this)
-    this.container = new Container(this)
-    this.laravel = new Laravel(this)
-    this.shell = new Shell(this)
+    this.file = new Filesystem(this);
+    this.terminal = new Terminal(this);
+    this.auth = new Auth(this);
+    this.lsp = new Lsp(this);
+    this.composer = new Composer(this);
+    this.log = new Log(this);
+    this.repl = new Repl(this);
+    this.container = new Container(this);
+    this.laravel = new Laravel(this);
+    this.shell = new Shell(this);
   }
 
   public fork(): Promise<NotebookInstance> {
-    return this.client.notebook.fork(this.data.id)
+    return this.client.notebook.fork(this.data.id);
   }
 
   public stop(): Promise<void> {
-    return this.container.stop()
+    return this.container.stop();
   }
 
   public restart(): Promise<void> {
-    return this.container.start()
+    return this.container.start();
   }
 
   public async call<T extends keyof Invokable>(
@@ -244,12 +244,12 @@ export class NotebookInstance {
     data: Invokable[T]['args'] = {},
     options: CallOption = {}
   ): Promise<Invokable[T]['response']> {
-    const result = await this.ensureInitialized()
+    const result = await this.ensureInitialized();
     if (result.type === 'error') {
-      throw new NotebookInitError(result.message)
+      throw new NotebookInitError(result.message);
     }
 
-    return this.socket.call(action, data || {}, options)
+    return this.socket.call(action, data || {}, options);
   }
 
   public async invoke<T extends keyof Invokable>(
@@ -257,96 +257,96 @@ export class NotebookInstance {
     data: Invokable[T]['args'] = {},
     options: CallOption = {}
   ): Promise<Invokable[T]['response']> {
-    const result = await this.ensureInitialized()
+    const result = await this.ensureInitialized();
     if (result.type === 'error') {
-      throw new NotebookInitError(result.message)
+      throw new NotebookInitError(result.message);
     }
 
-    return this.socket.invoke(action, data || {}, options)
+    return this.socket.invoke(action, data || {}, options);
   }
 
   private async ensureInitialized(files: { [path: string]: string } = {}) {
-    await this.connected()
+    await this.connected();
 
     if (!this.initialized) {
       this.initialized = (await this.socket.invoke('notebook.init', {
         files,
-      })) as NotebookActions['notebook.init']['response']
+      })) as NotebookActions['notebook.init']['response'];
     }
 
-    return this.initialized
+    return this.initialized;
   }
 
   public ping() {
-    return this.invoke('ping')
+    return this.invoke('ping');
   }
 
   public listen<T extends keyof Events>(event: T, handler: (data: Events[T]) => void) {
-    return this.socket.listen(event as string, handler)
+    return this.socket.listen(event as string, handler);
   }
 
   public dispose(): void {
-    this.socket.disconnect()
+    this.socket.disconnect();
   }
 
   public connected(): Promise<NotebookInstance> {
     if (this.socket.isConnected) {
-      return Promise.resolve(this)
+      return Promise.resolve(this);
     }
 
     return new Promise((resolve, reject) => {
       try {
-        this.socket.onDidConnect(() => resolve(this))
-        this.socket.onDidClose(() => reject(new Error('Connection closed')))
+        this.socket.onDidConnect(() => resolve(this));
+        this.socket.onDidClose(() => reject(new Error('Connection closed')));
       } catch (e) {
-        reject(e)
+        reject(e);
       }
-    })
+    });
   }
 
   public whenConnected(): Promise<NotebookInstance> {
     if (this.socket.isConnected) {
-      return Promise.resolve(this)
+      return Promise.resolve(this);
     }
 
     return new Promise((resolve, reject) => {
       try {
-        this.socket.onDidConnect(() => resolve(this))
+        this.socket.onDidConnect(() => resolve(this));
       } catch (e) {
-        reject(e)
+        reject(e);
       }
-    })
+    });
   }
 
   private watchConnection(): void {
     this.socket.onDidConnect(() => {
-      this.socket.emit('okra.connected')
-    })
+      this.socket.emit('okra.connected');
+    });
 
     this.socket.onDidClose(() => {
-      this.socket.emit('okra.disconnected')
-      this.initialized = false
-    })
+      this.socket.emit('okra.disconnected');
+      this.initialized = false;
+    });
   }
 
   public onDidConnect(handler: () => void): void {
-    this.socket.removeListener('okra.connected', handler)
-    this.socket.listen('okra.connected', handler)
+    this.socket.removeListener('okra.connected', handler);
+    this.socket.listen('okra.connected', handler);
   }
 
   public onDidDisconnect(handler: () => void): void {
-    this.socket.listen('okra.disconnected', handler)
+    this.socket.listen('okra.disconnected', handler);
   }
 
   public async init(files: { [path: string]: string } = {}) {
-    return this.ensureInitialized(files)
+    return this.ensureInitialized(files);
   }
 
   public update() {
-    return this.invoke('notebook.update')
+    return this.invoke('notebook.update');
   }
 
   public onDidInitialize(handler: () => void) {
-    this.listen('notebook.initialized', handler)
+    this.listen('notebook.initialized', handler);
   }
 }

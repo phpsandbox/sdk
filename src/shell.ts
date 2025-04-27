@@ -1,35 +1,41 @@
-import {Action, NotebookInstance} from "./index.js";
+import { Action, NotebookInstance } from './index.js';
 
 export interface ShellEvents {}
 
 export interface ShellActions {
-	"shell.exec": Action<{command: string}, {output: string, exitCode: number}>;
+  'shell.exec': Action<{ command: string }, { output: string; exitCode: number }>;
 }
 
 export class CommandError extends Error {
-    constructor(public output: string, public exitCode: number) {
-        super(output);
-    }
+  constructor(
+    public output: string,
+    public exitCode: number
+  ) {
+    super(output);
+  }
 }
 
 class Result {
-    constructor(public output: string, public exitCode: number) {}
+  constructor(
+    public output: string,
+    public exitCode: number
+  ) {}
 
-    public throw() {
-        if (this.exitCode !== 0) {
-            throw new CommandError(this.output, this.exitCode);
-        }
-
-        return this;
+  public throw() {
+    if (this.exitCode !== 0) {
+      throw new CommandError(this.output, this.exitCode);
     }
+
+    return this;
+  }
 }
 
 export default class Shell {
-	constructor(protected okra: NotebookInstance) {}
+  constructor(protected okra: NotebookInstance) {}
 
-    public async exec(command: string): Promise<Result> {
-        const result = await this.okra.invoke("shell.exec", {command});
+  public async exec(command: string): Promise<Result> {
+    const result = await this.okra.invoke('shell.exec', { command });
 
-        return new Result(result.output, result.exitCode);
-    }
+    return new Result(result.output, result.exitCode);
+  }
 }
