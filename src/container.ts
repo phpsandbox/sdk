@@ -1,4 +1,4 @@
-import {Action, Disposable, NotebookInstance} from "./";
+import {Action, Disposable, NotebookInstance} from "./index.js";
 
 interface Stat {
 	usage: number;

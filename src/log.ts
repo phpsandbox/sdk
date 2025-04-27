@@ -1,4 +1,4 @@
-import {Action, NotebookInstance} from "./";
+import {NotebookInstance} from "./index.js";
 
 export interface LogEvents {
 	"notebook.log": string;

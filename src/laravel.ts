@@ -1,4 +1,4 @@
-import {Action, NotebookInstance} from "./";
+import {Action, NotebookInstance} from "./index.js";
 
 export interface Down {
 	except: string[];

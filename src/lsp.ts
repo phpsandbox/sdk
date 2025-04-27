@@ -1,5 +1,5 @@
-import {Action, NotebookInstance} from "./";
-import {ErrorEvent} from "./types";
+import {Action, NotebookInstance} from "./index.js";
+import {ErrorEvent} from "./types.js";
 
 export interface LspActions {
 	"lsp.message": Action<{message: string; id: string}>;

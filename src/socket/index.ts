@@ -1,13 +1,15 @@
 import {nanoid} from "nanoid";
 import { encode, decode } from "@msgpack/msgpack";
-import {ErrorEvent} from "../types";
+import {ErrorEvent} from "../types.js";
 import retry from "async-retry";
 import ReconnectingWebSocket, { CloseEvent, ErrorEvent as WsErrorEvent } from "reconnecting-websocket";
-import { EventDispatcher } from "../events";
-import { timeout } from "../utils/promise";
+import { EventDispatcher } from "../events/index.js";
+import { timeout } from "../utils/promise.js";
+import WebSocket from "isomorphic-ws";
 
 interface WsOptions {
     debug?: boolean;
+    startClosed?: boolean;
 }
 
 export interface CallOption {
@@ -31,15 +33,18 @@ export class Transport {
 
 	private closed = false;
 
-    private readonly rws: ReconnectingWebSocket;
+  // @ts-expect-error
+  private readonly rws: ReconnectingWebSocket;
 
 	public constructor(private readonly url: string, private readonly eventEmitter: EventDispatcher, private readonly options: WsOptions = {}) {
+    // @ts-expect-error
         this.rws = new ReconnectingWebSocket(this.url, [], {
-            WebSocket: WebSocket,
+            WebSocket,
             connectionTimeout: 1000,
             maxReconnectionDelay: 2000,
             minReconnectionDelay: 200,
             maxEnqueuedMessages: 0,
+            startClosed: options.startClosed,
         });
 
 		this.registerWatchers();
@@ -50,12 +55,12 @@ export class Transport {
 	}
 
 	private async registerWatchers(): Promise<void> {
-        this.rws.addEventListener("message", (ev) => {
+        this.rws.addEventListener("message", (ev: MessageEvent) => {
             if (!(ev.data instanceof Blob)) {
                 throw new Error("Unexpected message type: " + typeof ev.data);
             }
 
-            ev.data.arrayBuffer().then((buffer) => {
+            ev.data.arrayBuffer().then((buffer: ArrayBuffer) => {
                 this.handleRawMessage(decode(buffer));
             });
         });
@@ -152,7 +157,7 @@ export class Transport {
             1: "OPEN",
             2: "CLOSING",
             3: "CLOSED",
-        }[this.rws.readyState]
+        }[this.rws.readyState as unknown as number]
 	}
 
 	public async call(action: string, data: object | string = {}, options: CallOption = {}): Promise<any> {
@@ -192,7 +197,7 @@ export class Transport {
 
 			try {
 				const retries = options.retries || 10;
-				await this.sendWithRetry({action, data, errorEvent, responseEvent}, retries);
+				this.sendWithRetry({action, data, errorEvent, responseEvent}, retries);
 			} catch (e) {
 				reject(e);
 			}
@@ -210,14 +215,14 @@ export class Transport {
         return new Blob([encode(data)]);
     }
 
-	private async sendWithRetry(message: object, retries = 10): Promise<boolean> {
-		return retry(
-			async (_bail: (error: Error) => void, _retries: number) => {
+	private sendWithRetry(message: object, retries = 10): void {
+		retry(
+			(_bail: (error: Error) => void, _retries: number) => {
 				/**
 				 * We don't want to buffer the message if we are retrying so that we will
 				 * not have same message sent multiple times to the server.
 				 */
-                this.rws.send(this.pack(message));
+				this.rws.send(this.pack(message));
 			},
 			{
 				retries,

@@ -1,5 +1,5 @@
-import {Action, NotebookInstance} from "./";
-import {ErrorEvent} from "./types";
+import type {Action, NotebookInstance} from "./index.js";
+import {ErrorEvent} from "./types.js";
 import {nanoid} from "nanoid";
 
 export interface FileInfo {
