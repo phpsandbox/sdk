@@ -27,10 +27,7 @@ interface Result<T extends object> {
 
 type NotebookInitResult = Result<{ env: { name: string; value: string }[]; previewUrl: string }>;
 export interface NotebookActions {
-  'notebook.init': Action<
-    { force?: boolean; files: { [path: string]: string } },
-    NotebookInitResult
-  >;
+  'notebook.init': Action<{ force?: boolean; files: { [path: string]: string } }, NotebookInitResult>;
   'notebook.update': Action<null>;
 }
 
@@ -111,11 +108,7 @@ class NotebookInitError extends Error {
 export class NotebookApi {
   public constructor(private readonly client: Client) {}
 
-  public async create(
-    template: string,
-    input: Partial<CreateNotebookInput> = {},
-    init = true
-  ): Promise<NotebookInstance> {
+  public async create(template: string, input: Partial<CreateNotebookInput> = {}, init = true): Promise<NotebookInstance> {
     const response = await this.client.http.post<NotebookData>('/notebook', { template, ...input });
     const instance = new NotebookInstance(response.data, this.client);
 
@@ -169,11 +162,8 @@ export class Client {
   public readonly notebook: NotebookApi;
   public readonly options: PHPSandboxClientOptions;
 
-  public constructor(
-    token: string,
-    url: string = 'https://api.phpsandbox.io/v1',
-    options: PHPSandboxClientOptions = {}
-  ) {
+  public constructor(token: string, url: string = 'https://api.phpsandbox.io/v1', options: PHPSandboxClientOptions = {}) {
+    console.log('constructor', token, url, options);
     this.http = axios.create(defaultAxiosConfig(url, token));
     this.notebook = new NotebookApi(this);
     this.options = options;
