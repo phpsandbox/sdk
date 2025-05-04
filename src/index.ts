@@ -163,7 +163,6 @@ export class Client {
   public readonly options: PHPSandboxClientOptions;
 
   public constructor(token: string, url: string = 'https://api.phpsandbox.io/v1', options: PHPSandboxClientOptions = {}) {
-    console.log('constructor', token, url, options);
     this.http = axios.create(defaultAxiosConfig(url, token));
     this.notebook = new NotebookApi(this);
     this.options = options;
