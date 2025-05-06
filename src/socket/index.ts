@@ -2,10 +2,7 @@ import { nanoid } from 'nanoid';
 import { encode, decode } from '@msgpack/msgpack';
 import { ErrorEvent } from '../types.js';
 import retry from 'async-retry';
-import ReconnectingWebSocket, {
-  CloseEvent,
-  ErrorEvent as WsErrorEvent,
-} from 'reconnecting-websocket';
+import ReconnectingWebSocket, { CloseEvent, ErrorEvent as WsErrorEvent } from 'reconnecting-websocket';
 import { EventDispatcher } from '../events/index.js';
 import { timeout } from '../utils/promise.js';
 import WebSocket from 'isomorphic-ws';
@@ -44,6 +41,9 @@ export class Transport {
     private readonly eventEmitter: EventDispatcher,
     private readonly options: WsOptions = {}
   ) {
+    // Always start closed by default (lazy initialization)
+    const startClosed = options.startClosed !== false;
+
     // @ts-expect-error
     this.rws = new ReconnectingWebSocket(this.url, [], {
       WebSocket,
@@ -51,10 +51,35 @@ export class Transport {
       maxReconnectionDelay: 2000,
       minReconnectionDelay: 200,
       maxEnqueuedMessages: 0,
-      startClosed: options.startClosed,
+      startClosed,
     });
 
     this.registerWatchers();
+  }
+
+  /**
+   * Explicitly connect to the websocket if not already connected
+   * Used for lazy initialization
+   */
+  #connect(): Promise<void> {
+    if (this.isConnected) {
+      return Promise.resolve();
+    }
+
+    // Open the connection if it's closed
+    if (this.rws.readyState === 3) {
+      // CLOSED
+      this.rws.reconnect();
+    }
+
+    // Return a promise that resolves when the connection is open
+    return new Promise((resolve) => {
+      const openHandler = () => {
+        this.rws.removeEventListener('open', openHandler);
+        resolve();
+      };
+      this.rws.addEventListener('open', openHandler);
+    });
   }
 
   public id(): string {
@@ -167,11 +192,10 @@ export class Transport {
     }[this.rws.readyState as unknown as number];
   }
 
-  public async call(
-    action: string,
-    data: object | string = {},
-    options: CallOption = {}
-  ): Promise<any> {
+  public async call(action: string, data: object | string = {}, options: CallOption = {}): Promise<any> {
+    // Ensure connection is established before making calls
+    await this.#connect();
+
     /**
      * We only want to wait for response if the send is successful
      */
@@ -190,10 +214,7 @@ export class Transport {
       this.eventEmitter.removeListener(errorEvent);
     };
 
-    const handler = async (
-      resolve: (value: any) => void,
-      reject: (reason?: any) => void
-    ): Promise<void> => {
+    const handler = async (resolve: (value: any) => void, reject: (reason?: any) => void): Promise<void> => {
       this.listenOnce(responseEvent, resolve);
       this.listenOnce(errorEvent, (e) => reject(new ErrorEvent(e.code, e.message, e)));
 
@@ -250,11 +271,7 @@ export class Transport {
     );
   }
 
-  public invoke(
-    action: string,
-    data: object | string = {},
-    options: CallOption = {}
-  ): Promise<any> {
+  public invoke(action: string, data: object | string = {}, options: CallOption = {}): Promise<any> {
     if (!options.responseEvent) {
       options.responseEvent = `${action}_${nanoid()}`;
     }

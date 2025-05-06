@@ -142,8 +142,6 @@ export class NotebookApi {
   }
 
   private async init(instance: NotebookInstance): Promise<NotebookInstance> {
-    await instance.connected();
-
     const result = await instance.init();
     if (result.type === 'error') {
       throw new NotebookInitError(result.message);
@@ -255,8 +253,6 @@ export class NotebookInstance {
   }
 
   private async ensureInitialized(files: { [path: string]: string } = {}) {
-    await this.connected();
-
     if (!this.initialized) {
       this.initialized = (await this.socket.invoke('notebook.init', {
         files,
