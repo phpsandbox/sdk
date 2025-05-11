@@ -142,8 +142,10 @@ export class NotebookApi {
     return this.init(new NotebookInstance(data, this.client));
   }
 
-  private init(instance: NotebookInstance): Promise<NotebookInstance> {
-    return instance.ready();
+  private async init(instance: NotebookInstance): Promise<NotebookInstance> {
+    await instance.ready();
+
+    return instance;
   }
 }
 
@@ -159,7 +161,7 @@ export class Client {
   public constructor(token: string, url: string = 'https://api.phpsandbox.io/v1', options: PHPSandboxClientOptions = {}) {
     this.http = axios.create(defaultAxiosConfig(url, token));
     this.notebook = new NotebookApi(this);
-    this.options = Object.assign({startClosed: true}, options);
+    this.options = Object.assign({ startClosed: true }, options);
   }
 }
 
@@ -220,11 +222,11 @@ export class NotebookInstance {
      * socket to connect if it hasn't already done that.
      */
     if (this.client.options.startClosed) {
-        /**
-         * We are using the socket directly instead of invoke so we don't
-         * cause a case of circular dependency.
-         */
-        await this.socket.invoke('ping');
+      /**
+       * We are using the socket directly instead of invoke so we don't
+       * cause a case of circular dependency.
+       */
+      await this.socket.invoke('ping');
     }
 
     return this.#initPromise;
@@ -242,14 +244,12 @@ export class NotebookInstance {
     return this.container.start();
   }
 
-  public async invoke<T extends keyof Invokable>(
+  public invoke<T extends keyof Invokable>(
     action: T,
     data: Invokable[T]['args'] = {},
     options: CallOption = {}
   ): Promise<Invokable[T]['response']> {
-    await this.#initPromise;
-
-    return this.socket.invoke(action, data || {}, options);
+    return this.#initPromise.then(() => this.socket.invoke(action, data || {}, options));
   }
 
   public ping() {
