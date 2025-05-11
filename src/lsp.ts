@@ -1,5 +1,4 @@
 import { Action, NotebookInstance } from './index.js';
-import { ErrorEvent } from './types.js';
 
 export interface LspActions {
   'lsp.message': Action<{ message: string; id: string }>;
@@ -7,10 +6,16 @@ export interface LspActions {
   'lsp.start': Action<{ id: string }>;
 }
 
-export interface LspEvents {
+interface LspEventData {
   'lsp.response': object;
-  'lsp.close': { code: number; reason: string };
+  'lsp.closed': { code: number; reason: string };
+  'lsp.error': { message: string };
 }
+
+type PrefixKey<K extends keyof LspEventData> = `${K}.${string}`;
+export type LspEvents = LspEventData & {
+  [K in keyof LspEventData as PrefixKey<K>]: LspEventData[K];
+};
 
 export default class Lsp {
   constructor(protected okra: NotebookInstance) {}
@@ -19,18 +24,16 @@ export default class Lsp {
     return this.okra.invoke('lsp.message', { id, message });
   }
 
-  public listen(id: string, event: string, cb: (data: any) => void) {
-    this.okra.socket.listen(`${event}.${id}`, cb);
+  public listen<T extends keyof LspEventData>(id: string, event: T, cb: (data: LspEventData[T]) => void) {
+    this.okra.listen(`${event}.${id}`, (e) => cb(e as LspEventData[T]));
   }
 
   public onClose(id: string, cb: (code: number, reason: string) => void): void {
-    this.okra.socket.listen(`lsp.closed.${id}`, (e: { code: number; message: string }) =>
-      cb(e.code, e.message)
-    );
+    this.listen(id, 'lsp.closed', (e) => cb(e.code, e.reason));
   }
 
   public onError(id: string, cb: (message: string) => void): void {
-    this.okra.socket.listen(`lsp.error.${id}`, (e: ErrorEvent) => cb(e.message));
+    this.listen(id, 'lsp.error', (e) => cb(e.message));
   }
 
   public onClientDisconnect(cb: (code: number, message: string) => void): void {
@@ -38,7 +41,7 @@ export default class Lsp {
   }
 
   public onResponse(id: string, cb: (data: string) => void): void {
-    this.okra.socket.listen(`lsp.response.${id}`, (e) => cb(JSON.stringify(e)));
+    this.listen(id, 'lsp.response', (e) => cb(JSON.stringify(e)));
   }
 
   public close(id: string) {

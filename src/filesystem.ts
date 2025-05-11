@@ -1,4 +1,4 @@
-import type { Action, NotebookInstance } from './index.js';
+import type { Action, Disposable, NotebookInstance } from './index.js';
 import { ErrorEvent } from './types.js';
 import { nanoid } from 'nanoid';
 
@@ -371,23 +371,31 @@ export interface FilesystemActions {
   'fs.remove': Action<{ path: string; type: 'file' | 'directory' }, boolean>;
   'fs.move': Action<{ from: string; to: string }, boolean>;
   'fs.find': Action<{ query: string; options: FileSearchOptions }, FileResult[]>;
-  'fs.textSearch': Action<
-    { query: TextSearchQuery; options: TextSearchOptions },
-    [boolean, TextSearchMatch[]]
-  >;
+  'fs.textSearch': Action<{ query: TextSearchQuery; options: TextSearchOptions }, [boolean, TextSearchMatch[]]>;
   'fs.readFile': Action<{ path: string }, string | Uint8Array>;
   'fs.writeFile': Action<{ path: string; contents: Uint8Array; options: FileWriteOptions }, void>;
   'fs.stat': Action<{ path: string }, Stats>;
   'fs.rename': Action<{ from: string; to: string; options: FileOverwriteOptions }, void>;
   'fs.delete': Action<{ path: string; options: FileDeleteOptions }, void>;
   'fs.copy': Action<{ source: string; destination: string; options: FileOverwriteOptions }, void>;
-  'fs.readDirectory': Action<
-    { path: string; include: string[]; exclude: string[] },
-    [string, FileType][]
-  >;
+  'fs.readDirectory': Action<{ path: string; include: string[]; exclude: string[] }, [string, FileType][]>;
   'fs.createDirectory': Action<{ path: string }, void>;
   'fs.watch': Action<{ path: string; options: WatchOptions }, void>;
+  'fs.download': Action<{ id: string }, void>;
+  'fs.unwatch': Action<{ path: string }, void>;
 }
+
+interface FilesystemEventData {
+  'fs.watch': FileChange;
+  'fs.download': Uint8Array;
+  'fs.text.search': TextSearchResult | false;
+}
+
+type PrefixKey<K extends keyof FilesystemEventData> = `${K}.${string}`;
+
+export type FilesystemEvents = FilesystemEventData & {
+  [K in keyof FilesystemEventData as PrefixKey<K>]: FilesystemEventData[K];
+};
 
 export enum FilesystemErrorType {
   Unavailable = 'Unavailable',
@@ -410,20 +418,18 @@ export class FilesystemError extends ErrorEvent {
 class FilesystemSubscription {
   public constructor(
     private path: string,
-    private okra: NotebookInstance
+    private okra: NotebookInstance,
+    private disposable: Disposable
   ) {}
 
   public dispose(): void {
-    this.okra.socket.call('fs.unwatch', { path: this.path });
-    this.okra.socket.removeListener(`fs.watch.${this.path}`);
+    this.okra.invoke('fs.unwatch', { path: this.path });
+    this.disposable.dispose();
   }
 }
 
 export class Filesystem {
-  private watches: Map<
-    string,
-    { options: WatchOptions; path: string; onDidChange: (e: FileChange) => void }
-  > = new Map();
+  private watches: Map<string, { options: WatchOptions; path: string; onDidChange: (e: FileChange) => void }> = new Map();
 
   public constructor(protected okra: NotebookInstance) {
     this.watchOkraConnection();
@@ -481,19 +487,18 @@ export class Filesystem {
     const sid = query.id;
     const localOnMatch = async (result: TextSearchResult | false) => {
       if (result === false) {
-        dispose();
+        disposable.dispose();
       }
 
       const ret = await Promise.resolve(onMatch(result));
       if (ret === false) {
-        dispose();
+        disposable.dispose();
       }
     };
 
-    const dispose = () => this.okra.socket.removeListener(sid, localOnMatch);
-    this.okra.socket.listen(sid, localOnMatch);
+    const disposable = this.okra.listen(`fs.text.search.${sid}`, localOnMatch);
 
-    return this.okra.invoke('fs.textSearch', { query, options }).finally(dispose);
+    return this.okra.invoke('fs.textSearch', { query, options }).finally(() => disposable.dispose());
   }
 
   public mkdir(path: string): Promise<boolean> {
@@ -544,32 +549,26 @@ export class Filesystem {
   }
 
   public copy(source: string, destination: string, options: FileOverwriteOptions): Promise<void> {
-    return this.okra
-      .invoke('fs.copy', { source, destination, options })
-      .catch((e) => this.handleError(e));
+    return this.okra.invoke('fs.copy', { source, destination, options }).catch((e) => this.handleError(e));
   }
 
-  public readDirectory(
-    path: string,
-    include: string[] = [],
-    exclude: string[] = []
-  ): Promise<[string, FileType][]> {
-    return this.okra
-      .invoke('fs.readDirectory', { path, include, exclude })
-      .catch((e) => this.handleError(e));
+  public readDirectory(path: string, include: string[] = [], exclude: string[] = []): Promise<[string, FileType][]> {
+    return this.okra.invoke('fs.readDirectory', { path, include, exclude }).catch((e) => this.handleError(e));
   }
 
   public createDirectory(path: string): Promise<void> {
     return this.okra.invoke('fs.createDirectory', { path }).catch((e) => this.handleError(e));
   }
 
-  public watch(
-    path: string,
-    options: WatchOptions,
-    onDidChange: (e: FileChange) => void
-  ): FilesystemSubscription {
-    this.okra.socket.listen(`fs.watch.${path}`, onDidChange);
-    const subscription = new FilesystemSubscription(path, this.okra);
+  public watch(path: string, options: WatchOptions, onDidChange: (e: FileChange) => void): FilesystemSubscription {
+    const disposable = this.okra.listen(`fs.watch.${path}`, onDidChange);
+    const wrappedDisposable = {
+      dispose: () => {
+        disposable.dispose();
+        this.okra.invoke('fs.unwatch', { path });
+      },
+    };
+    const subscription = new FilesystemSubscription(path, this.okra, wrappedDisposable);
     this.watches.set(path, { options, path, onDidChange });
 
     this.okra.invoke('fs.watch', { path, options });
@@ -581,6 +580,22 @@ export class Filesystem {
     return this.stat(path)
       .then(() => true)
       .catch(() => false);
+  }
+
+  public async download(chunk?: (data: Uint8Array) => void): Promise<Blob> {
+    const id = nanoid();
+    const stream = !!chunk;
+    const chunks: Uint8Array[] = [];
+    this.okra.listen(
+      `fs.download.${id}`,
+      stream
+        ? chunk
+        : (data) => {
+            chunks.push(data);
+          }
+    );
+
+    return this.okra.invoke('fs.download', { id }).then(() => new Blob(chunks, { type: 'application/octet-stream' }));
   }
 
   protected handleError(e: unknown): never {

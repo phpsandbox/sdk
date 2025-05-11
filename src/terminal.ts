@@ -31,7 +31,8 @@ export interface TerminalEventData {
   'terminal.close': Task & { exitCode: number };
 }
 
-type TerminalEventPattern = `${keyof TerminalEventData}.${string}`;
+type PrefixKey<K extends keyof TerminalEventData> = `${K}.${string}`;
+type TerminalEventPattern = PrefixKey<keyof TerminalEventData>;
 export type TerminalEvents = TerminalEventData & {
   [K in TerminalEventPattern]: K extends `terminal.output.${string}`
     ? TerminalEventData['terminal.output']
@@ -107,18 +108,11 @@ export default class Terminal {
     return this.okra.invoke('terminal.input', { id, input });
   }
 
-  public listen<T extends keyof TerminalEvents>(
-    event: T,
-    handler: (data: TerminalEvents[T]) => void
-  ): Disposable {
+  public listen<T extends keyof TerminalEvents>(event: T, handler: (data: TerminalEvents[T]) => void): Disposable {
     return this.okra.listen(event, handler);
   }
 
-  public async spawn(
-    command: string,
-    args: string[],
-    opts?: SpawnOptions
-  ): Promise<SandboxProcess & Task> {
+  public async spawn(command: string, args: string[], opts?: SpawnOptions): Promise<SandboxProcess & Task> {
     const id = nanoid();
     const disposables = new Set<Disposable>();
     const dispose = () => {

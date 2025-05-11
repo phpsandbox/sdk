@@ -1,4 +1,4 @@
-import { Filesystem, FilesystemActions } from './filesystem.js';
+import { Filesystem, FilesystemActions, FilesystemEvents } from './filesystem.js';
 import Terminal, { TerminalEvents, TerminalActions } from './terminal.js';
 import Container, { ContainerActions, ContainerEvents } from './container.js';
 import Auth, { AuthActions } from './auth.js';
@@ -61,7 +61,8 @@ export type Events = TerminalEvents &
   LaravelEvents &
   NotebookEvents &
   ReplEvents &
-  ShellEvents;
+  ShellEvents &
+  FilesystemEvents;
 
 interface SystemActions {
   ping: Action<object, 'pong'>;
@@ -142,12 +143,7 @@ export class NotebookApi {
   }
 
   private async init(instance: NotebookInstance): Promise<NotebookInstance> {
-    const result = await instance.init();
-    if (result.type === 'error') {
-      throw new NotebookInitError(result.message);
-    }
-
-    return instance;
+    return instance.ready();
   }
 }
 
@@ -186,16 +182,20 @@ export class NotebookInstance {
   public readonly laravel: Laravel;
   public readonly shell: Shell;
 
-  public readonly socket: Transport;
+  private readonly socket: Transport;
   public readonly emitter: EventDispatcher;
 
   public initialized: NotebookActions['notebook.init']['response'] | false = false;
+
+  #readyPromise: Promise<NotebookInstance>;
 
   public constructor(
     public readonly data: NotebookData,
     protected client: Client
   ) {
     this.emitter = EventManager.createInstance();
+    this.#readyPromise = this.init();
+
     this.socket = new Transport(data.okraUrl, this.emitter, {
       debug: client.options.debug,
       startClosed: client.options.startClosed,
@@ -212,6 +212,10 @@ export class NotebookInstance {
     this.container = new Container(this);
     this.laravel = new Laravel(this);
     this.shell = new Shell(this);
+  }
+
+  public ready(): Promise<NotebookInstance> {
+    return this.#readyPromise;
   }
 
   public fork(): Promise<NotebookInstance> {
@@ -231,11 +235,6 @@ export class NotebookInstance {
     data: Invokable[T]['args'] = {},
     options: CallOption = {}
   ): Promise<Invokable[T]['response']> {
-    const result = await this.ensureInitialized();
-    if (result.type === 'error') {
-      throw new NotebookInitError(result.message);
-    }
-
     return this.socket.call(action, data || {}, options);
   }
 
@@ -244,22 +243,7 @@ export class NotebookInstance {
     data: Invokable[T]['args'] = {},
     options: CallOption = {}
   ): Promise<Invokable[T]['response']> {
-    const result = await this.ensureInitialized();
-    if (result.type === 'error') {
-      throw new NotebookInitError(result.message);
-    }
-
     return this.socket.invoke(action, data || {}, options);
-  }
-
-  private async ensureInitialized(files: { [path: string]: string } = {}) {
-    if (!this.initialized) {
-      this.initialized = (await this.socket.invoke('notebook.init', {
-        files,
-      })) as NotebookActions['notebook.init']['response'];
-    }
-
-    return this.initialized;
   }
 
   public ping() {
@@ -267,7 +251,7 @@ export class NotebookInstance {
   }
 
   public listen<T extends keyof Events>(event: T, handler: (data: Events[T]) => void) {
-    return this.socket.listen(event as string, handler);
+    return this.emitter.listen(event as string, handler);
   }
 
   public dispose(): void {
@@ -323,15 +307,23 @@ export class NotebookInstance {
     this.socket.listen('okra.disconnected', handler);
   }
 
-  public async init(files: { [path: string]: string } = {}) {
-    return this.ensureInitialized(files);
+  public async init(): Promise<NotebookInstance> {
+    return new Promise((resolve, reject) => {
+      this.onDidInitialize((result: NotebookInitResult) => {
+        if (result.type === 'error') {
+          reject(new NotebookInitError(result.message));
+        }
+
+        resolve(this);
+      });
+    });
   }
 
   public update() {
     return this.invoke('notebook.update');
   }
 
-  public onDidInitialize(handler: () => void) {
+  public onDidInitialize(handler: (result: NotebookInitResult) => void) {
     this.listen('notebook.initialized', handler);
   }
 }
