@@ -100,7 +100,7 @@ export interface CreateNotebookInput {
   visibility: 'public' | 'private' | 'unlisted';
 }
 
-class NotebookInitError extends Error {
+export class NotebookInitError extends Error {
   constructor(public message: string) {
     super(message);
   }
@@ -142,7 +142,7 @@ export class NotebookApi {
     return this.init(new NotebookInstance(data, this.client));
   }
 
-  private async init(instance: NotebookInstance): Promise<NotebookInstance> {
+  private init(instance: NotebookInstance): Promise<NotebookInstance> {
     return instance.ready();
   }
 }
@@ -159,7 +159,7 @@ export class Client {
   public constructor(token: string, url: string = 'https://api.phpsandbox.io/v1', options: PHPSandboxClientOptions = {}) {
     this.http = axios.create(defaultAxiosConfig(url, token));
     this.notebook = new NotebookApi(this);
-    this.options = options;
+    this.options = Object.assign({startClosed: true}, options);
   }
 }
 
@@ -187,20 +187,20 @@ export class NotebookInstance {
 
   public initialized: NotebookActions['notebook.init']['response'] | false = false;
 
-  #readyPromise: Promise<NotebookInstance>;
+  #initPromise: Promise<NotebookInitResult>;
 
   public constructor(
     public readonly data: NotebookData,
     protected client: Client
   ) {
     this.emitter = EventManager.createInstance();
-    this.#readyPromise = this.init();
-
     this.socket = new Transport(data.okraUrl, this.emitter, {
       debug: client.options.debug,
       startClosed: client.options.startClosed,
     });
     this.watchConnection();
+
+    this.#initPromise = this.#init();
 
     this.file = new Filesystem(this);
     this.terminal = new Terminal(this);
@@ -214,8 +214,20 @@ export class NotebookInstance {
     this.shell = new Shell(this);
   }
 
-  public ready(): Promise<NotebookInstance> {
-    return this.#readyPromise;
+  public async ready(): Promise<NotebookInitResult> {
+    /**
+     * If ready is called, we will try to ping the backend so as to force the
+     * socket to connect if it hasn't already done that.
+     */
+    if (this.client.options.startClosed) {
+        /**
+         * We are using the socket directly instead of invoke so we don't
+         * cause a case of circular dependency.
+         */
+        await this.socket.invoke('ping');
+    }
+
+    return this.#initPromise;
   }
 
   public fork(): Promise<NotebookInstance> {
@@ -230,19 +242,13 @@ export class NotebookInstance {
     return this.container.start();
   }
 
-  public async call<T extends keyof Invokable>(
-    action: T,
-    data: Invokable[T]['args'] = {},
-    options: CallOption = {}
-  ): Promise<Invokable[T]['response']> {
-    return this.socket.call(action, data || {}, options);
-  }
-
   public async invoke<T extends keyof Invokable>(
     action: T,
     data: Invokable[T]['args'] = {},
     options: CallOption = {}
   ): Promise<Invokable[T]['response']> {
+    await this.#initPromise;
+
     return this.socket.invoke(action, data || {}, options);
   }
 
@@ -307,14 +313,15 @@ export class NotebookInstance {
     this.socket.listen('okra.disconnected', handler);
   }
 
-  public async init(): Promise<NotebookInstance> {
-    return new Promise((resolve, reject) => {
+  #init(): Promise<NotebookInitResult> {
+    return new Promise<NotebookInitResult>((resolve, reject) => {
       this.onDidInitialize((result: NotebookInitResult) => {
+        this.initialized = result;
         if (result.type === 'error') {
           reject(new NotebookInitError(result.message));
         }
 
-        resolve(this);
+        resolve(result);
       });
     });
   }

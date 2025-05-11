@@ -29,6 +29,10 @@ export enum SocketEvent {
 }
 
 export class Transport {
+  private readonly PING_INTERVAL = 30000;
+
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
+
   private clientId: string = '';
 
   private closed = false;
@@ -68,7 +72,6 @@ export class Transport {
 
     // Open the connection if it's closed
     if (this.rws.readyState === 3) {
-      // CLOSED
       this.rws.reconnect();
     }
 
@@ -77,9 +80,21 @@ export class Transport {
       const openHandler = () => {
         this.rws.removeEventListener('open', openHandler);
         resolve();
+
+        this.#startPeriodicPing();
       };
       this.rws.addEventListener('open', openHandler);
     });
+  }
+
+  #startPeriodicPing(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
+
+    this.pingInterval = setInterval(() => {
+      this.invoke('ping');
+    }, this.PING_INTERVAL);
   }
 
   public id(): string {
