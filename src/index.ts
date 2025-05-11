@@ -249,7 +249,7 @@ export class NotebookInstance {
     data: Invokable[T]['args'] = {},
     options: CallOption = {}
   ): Promise<Invokable[T]['response']> {
-    return this.#initPromise.then(() => this.socket.invoke(action, data || {}, options));
+    return this.ready().then(() => this.socket.invoke(action, data || {}, options));
   }
 
   public ping() {
