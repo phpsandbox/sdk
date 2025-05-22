@@ -20,12 +20,7 @@ export const timeout = (prom: Promise<any>, time: number) => {
   return Promise.race([
     prom,
     new Promise(
-      (_r, rej) =>
-        (timer = setTimeout(
-          rej,
-          time,
-          new PromiseTimeoutError('Timeout before promise can resolve', time)
-        ))
+      (_r, rej) => (timer = setTimeout(rej, time, new PromiseTimeoutError('Timeout before promise can resolve', time)))
     ),
   ]).finally(() => clearTimeout(timer));
 };

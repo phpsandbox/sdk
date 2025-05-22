@@ -8,9 +8,7 @@ export interface EventDispatcher {
 import mitt, { Emitter, EventHandlerMap, EventType, Handler } from 'mitt';
 import { Disposable } from '../types.js';
 
-export function mittWithOnce<Events extends Record<EventType, unknown>>(
-  all?: EventHandlerMap<Events>
-) {
+export function mittWithOnce<Events extends Record<EventType, unknown>>(all?: EventHandlerMap<Events>) {
   // @ts-expect-error
   const inst = mitt(all);
   inst.once = (type: keyof Events, fn: Handler<Events[keyof Events]>) => {

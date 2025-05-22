@@ -266,6 +266,11 @@ export class Transport {
   }
 
   private sendWithRetry(message: object, retries = 10): void {
+    /**
+     * There is the question that, since the retry is happening on the same connection,
+     * how then do we make sure the retry mechanism is smart enough to not be trying to resend
+     * on a dead connection?
+     */
     retry(
       (_bail: (error: Error) => void, _retries: number) => {
         /**
@@ -282,6 +287,7 @@ export class Transport {
             console.log('Retrying send', e);
           }
         },
+        minTimeout: 500,
       }
     );
   }

@@ -63,10 +63,7 @@ export default class Container {
     return this.okra.invoke('container.set-php', { version });
   }
 
-  public listen<T extends keyof ContainerEvents>(
-    event: T,
-    handler: (data: ContainerEvents[T]) => void
-  ): void {
+  public listen<T extends keyof ContainerEvents>(event: T, handler: (data: ContainerEvents[T]) => void): void {
     this.okra.listen(event, handler);
   }
 

@@ -11,6 +11,7 @@ import Shell, { ShellEvents, ShellActions } from './shell.js';
 import { Transport } from './socket/index.js';
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import EventManager, { EventDispatcher } from './events/index.js';
+import Git, { GitActions, GitEvents } from './git.js';
 
 export * from './types.js';
 export * from './lsp.js';
@@ -18,7 +19,7 @@ export * from './filesystem.js';
 export * from './container.js';
 export * from './shell.js';
 export * from './terminal.js';
-
+export * from './git.js';
 interface Result<T extends object> {
   type: 'success' | 'error' | 'running';
   message: string;
@@ -62,7 +63,8 @@ export type Events = TerminalEvents &
   NotebookEvents &
   ReplEvents &
   ShellEvents &
-  FilesystemEvents;
+  FilesystemEvents &
+  GitEvents;
 
 interface SystemActions {
   ping: Action<object, 'pong'>;
@@ -79,7 +81,8 @@ export type Invokable = SystemActions &
   LogActions &
   NotebookActions &
   ReplActions &
-  ShellActions;
+  ShellActions &
+  GitActions;
 
 const defaultAxiosConfig = (baseURL: string, token: string): AxiosRequestConfig => ({
   /**
@@ -183,7 +186,7 @@ export class NotebookInstance {
   public readonly container: Container;
   public readonly laravel: Laravel;
   public readonly shell: Shell;
-
+  public readonly git: Git;
   private readonly socket: Transport;
   public readonly emitter: EventDispatcher;
 
@@ -214,6 +217,7 @@ export class NotebookInstance {
     this.container = new Container(this);
     this.laravel = new Laravel(this);
     this.shell = new Shell(this);
+    this.git = new Git(this);
   }
 
   public async ready(): Promise<NotebookInitResult> {

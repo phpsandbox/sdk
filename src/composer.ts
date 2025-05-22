@@ -24,10 +24,7 @@ export interface ComposerActions {
 
 export type ComposerCommand = 'install' | 'update' | 'require' | 'remove' | 'search' | 'show';
 
-export type Argument<
-  Name extends string = string,
-  Type extends string | string[] = string | string[],
-> = Record<Name, Type>;
+export type Argument<Name extends string = string, Type extends string | string[] = string | string[]> = Record<Name, Type>;
 
 export type Options<
   Name extends string = string,

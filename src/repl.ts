@@ -25,11 +25,7 @@ export interface ReplEvents {
 export default class Repl {
   constructor(protected okra: NotebookInstance) {}
 
-  public eval(
-    code: string,
-    args: string = '',
-    repl: ReplOption = { prependWith: '', appendWith: '' }
-  ) {
+  public eval(code: string, args: string = '', repl: ReplOption = { prependWith: '', appendWith: '' }) {
     return this.okra.invoke('repl.eval', { code, args, repl });
   }
 
@@ -49,10 +45,7 @@ export default class Repl {
     return this.okra.invoke('repl.resize', { cols, rows });
   }
 
-  public listen<T extends keyof ReplEvents>(
-    event: T,
-    handler: (data: ReplEvents[T]) => void
-  ): void {
+  public listen<T extends keyof ReplEvents>(event: T, handler: (data: ReplEvents[T]) => void): void {
     this.okra.listen(event, handler);
   }
 
