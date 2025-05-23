@@ -208,15 +208,8 @@ export class Transport {
   }
 
   public async call(action: string, data: object | string = {}, options: CallOption = {}): Promise<any> {
-    // Ensure connection is established before making calls
-    await this.#connect();
-
-    /**
-     * We only want to wait for response if the send is successful
-     */
     const responseEvent = options.responseEvent || `${action}_${nanoid()}_response`;
     const errorEvent = `${responseEvent}_error`;
-    const brokenConnection = new Error('Connection lost to the notebook during request');
 
     let closeHandler: (ev: CloseEvent | WsErrorEvent) => void;
     const removeListeners = () => {
@@ -233,55 +226,57 @@ export class Transport {
       this.listenOnce(responseEvent, resolve);
       this.listenOnce(errorEvent, (e) => reject(new ErrorEvent(e.code, e.message, e)));
 
-      /**
-       * We will only reject if the connection is broken and not that the connection was closed
-       * by the user delibrately. This prevents unnecessary errors being thrown.
-       * A delibrate close, for example, is when the user closes the notebook or navigates away.
-       */
       closeHandler = (_ev: CloseEvent | WsErrorEvent) => {
-        reject(brokenConnection);
+        reject(new Error('Connection lost to the notebook during request'));
       };
 
       this.rws.addEventListener('close', closeHandler);
       this.rws.addEventListener('error', closeHandler);
 
-      try {
-        const retries = options.retries || 10;
-        this.sendWithRetry({ action, data, errorEvent, responseEvent }, retries);
-      } catch (e) {
-        reject(e);
-      }
+      this.rws.send(this.pack({ action, data, errorEvent, responseEvent }));
     };
 
-    const promise = new Promise(handler);
-    if (!options.timeout) {
-      return promise.finally(removeListeners);
-    }
+    const send = async () => {
+      // Ensure connection is established before making calls
+      await this.#connect();
 
-    return timeout(promise, options.timeout).finally(removeListeners);
+      const promise = new Promise(handler).finally(removeListeners);
+      if (!options.timeout) {
+        return promise;
+      }
+
+      return timeout(promise, options.timeout).finally(removeListeners);
+    };
+
+    return this.sendWithRetry(async () => await send(), options.retries || 10);
   }
 
   private pack(data: string | ArrayBuffer | Blob | object): string | Blob | ArrayBuffer {
     return new Blob([encode(data)]);
   }
 
-  private sendWithRetry(message: object, retries = 10): void {
+  private sendWithRetry(sender: () => Promise<any>, retries = 10): Promise<any> {
     /**
      * There is the question that, since the retry is happening on the same connection,
      * how then do we make sure the retry mechanism is smart enough to not be trying to resend
      * on a dead connection?
      */
-    retry(
-      (_bail: (error: Error) => void, _retries: number) => {
-        /**
-         * We don't want to buffer the message if we are retrying so that we will
-         * not have same message sent multiple times to the server.
-         */
-        this.rws.send(this.pack(message));
+    return retry(
+      async (bail: (error: Error) => void, _retries: number) => {
+        try {
+          return await sender();
+        } catch (e) {
+          if (e instanceof ErrorEvent) {
+            bail(e);
+
+            return;
+          }
+
+          throw e;
+        }
       },
       {
         retries,
-        randomize: true,
         onRetry: (e: unknown) => {
           if (this.options.debug) {
             console.log('Retrying send', e);
