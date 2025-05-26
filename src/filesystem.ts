@@ -346,11 +346,21 @@ export const enum FileChangeType {
 /**
  * Identifies a single change in a file.
  */
-interface FileChange {
+export interface FileChange {
   /**
    * The type of change that occurred to the file.
    */
   type: FileChangeType;
+  /**
+   * Whether the change is a file or a directory.
+   */
+  isFile: boolean;
+
+  /**
+   * Whether the file exists.
+   */
+  exists: boolean;
+
   /**
    * The unified resource identifier of the file that changed.
    */
