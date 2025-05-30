@@ -10,6 +10,12 @@ export class ErrorEvent extends Error {
   }
 }
 
+export class RateLimitError extends ErrorEvent {
+  public constructor(message: string, raw: object = {}) {
+    super(429, message, raw);
+  }
+}
+
 export interface Disposable {
   dispose: () => void;
 }

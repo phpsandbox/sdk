@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { encode, decode } from '@msgpack/msgpack';
-import { ErrorEvent } from '../types.js';
+import { Disposable, ErrorEvent, RateLimitError } from '../types.js';
 import retry from 'async-retry';
 import ReconnectingWebSocket, { CloseEvent, ErrorEvent as WsErrorEvent } from 'reconnecting-websocket';
 import { EventDispatcher } from '../events/index.js';
@@ -39,6 +39,8 @@ export class Transport {
 
   // @ts-expect-error
   private readonly rws: ReconnectingWebSocket;
+
+  private disposables: Disposable[] = [];
 
   public constructor(
     private readonly url: string,
@@ -110,6 +112,12 @@ export class Transport {
       ev.data.arrayBuffer().then((buffer: ArrayBuffer) => {
         this.handleRawMessage(decode(buffer));
       });
+    });
+
+    this.disposables.push({
+      dispose: () => {
+        this.rws.removeEventListener('message');
+      },
     });
   }
 
@@ -226,8 +234,13 @@ export class Transport {
       this.listenOnce(responseEvent, resolve);
       this.listenOnce(errorEvent, (e) => reject(new ErrorEvent(e.code, e.message, e)));
 
-      closeHandler = (_ev: CloseEvent | WsErrorEvent) => {
-        reject(new Error('Connection lost to the notebook during request'));
+      closeHandler = (_ev: (CloseEvent | WsErrorEvent) & { reason?: string; code?: number }) => {
+        if (_ev.code === 1008 && (_ev.reason || '').includes('rate limit')) {
+          reject(new RateLimitError(_ev.reason || 'Rate limit exceeded', _ev));
+
+          return;
+        }
+        reject(new Error(`Connection lost to the notebook during request: ${_ev.reason || 'Unknown reason'}`));
       };
 
       this.rws.addEventListener('close', closeHandler);
@@ -266,7 +279,7 @@ export class Transport {
         try {
           return await sender();
         } catch (e) {
-          if (e instanceof ErrorEvent) {
+          if (e instanceof ErrorEvent || e instanceof RateLimitError) {
             bail(e);
 
             return;
@@ -304,6 +317,11 @@ export class Transport {
   }
 
   public close(code?: number, reason?: string): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+    }
+
+    this.disposables.forEach((d) => d.dispose());
     this.rws.close(code, reason);
 
     this.closed = true;
@@ -311,9 +329,19 @@ export class Transport {
 
   public onDidConnect(listener: () => void): void {
     this.rws.addEventListener('open', listener);
+    this.disposables.push({
+      dispose: () => {
+        this.rws.removeEventListener('open', listener);
+      },
+    });
   }
 
   public onDidClose(listener: () => void): void {
     this.rws.addEventListener('close', listener);
+    this.disposables.push({
+      dispose: () => {
+        this.rws.removeEventListener('close', listener);
+      },
+    });
   }
 }

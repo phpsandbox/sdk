@@ -12,6 +12,7 @@ import { Transport } from './socket/index.js';
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import EventManager, { EventDispatcher } from './events/index.js';
 import Git, { GitActions, GitEvents } from './git.js';
+import { Disposable } from './types.js';
 
 export * from './types.js';
 export * from './lsp.js';
@@ -194,6 +195,8 @@ export class NotebookInstance {
 
   #initPromise: Promise<NotebookInitResult>;
 
+  private readonly disposables: Disposable[] = [];
+
   public constructor(
     public readonly data: NotebookData,
     protected client: Client
@@ -266,6 +269,7 @@ export class NotebookInstance {
 
   public dispose(): void {
     this.socket.disconnect();
+    this.disposables.forEach((d) => d.dispose());
   }
 
   public connected(): Promise<NotebookInstance> {
@@ -308,13 +312,20 @@ export class NotebookInstance {
     });
   }
 
-  public onDidConnect(handler: () => void): void {
+  public onDidConnect(handler: () => void): Disposable {
     this.socket.removeListener('okra.connected', handler);
-    this.socket.listen('okra.connected', handler);
+
+    const disposable = this.socket.listen('okra.connected', handler);
+    this.disposables.push(disposable);
+
+    return disposable;
   }
 
-  public onDidDisconnect(handler: () => void): void {
-    this.socket.listen('okra.disconnected', handler);
+  public onDidDisconnect(handler: () => void): Disposable {
+    const disposable = this.socket.listen('okra.disconnected', handler);
+    this.disposables.push(disposable);
+
+    return disposable;
   }
 
   #init(): Promise<NotebookInitResult> {
@@ -335,6 +346,9 @@ export class NotebookInstance {
   }
 
   public onDidInitialize(handler: (result: NotebookInitResult) => void) {
-    this.listen('notebook.initialized', handler);
+    const disposable = this.listen('notebook.initialized', handler);
+    this.disposables.push(disposable);
+
+    return disposable;
   }
 }
