@@ -13,6 +13,7 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import EventManager, { EventDispatcher } from './events/index.js';
 import Git, { GitActions, GitEvents } from './git.js';
 import { Disposable } from './types.js';
+import { PromiseTimeoutError, timeout } from './utils/promise.js';
 
 export * from './types.js';
 export * from './lsp.js';
@@ -21,6 +22,7 @@ export * from './container.js';
 export * from './shell.js';
 export * from './terminal.js';
 export * from './git.js';
+export * from './utils/promise.js';
 interface Result<T extends object> {
   type: 'success' | 'error' | 'running';
   message: string;
@@ -174,6 +176,7 @@ export class PHPSandbox extends Client {}
 export interface NotebookData {
   id: string;
   okraUrl: string;
+  type: string;
 }
 
 export class NotebookInstance {
@@ -224,19 +227,33 @@ export class NotebookInstance {
   }
 
   public async ready(): Promise<NotebookInitResult> {
-    /**
-     * If ready is called, we will try to ping the backend so as to force the
-     * socket to connect if it hasn't already done that.
-     */
-    if (this.client.options.startClosed) {
+    let pingWorks = false;
+    const ready = async () => {
       /**
-       * We are using the socket directly instead of invoke so we don't
-       * cause a case of circular dependency.
+       * If ready is called, we will try to ping the backend so as to force the
+       * socket to connect if it hasn't already done that.
        */
-      await this.socket.invoke('ping');
-    }
+      if (this.client.options.startClosed && !this.socket.isConnected) {
+        /**
+         * We are using the socket directly instead of invoke so we don't
+         * cause a case of circular dependency.
+         */
+        await this.socket.invoke('ping');
+        pingWorks = true;
+      }
 
-    return this.#initPromise;
+      return this.#initPromise;
+    };
+
+    try {
+      return await timeout(ready(), 30000);
+    } catch (e) {
+      if (e instanceof PromiseTimeoutError && pingWorks) {
+        return this.#initPromise;
+      }
+
+      return this.reconnect().ready();
+    }
   }
 
   public fork(): Promise<NotebookInstance> {
@@ -350,5 +367,10 @@ export class NotebookInstance {
     this.disposables.push(disposable);
 
     return disposable;
+  }
+
+  public reconnect() {
+    this.dispose();
+    return new NotebookInstance(this.data, this.client);
   }
 }

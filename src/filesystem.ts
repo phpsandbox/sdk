@@ -12,6 +12,9 @@ export interface FileResult {
   name: string;
   directory: string;
   relativePath: string;
+  /**
+   * Same value as `relativePath`.
+   */
   path: string;
 }
 
@@ -382,13 +385,13 @@ export interface FilesystemActions {
   'fs.move': Action<{ from: string; to: string }, boolean>;
   'fs.find': Action<{ query: string; options: FileSearchOptions }, FileResult[]>;
   'fs.textSearch': Action<{ query: TextSearchQuery; options: TextSearchOptions }, [boolean, TextSearchMatch[]]>;
-  'fs.readFile': Action<{ path: string }, string | Uint8Array>;
+  'fs.readFile': Action<{ path: string; lineRange?: { lineStart: number; lineEnd: number } }, string | Uint8Array>;
   'fs.writeFile': Action<{ path: string; contents: Uint8Array; options: FileWriteOptions }, void>;
   'fs.stat': Action<{ path: string }, Stats>;
   'fs.rename': Action<{ from: string; to: string; options: FileOverwriteOptions }, void>;
   'fs.delete': Action<{ path: string; options: FileDeleteOptions }, void>;
   'fs.copy': Action<{ source: string; destination: string; options: FileOverwriteOptions }, void>;
-  'fs.readDirectory': Action<{ path: string; include: string[]; exclude: string[] }, [string, FileType][]>;
+  'fs.readDirectory': Action<{ path: string; include: string[]; exclude: string[] }, [string, FileType, number | null][]>;
   'fs.createDirectory': Action<{ path: string }, void>;
   'fs.watch': Action<{ path: string; options: WatchOptions }, void>;
   'fs.download': Action<{ id: string }, void>;
@@ -487,12 +490,41 @@ export class Filesystem {
 
   public search(
     query: TextSearchQuery,
-    options: TextSearchOptions,
-    onMatch: (result: TextSearchResult | false) => boolean | Promise<boolean> | void | Promise<void>
+    options?: Partial<TextSearchOptions>,
+    onMatch?: (result: TextSearchResult | false) => boolean | Promise<boolean> | void | Promise<void>
   ): Promise<[boolean, TextSearchMatch[]]> {
     if (!query.id) {
       query.id = nanoid();
     }
+
+    const defaultOptions: TextSearchOptions = {
+      maxResults: 5,
+      afterContext: 2,
+      beforeContext: 2,
+      includes: [],
+      excludes: [
+        '**/.git',
+        '**/.svn',
+        '**/.hg',
+        '**/CVS',
+        '**/.DS_Store',
+        '**/Thumbs.db',
+        '**/*.crswap',
+        '**/node_modules',
+        '**/vendor',
+        '**/bower_components',
+        '**/*.code-search',
+      ],
+      useIgnoreFiles: true,
+      followSymlinks: true,
+      useGlobalIgnoreFiles: true,
+      useParentIgnoreFiles: true,
+      encoding: 'utf-8',
+      previewOptions: {
+        matchLines: 5,
+        charsPerLine: 1000,
+      },
+    };
 
     const sid = query.id;
     const localOnMatch = async (result: TextSearchResult | false) => {
@@ -500,15 +532,19 @@ export class Filesystem {
         disposable.dispose();
       }
 
-      const ret = await Promise.resolve(onMatch(result));
-      if (ret === false) {
-        disposable.dispose();
+      if (onMatch) {
+        const ret = await Promise.resolve(onMatch(result));
+        if (ret === false) {
+          disposable.dispose();
+        }
       }
     };
 
     const disposable = this.okra.listen(`fs.text.search.${sid}`, localOnMatch);
 
-    return this.okra.invoke('fs.textSearch', { query, options }).finally(() => disposable.dispose());
+    return this.okra
+      .invoke('fs.textSearch', { query, options: { ...defaultOptions, ...options } })
+      .finally(() => disposable.dispose());
   }
 
   public mkdir(path: string): Promise<boolean> {
@@ -523,9 +559,9 @@ export class Filesystem {
     return this.okra.invoke('fs.remove', { path, type });
   }
 
-  public readFile(path: string): Promise<Uint8Array> {
+  public readFile(path: string, lineRange?: { lineStart: number; lineEnd: number }): Promise<Uint8Array> {
     return this.okra
-      .invoke('fs.readFile', { path })
+      .invoke('fs.readFile', { path, lineRange })
       .then((content) => {
         if (content instanceof Uint8Array) {
           return content;
@@ -562,7 +598,11 @@ export class Filesystem {
     return this.okra.invoke('fs.copy', { source, destination, options }).catch((e) => this.handleError(e));
   }
 
-  public readDirectory(path: string, include: string[] = [], exclude: string[] = []): Promise<[string, FileType][]> {
+  public readDirectory(
+    path: string,
+    include: string[] = [],
+    exclude: string[] = []
+  ): Promise<[string, FileType, number | null][]> {
     return this.okra.invoke('fs.readDirectory', { path, include, exclude }).catch((e) => this.handleError(e));
   }
 

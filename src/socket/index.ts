@@ -78,14 +78,40 @@ export class Transport {
     }
 
     // Return a promise that resolves when the connection is open
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      // Check if connection is already open after potential reconnect
+      if (this.isConnected) {
+        resolve();
+        this.#startPeriodicPing();
+        return;
+      }
+
+      let timeoutId: ReturnType<typeof setTimeout>;
+
       const openHandler = () => {
         this.rws.removeEventListener('open', openHandler);
+        this.rws.removeEventListener('error', errorHandler);
+        clearTimeout(timeoutId);
         resolve();
-
         this.#startPeriodicPing();
       };
+
+      const errorHandler = (error: Event) => {
+        this.rws.removeEventListener('open', openHandler);
+        this.rws.removeEventListener('error', errorHandler);
+        clearTimeout(timeoutId);
+        reject(new Error(`WebSocket connection failed: ${error}`));
+      };
+
+      // Add timeout to prevent hanging forever
+      timeoutId = setTimeout(() => {
+        this.rws.removeEventListener('open', openHandler);
+        this.rws.removeEventListener('error', errorHandler);
+        reject(new Error('WebSocket connection timeout'));
+      }, 10000); // 10 second timeout
+
       this.rws.addEventListener('open', openHandler);
+      this.rws.addEventListener('error', errorHandler);
     });
   }
 
@@ -216,6 +242,10 @@ export class Transport {
   }
 
   public async call(action: string, data: object | string = {}, options: CallOption = {}): Promise<any> {
+    if (JSON.stringify(data).includes('fs.readFile')) {
+      console.log('Sending file read request', data);
+    }
+
     const responseEvent = options.responseEvent || `${action}_${nanoid()}_response`;
     const errorEvent = `${responseEvent}_error`;
 
@@ -245,6 +275,10 @@ export class Transport {
 
       this.rws.addEventListener('close', closeHandler);
       this.rws.addEventListener('error', closeHandler);
+
+      if (JSON.stringify(data).includes('fs.readFile')) {
+        console.log('Sending file read request', data);
+      }
 
       this.rws.send(this.pack({ action, data, errorEvent, responseEvent }));
     };
@@ -304,6 +338,9 @@ export class Transport {
     if (!options.responseEvent) {
       options.responseEvent = `${action}_${nanoid()}`;
     }
+    if (action === 'fs.readFile') {
+      console.log('Invoking file read request', data);
+    }
 
     return this.call('invoke', { action, data }, options);
   }
@@ -336,7 +373,7 @@ export class Transport {
     });
   }
 
-  public onDidClose(listener: () => void): void {
+  public onDidClose(listener: (e: CloseEvent | WsErrorEvent) => void): void {
     this.rws.addEventListener('close', listener);
     this.disposables.push({
       dispose: () => {
