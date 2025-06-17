@@ -182,8 +182,7 @@ export class Transport {
 
       await this.handleMessage(event, data, as);
     } catch (e) {
-      console.log('Failed to parse message', { ev, e, data: ev });
-      console.error(e);
+      console.error('Failed to parse message', { ev, e, data: ev });
 
       throw e;
     }
@@ -242,10 +241,6 @@ export class Transport {
   }
 
   public async call(action: string, data: object | string = {}, options: CallOption = {}): Promise<any> {
-    if (JSON.stringify(data).includes('fs.readFile')) {
-      console.log('Sending file read request', data);
-    }
-
     const responseEvent = options.responseEvent || `${action}_${nanoid()}_response`;
     const errorEvent = `${responseEvent}_error`;
 
@@ -275,10 +270,6 @@ export class Transport {
 
       this.rws.addEventListener('close', closeHandler);
       this.rws.addEventListener('error', closeHandler);
-
-      if (JSON.stringify(data).includes('fs.readFile')) {
-        console.log('Sending file read request', data);
-      }
 
       this.rws.send(this.pack({ action, data, errorEvent, responseEvent }));
     };
@@ -337,9 +328,6 @@ export class Transport {
   public invoke(action: string, data: object | string = {}, options: CallOption = {}): Promise<any> {
     if (!options.responseEvent) {
       options.responseEvent = `${action}_${nanoid()}`;
-    }
-    if (action === 'fs.readFile') {
-      console.log('Invoking file read request', data);
     }
 
     return this.call('invoke', { action, data }, options);
