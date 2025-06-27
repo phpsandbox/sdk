@@ -42,21 +42,26 @@ export class Transport {
 
   private disposables: Disposable[] = [];
 
+  private connectPromise: Promise<void> | null = null;
+
+  private readonly url: URL;
+
   public constructor(
-    private readonly url: string,
+    url: string,
     private readonly eventEmitter: EventDispatcher,
     private readonly options: WsOptions = {}
   ) {
+    this.url = new URL(url);
+    this.url.searchParams.set('sdk_version', '0.0.1');
+
     // Always start closed by default (lazy initialization)
     const startClosed = options.startClosed !== false;
 
     // @ts-expect-error
-    this.rws = new ReconnectingWebSocket(this.url, [], {
+    this.rws = new ReconnectingWebSocket(this.url.toString(), [], {
       WebSocket,
-      connectionTimeout: 1000,
-      maxReconnectionDelay: 2000,
-      minReconnectionDelay: 200,
       maxEnqueuedMessages: 0,
+      maxRetries: 50,
       startClosed,
     });
 
@@ -66,24 +71,32 @@ export class Transport {
   /**
    * Explicitly connect to the websocket if not already connected
    * Used for lazy initialization
+   *
+   * This method ensures only one connection attempt happens at a time
+   * by caching the connection promise.
    */
   #connect(): Promise<void> {
     if (this.isConnected) {
       return Promise.resolve();
     }
 
-    // Open the connection if it's closed
-    if (this.rws.readyState === 3) {
-      this.rws.reconnect();
+    // Return existing connection promise if one is already in progress
+    if (this.connectPromise) {
+      return this.connectPromise;
     }
 
-    // Return a promise that resolves when the connection is open
-    return new Promise((resolve, reject) => {
+    // Create and cache the connection promise
+    this.connectPromise = new Promise((resolve, reject) => {
       // Check if connection is already open after potential reconnect
       if (this.isConnected) {
         resolve();
         this.#startPeriodicPing();
         return;
+      }
+
+      // Open the connection if it's closed
+      if (this.rws.readyState === 3) {
+        this.rws.reconnect();
       }
 
       let timeoutId: ReturnType<typeof setTimeout>;
@@ -92,6 +105,9 @@ export class Transport {
         this.rws.removeEventListener('open', openHandler);
         this.rws.removeEventListener('error', errorHandler);
         clearTimeout(timeoutId);
+
+        // Clear the cached promise on success
+        this.connectPromise = null;
         resolve();
         this.#startPeriodicPing();
       };
@@ -100,6 +116,9 @@ export class Transport {
         this.rws.removeEventListener('open', openHandler);
         this.rws.removeEventListener('error', errorHandler);
         clearTimeout(timeoutId);
+
+        // Clear the cached promise on error so retry is possible
+        this.connectPromise = null;
         reject(new Error(`WebSocket connection failed: ${error}`));
       };
 
@@ -107,12 +126,17 @@ export class Transport {
       timeoutId = setTimeout(() => {
         this.rws.removeEventListener('open', openHandler);
         this.rws.removeEventListener('error', errorHandler);
+
+        // Clear the cached promise on timeout so retry is possible
+        this.connectPromise = null;
         reject(new Error('WebSocket connection timeout'));
       }, 10000); // 10 second timeout
 
       this.rws.addEventListener('open', openHandler);
       this.rws.addEventListener('error', errorHandler);
     });
+
+    return this.connectPromise;
   }
 
   #startPeriodicPing(): void {
@@ -345,6 +369,9 @@ export class Transport {
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
     }
+
+    // Clear any pending connection promise
+    this.connectPromise = null;
 
     this.disposables.forEach((d) => d.dispose());
     this.rws.close(code, reason);

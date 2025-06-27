@@ -227,7 +227,6 @@ export class NotebookInstance {
   }
 
   public async ready(): Promise<NotebookInitResult> {
-    let pingWorks = false;
     const ready = async () => {
       /**
        * If ready is called, we will try to ping the backend so as to force the
@@ -239,21 +238,14 @@ export class NotebookInstance {
          * cause a case of circular dependency.
          */
         await this.socket.invoke('ping');
-        pingWorks = true;
       }
 
       return this.#initPromise;
     };
 
-    try {
-      return await timeout(ready(), 30000);
-    } catch (e) {
-      if (e instanceof PromiseTimeoutError && pingWorks) {
-        return this.#initPromise;
-      }
-
-      return this.reconnect().ready();
-    }
+    // Let the underlying ReconnectingWebSocket handle connection retries
+    // Just apply a reasonable timeout for the entire initialization process
+    return await timeout(ready(), 30_000);
   }
 
   public fork(): Promise<NotebookInstance> {
