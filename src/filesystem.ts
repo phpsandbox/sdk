@@ -377,6 +377,13 @@ export interface FileChange {
   readonly cId?: number;
 }
 
+export interface ReadFileRangeResult {
+  lineStart: number;
+  lineEnd: number;
+  content: string;
+  error: string | null;
+}
+
 export interface FilesystemActions {
   'fs.info': Action<{ path: string }, FileInfo>;
   'fs.write': Action<{ path: string; contents: string }, boolean>;
@@ -385,7 +392,10 @@ export interface FilesystemActions {
   'fs.move': Action<{ from: string; to: string }, boolean>;
   'fs.find': Action<{ query: string; options: FileSearchOptions }, FileResult[]>;
   'fs.textSearch': Action<{ query: TextSearchQuery; options: TextSearchOptions }, [boolean, TextSearchMatch[]]>;
-  'fs.readFile': Action<{ path: string; lineRange?: { lineStart: number; lineEnd: number } }, string | Uint8Array>;
+  'fs.readFile': Action<
+    { path: string; lineRange?: { lineStart: number; lineEnd: number } },
+    string | Uint8Array | ReadFileRangeResult
+  >;
   'fs.writeFile': Action<{ path: string; contents: Uint8Array; options: FileWriteOptions }, void>;
   'fs.stat': Action<{ path: string }, Stats>;
   'fs.rename': Action<{ from: string; to: string; options: FileOverwriteOptions }, void>;
@@ -394,7 +404,7 @@ export interface FilesystemActions {
   'fs.readDirectory': Action<{ path: string; include: string[]; exclude: string[] }, [string, FileType, number | null][]>;
   'fs.createDirectory': Action<{ path: string }, void>;
   'fs.watch': Action<{ path: string; options: WatchOptions }, void>;
-  'fs.download': Action<{ id: string }, void>;
+  'fs.download': Action<{ id: string; exclude: string[] }, void>;
   'fs.unwatch': Action<{ path: string }, void>;
 }
 
@@ -559,7 +569,9 @@ export class Filesystem {
     return this.okra.invoke('fs.remove', { path, type });
   }
 
-  public readFile(path: string, lineRange?: { lineStart: number; lineEnd: number }): Promise<Uint8Array> {
+  public readFile(path: string): Promise<Uint8Array>;
+  public readFile(path: string, lineRange: { lineStart: number; lineEnd: number }): Promise<ReadFileRangeResult>;
+  public readFile(path: string, lineRange?: { lineStart: number; lineEnd: number }): Promise<Uint8Array | ReadFileRangeResult> {
     return this.okra
       .invoke('fs.readFile', { path, lineRange })
       .then((content) => {
@@ -567,7 +579,11 @@ export class Filesystem {
           return content;
         }
 
-        return new TextEncoder().encode(content);
+        if (typeof content === 'string') {
+          return new TextEncoder().encode(content);
+        }
+
+        return content;
       })
       .catch((e) => this.handleError(e));
   }
@@ -632,7 +648,7 @@ export class Filesystem {
       .catch(() => false);
   }
 
-  public async download(chunk?: (data: Uint8Array) => void): Promise<Blob> {
+  public async download(chunk?: (data: Uint8Array) => void, exclude?: string[]): Promise<Blob> {
     const id = nanoid();
     const stream = !!chunk;
     const chunks: Uint8Array[] = [];
@@ -645,7 +661,7 @@ export class Filesystem {
           }
     );
 
-    return this.okra.invoke('fs.download', { id }).then(() => new Blob(chunks, { type: 'application/octet-stream' }));
+    return this.okra.invoke('fs.download', { id, exclude }).then(() => new Blob(chunks, { type: 'application/octet-stream' }));
   }
 
   protected handleError(e: unknown): never {
