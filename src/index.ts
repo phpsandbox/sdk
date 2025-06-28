@@ -1,6 +1,6 @@
 import { Filesystem, FilesystemActions, FilesystemEvents } from './filesystem.js';
 import Terminal, { TerminalEvents, TerminalActions } from './terminal.js';
-import Container, { ContainerActions, ContainerEvents } from './container.js';
+import Container, { ContainerActions, ContainerEvents, PortInfo } from './container.js';
 import Auth, { AuthActions } from './auth.js';
 import Lsp, { LspActions, LspEvents } from './lsp.js';
 import Composer, { ComposerActions, ComposerEvents } from './composer.js';
@@ -29,7 +29,7 @@ interface Result<T extends object> {
   data: T;
 }
 
-type NotebookInitResult = Result<{ env: { name: string; value: string }[]; previewUrl: string }>;
+type NotebookInitResult = Result<{ env: { name: string; value: string }[]; previewUrl: string; ports: PortInfo[] }>;
 export interface NotebookActions {
   'notebook.init': Action<{ force?: boolean; files: { [path: string]: string } }, NotebookInitResult>;
   'notebook.update': Action<null>;
