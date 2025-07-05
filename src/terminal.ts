@@ -75,6 +75,8 @@ export interface SpawnOptions {
 
   id?: string;
   osc?: boolean;
+
+  abortSignal?: AbortSignal;
 }
 
 export default class Terminal {
@@ -159,10 +161,15 @@ export default class Terminal {
       this.okra.invoke('terminal.resize', { id, width: dimensions.cols, height: dimensions.rows });
     };
 
+    const { abortSignal, ...otherOpts } = opts ?? {};
+    if (abortSignal) {
+      abortSignal.addEventListener('abort', kill);
+    }
+
     const result = await this.okra.invoke('terminal.spawn', {
       command: [command, ...args],
       opts: {
-        ...opts,
+        ...otherOpts,
         id,
       },
     });
