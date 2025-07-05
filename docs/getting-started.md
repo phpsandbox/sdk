@@ -59,15 +59,15 @@ import { PHPSandbox } from '@phpsandbox/sdk';
 async function createFirstNotebook() {
   // Initialize the SDK
   const client = new PHPSandbox(process.env.PHPSANDBOX_TOKEN);
-  
+
   // Create a new PHP notebook
   const notebook = await client.notebook.create('php');
-  
+
   // Wait for the environment to be ready
   await notebook.ready();
-  
+
   console.log('✅ Notebook is ready!');
-  
+
   return notebook;
 }
 
@@ -82,21 +82,22 @@ Once you have a notebook, you can work with files:
 ```typescript
 async function workWithFiles(notebook) {
   // Create a simple PHP file
-  await notebook.file.writeFile(
-    'hello.php',
-    new TextEncoder().encode('<?php echo "Hello, PHPSandbox!"; ?>'),
-    { create: true, overwrite: true, unlock: false, atomic: false }
-  );
-  
+  await notebook.file.writeFile('hello.php', new TextEncoder().encode('<?php echo "Hello, PHPSandbox!"; ?>'), {
+    create: true,
+    overwrite: true,
+    unlock: false,
+    atomic: false,
+  });
+
   // Read the file back
   const content = await notebook.file.readFile('hello.php');
   const text = new TextDecoder().decode(content as Uint8Array);
   console.log('File content:', text);
-  
+
   // Check if file exists
   const exists = await notebook.file.exists('hello.php');
   console.log('File exists:', exists);
-  
+
   // Get file information
   const info = await notebook.file.info('hello.php');
   console.log('File info:', info);
@@ -111,11 +112,11 @@ Execute your PHP files using the terminal:
 async function runPhpCode(notebook) {
   // Execute PHP file
   const process = await notebook.terminal.spawn('php', ['hello.php']);
-  
+
   // Listen to output
   const reader = process.output.getReader();
   let output = '';
-  
+
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -126,11 +127,11 @@ async function runPhpCode(notebook) {
   } finally {
     reader.releaseLock();
   }
-  
+
   // Wait for process to complete
   const exitCode = await process.exit;
   console.log('Process finished with exit code:', exitCode);
-  
+
   return output;
 }
 ```
@@ -145,12 +146,12 @@ async function setupComposerProject(notebook) {
   await notebook.composer.init({
     name: 'my-project/hello-world',
     description: 'My first PHPSandbox project',
-    type: 'project'
+    type: 'project',
   });
-  
+
   // Install a package
   await notebook.composer.install(['monolog/monolog']);
-  
+
   // Create a PHP file that uses the dependency
   const phpCode = `<?php
 require_once 'vendor/autoload.php';
@@ -163,21 +164,25 @@ $log->pushHandler(new StreamHandler('php://stdout', Logger::INFO));
 
 $log->info('Hello from Monolog!');
 ?>`;
-  
-  await notebook.file.writeFile(
-    'index.php',
-    new TextEncoder().encode(phpCode),
-    { create: true, overwrite: true, unlock: false, atomic: false }
-  );
-  
+
+  await notebook.file.writeFile('index.php', new TextEncoder().encode(phpCode), {
+    create: true,
+    overwrite: true,
+    unlock: false,
+    atomic: false,
+  });
+
   // Run the script
   const process = await notebook.terminal.spawn('php', ['index.php']);
-  
+
   // Handle output
-  process.output.getReader().read().then(({ value }) => {
-    console.log('Composer project output:', value);
-  });
-  
+  process.output
+    .getReader()
+    .read()
+    .then(({ value }) => {
+      console.log('Composer project output:', value);
+    });
+
   await process.exit;
 }
 ```
@@ -194,18 +199,18 @@ async function monitorFiles(notebook) {
     {
       recursive: true,
       excludes: ['node_modules/**', 'vendor/**'],
-      correlationId: 1
+      correlationId: 1,
     },
     (change) => {
       console.log(`File ${change.path} was ${change.type}`);
-      
+
       // React to PHP file changes
       if (change.path.endsWith('.php') && change.type === 'UPDATED') {
         console.log('PHP file updated, consider running tests');
       }
     }
   );
-  
+
   // Clean up when done
   // watcher.dispose();
 }
@@ -226,11 +231,12 @@ async function safeFileOperation(notebook) {
       switch (error.name) {
         case FilesystemErrorType.FileNotFound:
           console.log('File not found, creating it...');
-          await notebook.file.writeFile(
-            'nonexistent.php',
-            new TextEncoder().encode('<?php echo "Created!"; ?>'),
-            { create: true, overwrite: false, unlock: false, atomic: false }
-          );
+          await notebook.file.writeFile('nonexistent.php', new TextEncoder().encode('<?php echo "Created!"; ?>'), {
+            create: true,
+            overwrite: false,
+            unlock: false,
+            atomic: false,
+          });
           break;
         case FilesystemErrorType.NoPermissions:
           console.error('Permission denied');
@@ -260,13 +266,13 @@ async function completeExample() {
     const client = new PHPSandbox(process.env.PHPSANDBOX_TOKEN);
     const notebook = await client.notebook.create('php');
     await notebook.ready();
-    
+
     console.log('✅ Notebook ready');
-    
+
     // 2. Create a PHP project structure
     await notebook.file.createDirectory('src');
     await notebook.file.createDirectory('tests');
-    
+
     // 3. Create a simple class
     const classCode = `<?php
 class Calculator {
@@ -279,13 +285,14 @@ class Calculator {
     }
 }
 ?>`;
-    
-    await notebook.file.writeFile(
-      'src/Calculator.php',
-      new TextEncoder().encode(classCode),
-      { create: true, overwrite: true, unlock: false, atomic: false }
-    );
-    
+
+    await notebook.file.writeFile('src/Calculator.php', new TextEncoder().encode(classCode), {
+      create: true,
+      overwrite: true,
+      unlock: false,
+      atomic: false,
+    });
+
     // 4. Create a test file
     const testCode = `<?php
 require_once 'src/Calculator.php';
@@ -302,17 +309,18 @@ echo "4 * 5 = " . $result . "\\n";
 
 echo "All tests passed!\\n";
 ?>`;
-    
-    await notebook.file.writeFile(
-      'test.php',
-      new TextEncoder().encode(testCode),
-      { create: true, overwrite: true, unlock: false, atomic: false }
-    );
-    
+
+    await notebook.file.writeFile('test.php', new TextEncoder().encode(testCode), {
+      create: true,
+      overwrite: true,
+      unlock: false,
+      atomic: false,
+    });
+
     // 5. Run the tests
     console.log('🧪 Running tests...');
     const process = await notebook.terminal.spawn('php', ['test.php']);
-    
+
     const reader = process.output.getReader();
     try {
       while (true) {
@@ -323,13 +331,12 @@ echo "All tests passed!\\n";
     } finally {
       reader.releaseLock();
     }
-    
+
     const exitCode = await process.exit;
     console.log(`✅ Tests completed with exit code: ${exitCode}`);
-    
+
     // 6. Clean up
     notebook.dispose();
-    
   } catch (error) {
     console.error('❌ Error:', error);
   }
@@ -362,8 +369,8 @@ Now that you understand the basics, you can:
 If you run into issues:
 
 - Check the [examples](./examples/) directory for more code samples
-- Review the [API Reference](../README.md#api-reference) for detailed method documentation  
+- Review the [API Reference](../README.md#api-reference) for detailed method documentation
 - Visit [docs.phpsandbox.io](https://docs.phpsandbox.io) for additional guides
 - Open an issue on [GitHub](https://github.com/phpsandbox/sdk/issues)
 
-Happy coding! 🚀 
+Happy coding! 🚀

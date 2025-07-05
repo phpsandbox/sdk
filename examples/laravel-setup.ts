@@ -255,11 +255,12 @@ Route::get('/health', function () {
 });
 `;
 
-    await this.notebook!.file.writeFile(
-      'routes/api.php',
-      new TextEncoder().encode(apiRoutesContent),
-      { create: true, overwrite: true, unlock: false, atomic: false }
-    );
+    await this.notebook!.file.writeFile('routes/api.php', new TextEncoder().encode(apiRoutesContent), {
+      create: true,
+      overwrite: true,
+      unlock: false,
+      atomic: false,
+    });
 
     // Create a sample Post model and controller
     await this.notebook!.laravel.make('model', 'Post', { migration: true });
@@ -301,11 +302,12 @@ yarn-error.log
 /.idea
 /.vscode`;
 
-      await this.notebook!.file.writeFile(
-        '.gitignore',
-        new TextEncoder().encode(gitignoreContent),
-        { create: true, overwrite: false, unlock: false, atomic: false }
-      );
+      await this.notebook!.file.writeFile('.gitignore', new TextEncoder().encode(gitignoreContent), {
+        create: true,
+        overwrite: false,
+        unlock: false,
+        atomic: false,
+      });
     }
 
     // Add all files
@@ -321,12 +323,7 @@ yarn-error.log
     console.log('🚀 Starting development server...');
 
     // Start Laravel development server
-    const server = await this.notebook!.terminal.spawn('php', [
-      'artisan',
-      'serve',
-      '--host=0.0.0.0',
-      '--port=8000'
-    ]);
+    const server = await this.notebook!.terminal.spawn('php', ['artisan', 'serve', '--host=0.0.0.0', '--port=8000']);
 
     // Monitor for server startup
     this.notebook!.container.onPort((port, type) => {
@@ -359,14 +356,10 @@ async function main() {
   try {
     const notebook = await setup.createLaravelApp({
       projectName: 'My Laravel API',
-      installPackages: [
-        'laravel/sanctum',
-        'laravel/tinker',
-        'spatie/laravel-query-builder'
-      ],
+      installPackages: ['laravel/sanctum', 'laravel/tinker', 'spatie/laravel-query-builder'],
       setupAuth: true,
       createApiRoutes: true,
-      runMigrations: true
+      runMigrations: true,
     });
 
     // Keep the process running to maintain the server
@@ -387,7 +380,6 @@ async function main() {
         process.exit(1);
       });
     }, 30000);
-
   } catch (error) {
     console.error('❌ Setup failed:', error);
     await setup.cleanup();

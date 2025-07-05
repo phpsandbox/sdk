@@ -7,12 +7,14 @@ The PHPSandbox SDK provides programmatic access to cloud-based PHP development e
 ## Key Features
 
 ### 🏗️ **Environment Management**
+
 - **Instant PHP Environments**: Create containerized PHP environments in seconds
 - **Multiple Templates**: PHP, Laravel, Symfony, and custom templates
 - **Resource Monitoring**: Real-time CPU, memory, and disk usage tracking
 - **Port Management**: Automatic port detection and URL generation
 
 ### 📁 **Advanced File System**
+
 - **Full CRUD Operations**: Create, read, update, delete files and directories
 - **Intelligent Search**: File name matching and full-text search with regex support
 - **Real-time Monitoring**: Watch file changes with customizable filters
@@ -20,18 +22,21 @@ The PHPSandbox SDK provides programmatic access to cloud-based PHP development e
 - **Range Reading**: Read specific line ranges from large files
 
 ### 💻 **Terminal & Process Management**
+
 - **Interactive Terminals**: Full terminal access with resize support
 - **Process Spawning**: Execute commands with stream-based I/O
 - **Background Processes**: Long-running processes with proper lifecycle management
 - **Environment Control**: Custom environment variables and working directories
 
 ### 📦 **Development Tools**
+
 - **Composer Integration**: Package management with dependency resolution
 - **Git Operations**: Full version control with branch, commit, and remote operations
 - **Language Server Protocol**: IDE-like features (autocomplete, diagnostics, go-to-definition)
 - **Interactive REPL**: Real-time PHP code execution and debugging
 
 ### 🔐 **Security & Authentication**
+
 - **Token-based Auth**: Secure API access with JWT tokens
 - **Permission Management**: Granular access control
 - **Rate Limiting**: Built-in protection against abuse
@@ -49,10 +54,12 @@ const notebook = await client.notebook.create('php');
 await notebook.ready();
 
 // Work with files
-await notebook.file.writeFile('hello.php', 
-  new TextEncoder().encode('<?php echo "Hello World!"; ?>'), 
-  { create: true, overwrite: true, unlock: false, atomic: false }
-);
+await notebook.file.writeFile('hello.php', new TextEncoder().encode('<?php echo "Hello World!"; ?>'), {
+  create: true,
+  overwrite: true,
+  unlock: false,
+  atomic: false,
+});
 
 // Execute code
 const process = await notebook.terminal.spawn('php', ['hello.php']);
@@ -63,16 +70,16 @@ console.log(value); // "Hello World!"
 
 ## Core Classes
 
-| Class | Purpose | Key Methods |
-|-------|---------|-------------|
-| `PHPSandbox` | Main client | `notebook.create()`, `notebook.get()`, `notebook.fork()` |
-| `NotebookInstance` | Environment instance | `ready()`, `invoke()`, `listen()`, `dispose()` |
-| `Filesystem` | File operations | `readFile()`, `writeFile()`, `search()`, `watch()` |
-| `Terminal` | Process execution | `spawn()`, `create()`, `input()`, `resize()` |
-| `Container` | Environment control | `start()`, `stop()`, `state()`, `openedPorts()` |
-| `Lsp` | Language server | `connection()`, `message()`, `start()`, `close()` |
-| `Composer` | PHP packages | `install()`, `update()`, `remove()`, `show()` |
-| `Git` | Version control | `init()`, `add()`, `commit()`, `push()`, `pull()` |
+| Class              | Purpose              | Key Methods                                              |
+| ------------------ | -------------------- | -------------------------------------------------------- |
+| `PHPSandbox`       | Main client          | `notebook.create()`, `notebook.get()`, `notebook.fork()` |
+| `NotebookInstance` | Environment instance | `ready()`, `invoke()`, `listen()`, `dispose()`           |
+| `Filesystem`       | File operations      | `readFile()`, `writeFile()`, `search()`, `watch()`       |
+| `Terminal`         | Process execution    | `spawn()`, `create()`, `input()`, `resize()`             |
+| `Container`        | Environment control  | `start()`, `stop()`, `state()`, `openedPorts()`          |
+| `Lsp`              | Language server      | `connection()`, `message()`, `start()`, `close()`        |
+| `Composer`         | PHP packages         | `install()`, `update()`, `remove()`, `show()`            |
+| `Git`              | Version control      | `init()`, `add()`, `commit()`, `push()`, `pull()`        |
 
 ## Event System
 
@@ -127,14 +134,7 @@ try {
 Full type safety with comprehensive interfaces:
 
 ```typescript
-import type {
-  NotebookInstance,
-  FileInfo,
-  Stats,
-  TextSearchQuery,
-  ContainerStats,
-  Events
-} from '@phpsandbox/sdk';
+import type { NotebookInstance, FileInfo, Stats, TextSearchQuery, ContainerStats, Events } from '@phpsandbox/sdk';
 
 // Type-safe event handling
 notebook.listen('fs.watch', (change: Events['fs.watch']) => {
@@ -149,24 +149,28 @@ const info: FileInfo = await notebook.file.info('/app/index.php');
 ## Use Cases
 
 ### **Web Development**
+
 - Laravel/Symfony application development
 - API development and testing
 - Frontend build processes
 - Database migrations and seeding
 
 ### **DevOps & CI/CD**
+
 - Automated testing environments
 - Build pipelines
 - Code quality analysis
 - Deployment preparation
 
 ### **Education & Training**
+
 - Interactive PHP tutorials
 - Code examples and demonstrations
 - Collaborative coding sessions
 - Skills assessment platforms
 
 ### **Prototyping & Experimentation**
+
 - Rapid prototyping
 - Package evaluation
 - Performance testing
@@ -195,4 +199,4 @@ const info: FileInfo = await notebook.file.info('/app/index.php');
 3. **Read the [Full API Reference](../README.md)**
 4. **Join the Community**
 
-The PHPSandbox SDK empowers you to build powerful PHP applications in the cloud with enterprise-grade reliability and performance. 
+The PHPSandbox SDK empowers you to build powerful PHP applications in the cloud with enterprise-grade reliability and performance.
