@@ -406,6 +406,7 @@ export interface FilesystemActions {
   'fs.watch': Action<{ path: string; options: WatchOptions }, void>;
   'fs.download': Action<{ id: string; exclude: string[] }, void>;
   'fs.unwatch': Action<{ path: string }, void>;
+  'fs.tree': Action<{ path: string }, string>;
 }
 
 interface FilesystemEventData {
@@ -477,23 +478,32 @@ export class Filesystem {
   public find(
     query: string,
     options: Partial<FileSearchOptions> = {
-      includes: [],
-      excludes: [],
-      useIgnoreFiles: true,
-      followSymlinks: true,
-      useGlobalIgnoreFiles: true,
-      useParentIgnoreFiles: true,
+      useIgnoreFiles: false,
+      followSymlinks: false,
+      useGlobalIgnoreFiles: false,
+      useParentIgnoreFiles: false,
     }
   ): Promise<FileResult[]> {
     return this.okra.invoke('fs.find', {
       query,
       options: Object.assign(options, {
         includes: [],
-        excludes: [],
-        useIgnoreFiles: true,
-        followSymlinks: true,
-        useGlobalIgnoreFiles: true,
-        useParentIgnoreFiles: true,
+        excludes: [
+          '**/storage',
+          '**/vendor',
+          '**/node_modules',
+          '**/.git',
+          '**/.svn',
+          '**/.hg',
+          '**/CVS',
+          '**/.DS_Store',
+          '**/Thumbs.db',
+          '**/*.crswap',
+        ],
+        useIgnoreFiles: false,
+        followSymlinks: false,
+        useGlobalIgnoreFiles: false,
+        useParentIgnoreFiles: false,
       }),
     });
   }
@@ -662,6 +672,10 @@ export class Filesystem {
     );
 
     return this.okra.invoke('fs.download', { id, exclude }).then(() => new Blob(chunks, { type: 'application/octet-stream' }));
+  }
+
+  public tree(path: string = '/'): Promise<string> {
+    return this.okra.invoke('fs.tree', { path });
   }
 
   protected handleError(e: unknown): never {
