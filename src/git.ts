@@ -16,7 +16,7 @@ export interface GitEvents {}
 export interface GitActions {
   'git.checkpoint': Action<{ author: string; message: string; branch: string }, GitRef>;
   'git.log': Action<{ ref: string }, GitLog[]>;
-  'git.sync': Action<{ url: string; ref: string; token?: string; force?: boolean }, GitRef>;
+  'git.sync': Action<{ url: string; author: string; ref: string; token?: string; force?: boolean }, GitRef>;
   'git.restore': Action<{ ref: string }, GitRef>;
 }
 
@@ -51,8 +51,8 @@ export default class Git {
     return this.okra.invoke('git.checkpoint', { author, message, branch });
   }
 
-  public sync(url: string, ref = 'main', token?: string, force = false) {
-    return this.okra.invoke('git.sync', { url, ref, token, force });
+  public sync(url: string, author: string, ref = 'main', token?: string, force = false) {
+    return this.okra.invoke('git.sync', { url, author, ref, token, force });
   }
 
   public log(ref: string = 'main') {
