@@ -9,7 +9,7 @@ import ReconnectingWebSocket, {
 import { EventDispatcher } from "../events/index.js";
 import { timeout } from "../utils/promise.js";
 import WebSocket from "isomorphic-ws";
-import { NamedDisposable } from "src/utils/disposable.js";
+import { NamedDisposable } from "../utils/disposable.js";
 
 interface WsOptions {
   debug?: boolean;
