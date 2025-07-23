@@ -141,7 +141,7 @@ export class NotebookApi {
   public async open(id: string): Promise<NotebookInstance> {
     const response = await this.client.http.get<NotebookData>(`/notebook/${id}`);
 
-    return this.init(new NotebookInstance(response.data, this.client));
+    return new NotebookInstance(response.data, this.client);
   }
 
   public openFromData(data: NotebookData): Promise<NotebookInstance> {
@@ -277,8 +277,8 @@ export class NotebookInstance {
   }
 
   public dispose(): void {
-    this.socket.disconnect();
     this.disposables.forEach((d) => d.dispose());
+    this.socket.disconnect();
   }
 
   public connected(): Promise<NotebookInstance> {

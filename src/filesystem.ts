@@ -581,21 +581,21 @@ export class Filesystem {
 
   public readFile(path: string): Promise<Uint8Array>;
   public readFile(path: string, lineRange: { lineStart: number; lineEnd: number }): Promise<ReadFileRangeResult>;
-  public readFile(path: string, lineRange?: { lineStart: number; lineEnd: number }): Promise<Uint8Array | ReadFileRangeResult> {
-    return this.okra
-      .invoke('fs.readFile', { path, lineRange })
-      .then((content) => {
-        if (content instanceof Uint8Array) {
-          return content;
-        }
-
-        if (typeof content === 'string') {
-          return new TextEncoder().encode(content);
-        }
-
+  public async readFile(path: string, lineRange?: { lineStart: number; lineEnd: number }): Promise<Uint8Array | ReadFileRangeResult> {
+    try {
+      const content = await this.okra.invoke('fs.readFile', { path, lineRange });
+      if (content instanceof Uint8Array) {
         return content;
-      })
-      .catch((e) => this.handleError(e));
+      }
+
+      if (typeof content === 'string') {
+        return new TextEncoder().encode(content);
+      }
+
+      return content;
+    } catch (e) {
+      this.handleError(e);
+    }
   }
 
   public writeFile(path: string, contents: Uint8Array, options: FileWriteOptions): Promise<void> {
