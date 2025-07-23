@@ -1,11 +1,15 @@
-import { nanoid } from 'nanoid';
-import { encode, decode } from '@msgpack/msgpack';
-import { Disposable, ErrorEvent, RateLimitError } from '../types.js';
-import retry from 'async-retry';
-import ReconnectingWebSocket, { CloseEvent, ErrorEvent as WsErrorEvent } from 'reconnecting-websocket';
-import { EventDispatcher } from '../events/index.js';
-import { timeout } from '../utils/promise.js';
-import WebSocket from 'isomorphic-ws';
+import { nanoid } from "nanoid";
+import { encode, decode } from "@msgpack/msgpack";
+import { Disposable, ErrorEvent, RateLimitError } from "../types.js";
+import retry from "async-retry";
+import ReconnectingWebSocket, {
+  CloseEvent,
+  ErrorEvent as WsErrorEvent,
+} from "reconnecting-websocket";
+import { EventDispatcher } from "../events/index.js";
+import { timeout } from "../utils/promise.js";
+import WebSocket from "isomorphic-ws";
+import { NamedDisposable } from "src/utils/disposable.js";
 
 interface WsOptions {
   debug?: boolean;
@@ -22,34 +26,34 @@ export interface CallOption {
   buffer?: boolean;
 }
 
-export type WebSocketStatus = 'OPEN' | 'CONNECTING' | 'CLOSED';
+export type WebSocketStatus = "OPEN" | "CONNECTING" | "CLOSED";
 
 export enum SocketEvent {
-  BootError = 'Events.BootError',
-  Response = 'response',
-  Error = 'error',
-  ClientId = 'App.Actions.GetClientId',
+  BootError = "Events.BootError",
+  Response = "response",
+  Error = "error",
+  ClientId = "App.Actions.GetClientId",
 }
 
 // Add specific error types for better error handling
 export class ConnectionTimeoutError extends Error {
-  constructor(message: string = 'WebSocket connection timeout') {
+  constructor(message: string = "WebSocket connection timeout") {
     super(message);
-    this.name = 'ConnectionTimeoutError';
+    this.name = "ConnectionTimeoutError";
   }
 }
 
 export class ConnectionFailedError extends Error {
   constructor(message: string, public readonly originalError?: Event) {
     super(message);
-    this.name = 'ConnectionFailedError';
+    this.name = "ConnectionFailedError";
   }
 }
 
 export class InvalidMessageError extends Error {
   constructor(message: string, public readonly data?: unknown) {
     super(message);
-    this.name = 'InvalidMessageError';
+    this.name = "InvalidMessageError";
   }
 }
 
@@ -57,7 +61,7 @@ export class InvalidMessageError extends Error {
 export class InvalidConfigurationError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'InvalidConfigurationError';
+    this.name = "InvalidConfigurationError";
   }
 }
 
@@ -109,17 +113,17 @@ export interface ConnectionMetrics {
   config: TransportConfig;
 }
 
-export type HealthStatus = 'healthy' | 'degraded' | 'unhealthy';
+export type HealthStatus = "healthy" | "degraded" | "unhealthy";
 
 // Transport events that applications can listen to
 export interface TransportEvents {
-  'transport.error': {
+  "transport.error": {
     type: string;
     error: any;
     rawMessage?: unknown;
     timestamp: number;
   };
-  'transport.closed': {
+  "transport.closed": {
     code?: number;
     reason?: string;
     metrics: ConnectionMetrics;
@@ -130,16 +134,16 @@ export interface TransportEvents {
 export class Transport {
   private readonly PING_INTERVAL: number;
 
-  private pingInterval: ReturnType<typeof setInterval> | null = null;
+  private maintenanceInterval: ReturnType<typeof setInterval> | null = null;
 
-  private clientId: string = '';
+  private clientId: string = "";
 
   private closed = false;
 
   // @ts-expect-error - ReconnectingWebSocket types issue
   private readonly rws: ReconnectingWebSocket;
 
-  private disposables: Disposable[] = [];
+  private disposables: NamedDisposable = new NamedDisposable();
 
   private connectPromise: Promise<void> | null = null;
 
@@ -186,7 +190,7 @@ export class Transport {
     this.validateConfiguration(options);
 
     this.url = new URL(url);
-    this.url.searchParams.set('sdk_version', '0.0.1');
+    this.url.searchParams.set("sdk_version", "0.0.1");
 
     // Use configurable ping interval
     this.PING_INTERVAL = options.pingInterval ?? 30000;
@@ -208,7 +212,10 @@ export class Transport {
       startClosed,
     });
 
-    this.log('debug', 'Transport initialized', { url: this.url.toString(), options });
+    this.log("debug", "Transport initialized", {
+      url: this.url.toString(),
+      options,
+    });
     this.registerWatchers();
     this.setupConnectionHealthMonitoring();
     this.startPeriodicMaintenance();
@@ -218,27 +225,48 @@ export class Transport {
    * Validate configuration options
    */
   private validateConfiguration(options: WsOptions): void {
-    if (options.pingInterval !== undefined && (options.pingInterval < 1000 || options.pingInterval > 300000)) {
-      throw new InvalidConfigurationError('pingInterval must be between 1000ms and 300000ms');
+    if (
+      options.pingInterval !== undefined &&
+      (options.pingInterval < 1000 || options.pingInterval > 300000)
+    ) {
+      throw new InvalidConfigurationError(
+        "pingInterval must be between 1000ms and 300000ms"
+      );
     }
 
-    if (options.connectionTimeout !== undefined && (options.connectionTimeout < 100 || options.connectionTimeout > 30000)) {
-      throw new InvalidConfigurationError('connectionTimeout must be between 100ms and 30000ms');
+    if (
+      options.connectionTimeout !== undefined &&
+      (options.connectionTimeout < 100 || options.connectionTimeout > 30000)
+    ) {
+      throw new InvalidConfigurationError(
+        "connectionTimeout must be between 100ms and 30000ms"
+      );
     }
 
-    if (options.maxRetries !== undefined && (options.maxRetries < 0 || options.maxRetries > 100)) {
-      throw new InvalidConfigurationError('maxRetries must be between 0 and 100');
+    if (
+      options.maxRetries !== undefined &&
+      (options.maxRetries < 0 || options.maxRetries > 100)
+    ) {
+      throw new InvalidConfigurationError(
+        "maxRetries must be between 0 and 100"
+      );
     }
   }
 
   /**
    * Internal logging utility for debugging
    */
-  private log(level: 'debug' | 'info' | 'warn' | 'error', message: string, data?: any): void {
+  private log(
+    level: "debug" | "info" | "warn" | "error",
+    message: string,
+    data?: any
+  ): void {
     if (this.options.debug) {
       const timestamp = new Date().toISOString();
-      const logData = data ? JSON.stringify(data, null, 2) : '';
-      console[level](`[Transport ${timestamp}] ${message}${logData ? '\n' + logData : ''}`);
+      const logData = data ? JSON.stringify(data, null, 2) : "";
+      console[level](
+        `[Transport ${timestamp}] ${message}${logData ? "\n" + logData : ""}`
+      );
     }
   }
 
@@ -276,8 +304,8 @@ export class Transport {
       let timeoutId: ReturnType<typeof setTimeout>;
 
       const openHandler = () => {
-        this.rws.removeEventListener('open', openHandler);
-        this.rws.removeEventListener('error', errorHandler);
+        this.rws.removeEventListener("open", openHandler);
+        this.rws.removeEventListener("error", errorHandler);
         clearTimeout(timeoutId);
 
         // Clear the cached promise on success
@@ -287,8 +315,8 @@ export class Transport {
       };
 
       const errorHandler = (error: Event) => {
-        this.rws.removeEventListener('open', openHandler);
-        this.rws.removeEventListener('error', errorHandler);
+        this.rws.removeEventListener("open", openHandler);
+        this.rws.removeEventListener("error", errorHandler);
         clearTimeout(timeoutId);
 
         // Clear the cached promise on error so retry is possible
@@ -298,48 +326,57 @@ export class Transport {
 
       // Add timeout to prevent hanging forever
       timeoutId = setTimeout(() => {
-        this.rws.removeEventListener('open', openHandler);
-        this.rws.removeEventListener('error', errorHandler);
+        this.rws.removeEventListener("open", openHandler);
+        this.rws.removeEventListener("error", errorHandler);
 
         // Clear the cached promise on timeout so retry is possible
         this.connectPromise = null;
-        reject(new Error('WebSocket connection timeout'));
+        reject(new Error("WebSocket connection timeout"));
       }, 10000); // 10 second timeout
 
-      this.rws.addEventListener('open', openHandler);
-      this.rws.addEventListener('error', errorHandler);
+      this.rws.addEventListener("open", openHandler);
+      this.rws.addEventListener("error", errorHandler);
     });
 
     return this.connectPromise;
   }
 
   #startPeriodicPing(): void {
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-    }
+    this.disposables.add("pingInterval", () => {
+      const interval = setInterval(async () => {
+        try {
+          this.connectionStats.lastPingTime = Date.now();
+          this.log("debug", "Sending periodic ping");
 
-    this.pingInterval = setInterval(async () => {
-      try {
-        this.connectionStats.lastPingTime = Date.now();
-        this.log('debug', 'Sending periodic ping');
+          const startTime = Date.now();
+          await this.invoke("ping");
 
-        const startTime = Date.now();
-        await this.invoke('ping');
+          this.connectionStats.lastPongTime = Date.now();
+          const pingTime = this.connectionStats.lastPongTime - startTime;
 
-        this.connectionStats.lastPongTime = Date.now();
-        const pingTime = this.connectionStats.lastPongTime - startTime;
+          this.log("debug", `Ping successful`, { pingTime });
+        } catch (error) {
+          this.log("error", "Ping failed", {
+            error: error instanceof Error ? error.message : String(error),
+          });
 
-        this.log('debug', `Ping successful`, { pingTime });
-      } catch (error) {
-        this.log('error', 'Ping failed', { error: error instanceof Error ? error.message : String(error) });
-
-        // If ping fails consistently, the connection might be dead
-        if (Date.now() - this.connectionStats.lastPongTime > this.PING_INTERVAL * 3) {
-          this.log('warn', 'Connection appears dead, forcing reconnection');
-          this.rws.reconnect();
+          // If ping fails consistently, the connection might be dead
+          if (
+            Date.now() - this.connectionStats.lastPongTime >
+            this.PING_INTERVAL * 3
+          ) {
+            this.log("warn", "Connection appears dead, forcing reconnection");
+            this.rws.reconnect();
+          }
         }
-      }
-    }, this.PING_INTERVAL);
+      }, this.PING_INTERVAL);
+
+      return {
+        dispose: () => {
+          clearInterval(interval);
+        },
+      };
+    });
   }
 
   public id(): string {
@@ -347,9 +384,9 @@ export class Transport {
   }
 
   private async registerWatchers(): Promise<void> {
-    this.rws.addEventListener('message', (ev: MessageEvent) => {
+    this.rws.addEventListener("message", (ev: MessageEvent) => {
       if (!(ev.data instanceof Blob)) {
-        throw new Error('Unexpected message type: ' + typeof ev.data);
+        throw new Error("Unexpected message type: " + typeof ev.data);
       }
 
       ev.data.arrayBuffer().then((buffer: ArrayBuffer) => {
@@ -357,37 +394,41 @@ export class Transport {
       });
     });
 
-    this.disposables.push({
+    this.disposables.add("message", {
       dispose: () => {
-        this.rws.removeEventListener('message');
+        this.rws.removeEventListener("message");
       },
     });
   }
 
   private async handleRawMessage(ev: unknown): Promise<void> {
-    if (typeof ev !== 'object' || ev === null) {
-      this.log('debug', 'Received invalid message format', { ev });
+    if (typeof ev !== "object" || ev === null) {
+      this.log("debug", "Received invalid message format", { ev });
       return;
     }
 
     try {
-      const { data, event, as } = ev as { data: any; event: string; as: string };
+      const { data, event, as } = ev as {
+        data: any;
+        event: string;
+        as: string;
+      };
 
       // Validate message structure
-      if (!event || typeof event !== 'string') {
-        throw new InvalidMessageError('Message missing event field', ev);
+      if (!event || typeof event !== "string") {
+        throw new InvalidMessageError("Message missing event field", ev);
       }
 
-      this.log('debug', 'Processing message', { event, hasData: !!data });
+      this.log("debug", "Processing message", { event, hasData: !!data });
 
       if (event === SocketEvent.ClientId) {
         this.clientId = data.id;
-        this.log('info', 'Client ID received', { clientId: this.clientId });
+        this.log("info", "Client ID received", { clientId: this.clientId });
         return;
       }
 
       if (event === SocketEvent.BootError) {
-        this.log('error', 'Boot error received', { data });
+        this.log("error", "Boot error received", { data });
         return;
       }
 
@@ -396,10 +437,13 @@ export class Transport {
         const { responseEvent, data: responseData } = data;
 
         if (!responseEvent) {
-          throw new InvalidMessageError('Response message missing responseEvent', ev);
+          throw new InvalidMessageError(
+            "Response message missing responseEvent",
+            ev
+          );
         }
 
-        this.log('debug', 'Response message received', { responseEvent });
+        this.log("debug", "Response message received", { responseEvent });
         await this.handleMessage(responseEvent, responseData);
         return;
       }
@@ -409,10 +453,13 @@ export class Transport {
         const { errorEvent, data: responseData } = data;
 
         if (!errorEvent) {
-          throw new InvalidMessageError('Error message missing errorEvent', ev);
+          throw new InvalidMessageError("Error message missing errorEvent", ev);
         }
 
-        this.log('debug', 'Error message received', { errorEvent, errorData: responseData });
+        this.log("debug", "Error message received", {
+          errorEvent,
+          errorData: responseData,
+        });
         await this.handleMessage(errorEvent, responseData);
         return;
       }
@@ -422,23 +469,23 @@ export class Transport {
       this.connectionStats.totalErrors++;
 
       if (e instanceof InvalidMessageError) {
-        this.log('error', 'Invalid message format', {
+        this.log("error", "Invalid message format", {
           error: e.message,
           data: e.data,
-          totalErrors: this.connectionStats.totalErrors
+          totalErrors: this.connectionStats.totalErrors,
         });
       } else {
-        this.log('error', 'Failed to parse message', {
+        this.log("error", "Failed to parse message", {
           ev,
           error: e instanceof Error ? e.message : String(e),
-          totalErrors: this.connectionStats.totalErrors
+          totalErrors: this.connectionStats.totalErrors,
         });
       }
 
       // Don't throw - we want to continue processing other messages
       // But emit an error event for the application to handle
-      this.eventEmitter.emit('transport.error', {
-        type: 'message_parse_error',
+      this.eventEmitter.emit("transport.error", {
+        type: "message_parse_error",
         error: e,
         rawMessage: ev,
         timestamp: Date.now(),
@@ -446,7 +493,11 @@ export class Transport {
     }
   }
 
-  private async handleMessage(event: string, data: any, as?: string): Promise<any> {
+  private async handleMessage(
+    event: string,
+    data: any,
+    as?: string
+  ): Promise<any> {
     if (event === SocketEvent.ClientId) {
       this.clientId = data.id;
       this.eventEmitter.emit(event, data.id);
@@ -465,7 +516,11 @@ export class Transport {
     this.eventEmitter.removeListener(event, listener);
   }
 
-  public listenOnce(event: string, listener: (data: any) => void, context?: any): void {
+  public listenOnce(
+    event: string,
+    listener: (data: any) => void,
+    context?: any
+  ): void {
     this.eventEmitter.once(event, listener, context);
   }
 
@@ -474,15 +529,15 @@ export class Transport {
   }
 
   public get isConnected(): boolean {
-    return this.status === 'OPEN';
+    return this.status === "OPEN";
   }
 
   public get isConnecting(): boolean {
-    return this.status === 'CONNECTING';
+    return this.status === "CONNECTING";
   }
 
   public get isDisconnected(): boolean {
-    return this.status === 'CLOSED';
+    return this.status === "CLOSED";
   }
 
   public get isClosed(): boolean {
@@ -491,46 +546,58 @@ export class Transport {
 
   public get status(): string | undefined {
     return {
-      0: 'CONNECTING',
-      1: 'OPEN',
-      2: 'CLOSING',
-      3: 'CLOSED',
+      0: "CONNECTING",
+      1: "OPEN",
+      2: "CLOSING",
+      3: "CLOSED",
     }[this.rws.readyState as unknown as number];
   }
 
-  public async call(action: string, data: object | string = {}, options: CallOption = {}): Promise<any> {
+  public async call(
+    action: string,
+    data: object | string = {},
+    options: CallOption = {}
+  ): Promise<any> {
     // Rate limiting check
     if (this.isRateLimited()) {
-      throw new RateLimitError('Rate limit exceeded - too many requests');
+      throw new RateLimitError("Rate limit exceeded - too many requests");
     }
 
     // Clear old queued messages periodically
     this.clearOldQueuedMessages();
 
-    const responseEvent = options.responseEvent || `${action}_${nanoid()}_response`;
+    const responseEvent =
+      options.responseEvent || `${action}_${nanoid()}_response`;
     const errorEvent = `${responseEvent}_error`;
 
     let closeHandler: (ev: CloseEvent | WsErrorEvent) => void;
     const removeListeners = () => {
       if (closeHandler) {
-        this.rws.removeEventListener('close', closeHandler);
-        this.rws.removeEventListener('error', closeHandler);
+        this.rws.removeEventListener("close", closeHandler);
+        this.rws.removeEventListener("error", closeHandler);
       }
 
       this.eventEmitter.removeListener(responseEvent);
       this.eventEmitter.removeListener(errorEvent);
     };
 
-    const handler = async (resolve: (value: any) => void, reject: (reason?: any) => void): Promise<void> => {
+    const handler = async (
+      resolve: (value: any) => void,
+      reject: (reason?: any) => void
+    ): Promise<void> => {
       // If not connected, queue the message
       if (!this.isConnected && !this.isClosed) {
-        this.log('debug', 'Connection not available, queuing message', { action });
+        this.log("debug", "Connection not available, queuing message", {
+          action,
+        });
 
         // Check queue size limit
         if (this.messageQueue.length >= this.MAX_QUEUE_SIZE) {
           const oldestMessage = this.messageQueue.shift();
           if (oldestMessage) {
-            oldestMessage.reject(new Error('Message queue full, oldest message dropped'));
+            oldestMessage.reject(
+              new Error("Message queue full, oldest message dropped")
+            );
           }
         }
 
@@ -554,10 +621,10 @@ export class Transport {
           (this.connectionStats.avgResponseTime + responseTime) / 2;
         this.connectionStats.totalMessages++;
 
-        this.log('debug', 'Message response received', {
+        this.log("debug", "Message response received", {
           action,
           responseTime,
-          avgResponseTime: this.connectionStats.avgResponseTime
+          avgResponseTime: this.connectionStats.avgResponseTime,
         });
 
         resolve(response);
@@ -565,26 +632,34 @@ export class Transport {
 
       this.listenOnce(errorEvent, (e) => {
         this.connectionStats.totalErrors++;
-        this.log('error', 'Message error received', { action, error: e });
+        this.log("error", "Message error received", { action, error: e });
         reject(new ErrorEvent(e.code, e.message, e));
       });
 
-      closeHandler = (_ev: (CloseEvent | WsErrorEvent) & { reason?: string; code?: number }) => {
-        if (_ev.code === 1008 && (_ev.reason || '').includes('rate limit')) {
-          reject(new RateLimitError(_ev.reason || 'Rate limit exceeded', _ev));
+      closeHandler = (
+        _ev: (CloseEvent | WsErrorEvent) & { reason?: string; code?: number }
+      ) => {
+        if (_ev.code === 1008 && (_ev.reason || "").includes("rate limit")) {
+          reject(new RateLimitError(_ev.reason || "Rate limit exceeded", _ev));
           return;
         }
-        reject(new Error(`Connection lost to the notebook during request: ${_ev.reason || 'Unknown reason'}`));
+        reject(
+          new Error(
+            `Connection lost to the notebook during request: ${
+              _ev.reason || "Unknown reason"
+            }`
+          )
+        );
       };
 
-      this.rws.addEventListener('close', closeHandler);
-      this.rws.addEventListener('error', closeHandler);
+      this.rws.addEventListener("close", closeHandler);
+      this.rws.addEventListener("error", closeHandler);
 
       try {
         this.rws.send(this.pack({ action, data, errorEvent, responseEvent }));
-        this.log('debug', 'Message sent', { action, data });
+        this.log("debug", "Message sent", { action, data });
       } catch (error) {
-        this.log('error', 'Failed to send message', { action, error });
+        this.log("error", "Failed to send message", { action, error });
         throw error;
       }
     };
@@ -604,11 +679,16 @@ export class Transport {
     return this.sendWithRetry(async () => await send(), options.retries || 10);
   }
 
-  private pack(data: string | ArrayBuffer | Blob | object): string | Blob | ArrayBuffer {
+  private pack(
+    data: string | ArrayBuffer | Blob | object
+  ): string | Blob | ArrayBuffer {
     return new Blob([encode(data)]);
   }
 
-  private sendWithRetry(sender: () => Promise<any>, retries = 10): Promise<any> {
+  private sendWithRetry(
+    sender: () => Promise<any>,
+    retries = 10
+  ): Promise<any> {
     /**
      * Enhanced retry with exponential backoff and intelligent error handling
      */
@@ -618,18 +698,25 @@ export class Transport {
           return await sender();
         } catch (e) {
           // Don't retry these errors
-          if (e instanceof ErrorEvent || e instanceof RateLimitError ||
-              e instanceof InvalidConfigurationError || e instanceof InvalidMessageError) {
-            this.log('debug', 'Non-retryable error, bailing', { error: e.message, attempt });
+          if (
+            e instanceof ErrorEvent ||
+            e instanceof RateLimitError ||
+            e instanceof InvalidConfigurationError ||
+            e instanceof InvalidMessageError
+          ) {
+            this.log("debug", "Non-retryable error, bailing", {
+              error: e.message,
+              attempt,
+            });
             bail(e);
             return;
           }
 
           // Log retry attempt
-          this.log('debug', 'Retrying send operation', {
+          this.log("debug", "Retrying send operation", {
             attempt,
             error: e instanceof Error ? e.message : String(e),
-            nextDelay: this.getBackoffDelay(attempt - 1)
+            nextDelay: this.getBackoffDelay(attempt - 1),
           });
 
           throw e;
@@ -638,10 +725,10 @@ export class Transport {
       {
         retries,
         onRetry: (e: unknown, attempt: number) => {
-          this.log('warn', 'Send operation retry', {
+          this.log("warn", "Send operation retry", {
             attempt,
             maxRetries: retries,
-            error: e instanceof Error ? e.message : String(e)
+            error: e instanceof Error ? e.message : String(e),
           });
         },
         // Use exponential backoff with jitter
@@ -653,16 +740,21 @@ export class Transport {
     );
   }
 
-  public invoke(action: string, data: object | string = {}, options: CallOption = {}): Promise<any> {
+  public invoke(
+    action: string,
+    data: object | string = {},
+    options: CallOption = {}
+  ): Promise<any> {
     if (!options.responseEvent) {
       options.responseEvent = `${action}_${nanoid()}`;
     }
 
-    return this.call('invoke', { action, data }, options);
+    return this.call("invoke", { action, data }, options);
   }
 
   public disconnect(): void {
     if (this.closed) {
+      console.warn("Transport is already closed, cannot disconnect again");
       return;
     }
 
@@ -674,68 +766,67 @@ export class Transport {
       return;
     }
 
-    this.log('info', 'Closing transport connection', { code, reason });
-
-    // Clear ping interval
-    if (this.pingInterval) {
-      clearInterval(this.pingInterval);
-      this.pingInterval = null;
-    }
+    this.log("info", "Closing transport connection", { code, reason });
 
     // Clear any pending connection promise
     this.connectPromise = null;
 
     // Reject all queued messages
     const queuedCount = this.messageQueue.length;
-    this.messageQueue.forEach(msg => {
-      msg.reject(new Error('Connection closed while message was queued'));
+    this.messageQueue.forEach((msg) => {
+      msg.reject(new Error("Connection closed while message was queued"));
     });
     this.messageQueue = [];
 
     if (queuedCount > 0) {
-      this.log('debug', `Rejected ${queuedCount} queued messages due to connection close`);
+      this.log(
+        "debug",
+        `Rejected ${queuedCount} queued messages due to connection close`
+      );
     }
 
     // Clear rate limiter
     this.rateLimiter.requests = [];
 
-    // Dispose all event listeners
-    this.disposables.forEach((d) => d.dispose());
-    this.disposables = [];
+    // Dispose all event disposables
+    this.disposables.dispose();
 
     // Close WebSocket connection
     try {
       this.rws.close(code, reason);
     } catch (error) {
-      this.log('error', 'Error closing WebSocket', { error: error instanceof Error ? error.message : String(error) });
+      this.log("error", "Error closing WebSocket", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     // Emit final close event
-    this.eventEmitter.emit('transport.closed', {
+    this.eventEmitter.emit("transport.closed", {
       code,
       reason,
       metrics: this.getConnectionMetrics(),
       timestamp: Date.now(),
     });
 
+    this.eventEmitter.removeListener("*"); // Remove all event listeners
     this.closed = true;
-    this.log('info', 'Transport connection closed successfully');
+    this.log("info", "Transport connection closed successfully");
   }
 
   public onDidConnect(listener: () => void): void {
-    this.rws.addEventListener('open', listener);
-    this.disposables.push({
+    this.rws.addEventListener("open", listener);
+    this.disposables.add("connect", {
       dispose: () => {
-        this.rws.removeEventListener('open', listener);
+        this.rws.removeEventListener("open", listener);
       },
     });
   }
 
   public onDidClose(listener: (e: CloseEvent | WsErrorEvent) => void): void {
-    this.rws.addEventListener('close', listener);
-    this.disposables.push({
+    this.rws.addEventListener("close", listener);
+    this.disposables.add("close", {
       dispose: () => {
-        this.rws.removeEventListener('close', listener);
+        this.rws.removeEventListener("close", listener);
       },
     });
   }
@@ -744,30 +835,30 @@ export class Transport {
    * Setup connection health monitoring
    */
   private setupConnectionHealthMonitoring(): void {
-    this.rws.addEventListener('open', () => {
+    this.rws.addEventListener("open", () => {
       this.connectionStats.connectTime = Date.now();
       this.connectionStats.reconnectCount++;
-      this.log('info', 'Connection established', {
+      this.log("info", "Connection established", {
         reconnectCount: this.connectionStats.reconnectCount,
-        timeSinceStart: Date.now() - this.connectionStats.connectionStartTime
+        timeSinceStart: Date.now() - this.connectionStats.connectionStartTime,
       });
       this.processMessageQueue();
     });
 
-    this.rws.addEventListener('close', (event) => {
-      this.log('warn', 'Connection closed', {
+    this.rws.addEventListener("close", (event) => {
+      this.log("warn", "Connection closed", {
         code: event.code,
         reason: event.reason,
-        wasClean: event.wasClean
+        wasClean: event.wasClean,
       });
       this.handleConnectionClose(event.code);
     });
 
-    this.rws.addEventListener('error', (event) => {
+    this.rws.addEventListener("error", (event) => {
       this.connectionStats.totalErrors++;
-      this.log('error', 'Connection error', {
+      this.log("error", "Connection error", {
         error: event,
-        totalErrors: this.connectionStats.totalErrors
+        totalErrors: this.connectionStats.totalErrors,
       });
     });
   }
@@ -775,24 +866,24 @@ export class Transport {
   /**
    * Handle different WebSocket close codes appropriately
    */
-  private handleConnectionClose(code: number): 'reconnect' | 'stop' | 'retry' {
+  private handleConnectionClose(code: number): "reconnect" | "stop" | "retry" {
     switch (code) {
       case 1000: // Normal closure
-        this.log('info', 'Normal connection closure');
-        return 'stop';
+        this.log("info", "Normal connection closure");
+        return "stop";
       case 1001: // Going away
-        this.log('info', 'Connection going away, will reconnect');
-        return 'reconnect';
+        this.log("info", "Connection going away, will reconnect");
+        return "reconnect";
       case 1006: // Abnormal closure
-        this.log('warn', 'Abnormal connection closure, will retry');
-        return 'retry';
+        this.log("warn", "Abnormal connection closure, will retry");
+        return "retry";
       case 1008: // Policy violation (rate limit)
-        this.log('error', 'Connection closed due to policy violation');
+        this.log("error", "Connection closed due to policy violation");
         this.clearOldQueuedMessages();
-        return 'stop';
+        return "stop";
       default:
-        this.log('warn', `Unknown close code: ${code}, will reconnect`);
-        return 'reconnect';
+        this.log("warn", `Unknown close code: ${code}, will reconnect`);
+        return "reconnect";
     }
   }
 
@@ -804,7 +895,7 @@ export class Transport {
       return;
     }
 
-    this.log('debug', `Processing ${this.messageQueue.length} queued messages`);
+    this.log("debug", `Processing ${this.messageQueue.length} queued messages`);
 
     const queue = [...this.messageQueue];
     this.messageQueue = [];
@@ -812,7 +903,7 @@ export class Transport {
     for (const queuedMessage of queue) {
       // Check if message hasn't timed out
       if (Date.now() - queuedMessage.timestamp > this.QUEUE_TIMEOUT) {
-        queuedMessage.reject(new Error('Queued message timed out'));
+        queuedMessage.reject(new Error("Queued message timed out"));
         continue;
       }
 
@@ -830,16 +921,19 @@ export class Transport {
     const now = Date.now();
     const originalLength = this.messageQueue.length;
 
-    this.messageQueue = this.messageQueue.filter(msg => {
+    this.messageQueue = this.messageQueue.filter((msg) => {
       const isExpired = now - msg.timestamp > this.QUEUE_TIMEOUT;
       if (isExpired) {
-        msg.reject(new Error('Queued message expired'));
+        msg.reject(new Error("Queued message expired"));
       }
       return !isExpired;
     });
 
     if (originalLength !== this.messageQueue.length) {
-      this.log('debug', `Cleared ${originalLength - this.messageQueue.length} expired messages`);
+      this.log(
+        "debug",
+        `Cleared ${originalLength - this.messageQueue.length} expired messages`
+      );
     }
   }
 
@@ -851,7 +945,7 @@ export class Transport {
 
     // Remove old requests outside the window
     this.rateLimiter.requests = this.rateLimiter.requests.filter(
-      timestamp => now - timestamp < this.rateLimiter.windowMs
+      (timestamp) => now - timestamp < this.rateLimiter.windowMs
     );
 
     // Check if we've exceeded the limit
@@ -881,9 +975,10 @@ export class Transport {
    */
   public getConnectionMetrics() {
     const now = Date.now();
-    const connectionDuration = this.connectionStats.connectTime > 0
-      ? now - this.connectionStats.connectTime
-      : 0;
+    const connectionDuration =
+      this.connectionStats.connectTime > 0
+        ? now - this.connectionStats.connectTime
+        : 0;
 
     return {
       status: this.status,
@@ -894,25 +989,37 @@ export class Transport {
         ...this.connectionStats,
         connectionDuration,
         uptime: now - this.connectionStats.connectionStartTime,
-        messagesPerSecond: connectionDuration > 0
-          ? (this.connectionStats.totalMessages / (connectionDuration / 1000)).toFixed(2)
-          : '0',
-        errorRate: this.connectionStats.totalMessages > 0
-          ? ((this.connectionStats.totalErrors / this.connectionStats.totalMessages) * 100).toFixed(2) + '%'
-          : '0%',
-        timeSinceLastPing: this.connectionStats.lastPingTime > 0
-          ? now - this.connectionStats.lastPingTime
-          : 0,
-        timeSinceLastPong: this.connectionStats.lastPongTime > 0
-          ? now - this.connectionStats.lastPongTime
-          : 0,
+        messagesPerSecond:
+          connectionDuration > 0
+            ? (
+                this.connectionStats.totalMessages /
+                (connectionDuration / 1000)
+              ).toFixed(2)
+            : "0",
+        errorRate:
+          this.connectionStats.totalMessages > 0
+            ? (
+                (this.connectionStats.totalErrors /
+                  this.connectionStats.totalMessages) *
+                100
+              ).toFixed(2) + "%"
+            : "0%",
+        timeSinceLastPing:
+          this.connectionStats.lastPingTime > 0
+            ? now - this.connectionStats.lastPingTime
+            : 0,
+        timeSinceLastPong:
+          this.connectionStats.lastPongTime > 0
+            ? now - this.connectionStats.lastPongTime
+            : 0,
       },
       messageQueue: {
         length: this.messageQueue.length,
         maxSize: this.MAX_QUEUE_SIZE,
-        oldestMessageAge: this.messageQueue.length > 0
-          ? now - Math.min(...this.messageQueue.map(m => m.timestamp))
-          : 0,
+        oldestMessageAge:
+          this.messageQueue.length > 0
+            ? now - Math.min(...this.messageQueue.map((m) => m.timestamp))
+            : 0,
       },
       rateLimiter: {
         currentRequests: this.rateLimiter.requests.length,
@@ -924,32 +1031,36 @@ export class Transport {
         pingInterval: this.PING_INTERVAL,
         queueTimeout: this.QUEUE_TIMEOUT,
         url: this.url.toString(),
-      }
+      },
     };
   }
 
   /**
    * Get connection health status
    */
-  public getHealthStatus(): 'healthy' | 'degraded' | 'unhealthy' {
+  public getHealthStatus(): "healthy" | "degraded" | "unhealthy" {
     const metrics = this.getConnectionMetrics();
     const stats = metrics.connectionStats;
 
     // Unhealthy conditions
-    if (!this.isConnected ||
-        stats.timeSinceLastPong > this.PING_INTERVAL * 2 ||
-        parseFloat(stats.errorRate) > 50) {
-      return 'unhealthy';
+    if (
+      !this.isConnected ||
+      stats.timeSinceLastPong > this.PING_INTERVAL * 2 ||
+      parseFloat(stats.errorRate) > 50
+    ) {
+      return "unhealthy";
     }
 
     // Degraded conditions
-    if (stats.avgResponseTime > 5000 ||
-        parseFloat(stats.errorRate) > 10 ||
-        stats.timeSinceLastPong > this.PING_INTERVAL * 1.5) {
-      return 'degraded';
+    if (
+      stats.avgResponseTime > 5000 ||
+      parseFloat(stats.errorRate) > 10 ||
+      stats.timeSinceLastPong > this.PING_INTERVAL * 1.5
+    ) {
+      return "degraded";
     }
 
-    return 'healthy';
+    return "healthy";
   }
 
   /**
@@ -967,7 +1078,7 @@ export class Transport {
       connectionStartTime: Date.now(),
     };
 
-    this.log('debug', 'Connection statistics reset');
+    this.log("debug", "Connection statistics reset");
   }
 
   /**
@@ -986,39 +1097,43 @@ export class Transport {
 
     // Check for issues
     if (!this.isConnected) {
-      issues.push('Connection is not established');
-      recommendations.push('Check network connectivity and server availability');
+      issues.push("Connection is not established");
+      recommendations.push(
+        "Check network connectivity and server availability"
+      );
     }
 
     if (metrics.connectionStats.timeSinceLastPong > this.PING_INTERVAL * 2) {
-      issues.push('No pong received recently - connection may be stale');
-      recommendations.push('Consider forcing a reconnection');
+      issues.push("No pong received recently - connection may be stale");
+      recommendations.push("Consider forcing a reconnection");
     }
 
     if (parseFloat(metrics.connectionStats.errorRate) > 10) {
       issues.push(`High error rate: ${metrics.connectionStats.errorRate}`);
-      recommendations.push('Check server logs and network stability');
+      recommendations.push("Check server logs and network stability");
     }
 
     if (metrics.messageQueue.length > this.MAX_QUEUE_SIZE * 0.8) {
-      issues.push('Message queue is nearly full');
-      recommendations.push('Check connection stability and consider reducing message frequency');
+      issues.push("Message queue is nearly full");
+      recommendations.push(
+        "Check connection stability and consider reducing message frequency"
+      );
     }
 
     if (metrics.connectionStats.avgResponseTime > 5000) {
-      issues.push('High average response time');
-      recommendations.push('Check network latency and server performance');
+      issues.push("High average response time");
+      recommendations.push("Check network latency and server performance");
     }
 
     if (metrics.rateLimiter.isLimited) {
-      issues.push('Rate limiting is active');
-      recommendations.push('Reduce request frequency or increase rate limit');
+      issues.push("Rate limiting is active");
+      recommendations.push("Reduce request frequency or increase rate limit");
     }
 
-    this.log('info', 'Connection diagnostics completed', {
+    this.log("info", "Connection diagnostics completed", {
       status,
       issueCount: issues.length,
-      recommendationCount: recommendations.length
+      recommendationCount: recommendations.length,
     });
 
     return {
@@ -1033,27 +1148,35 @@ export class Transport {
    * Periodic maintenance - clean up old data, run health checks
    */
   private startPeriodicMaintenance(): void {
-    // Run maintenance every 5 minutes
-    setInterval(() => {
-      this.clearOldQueuedMessages();
+    this.disposables.add("maintenance", () => {
+      // Run maintenance every 5 minutes
+      const maintenanceInterval = setInterval(() => {
+        this.clearOldQueuedMessages();
 
-      // Clean up old rate limiter entries (should already be done, but double-check)
-      const now = Date.now();
-      this.rateLimiter.requests = this.rateLimiter.requests.filter(
-        timestamp => now - timestamp < this.rateLimiter.windowMs
-      );
+        // Clean up old rate limiter entries (should already be done, but double-check)
+        const now = Date.now();
+        this.rateLimiter.requests = this.rateLimiter.requests.filter(
+          (timestamp) => now - timestamp < this.rateLimiter.windowMs
+        );
 
-      // Log health status if debug is enabled
-      if (this.options.debug) {
-        const health = this.getHealthStatus();
-        const metrics = this.getConnectionMetrics();
-        this.log('debug', 'Periodic health check', {
-          health,
-          messageCount: metrics.connectionStats.totalMessages,
-          errorCount: metrics.connectionStats.totalErrors,
-          queueLength: metrics.messageQueue.length
-        });
-      }
-    }, 5 * 60 * 1000); // 5 minutes
+        // Log health status if debug is enabled
+        if (this.options.debug) {
+          const health = this.getHealthStatus();
+          const metrics = this.getConnectionMetrics();
+          this.log("debug", "Periodic health check", {
+            health,
+            messageCount: metrics.connectionStats.totalMessages,
+            errorCount: metrics.connectionStats.totalErrors,
+            queueLength: metrics.messageQueue.length,
+          });
+        }
+      }, 5 * 60 * 1000); // 5 minutes
+
+      return {
+        dispose: () => {
+          clearInterval(maintenanceInterval);
+        },
+      };
+    });
   }
 }
