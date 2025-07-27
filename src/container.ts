@@ -38,6 +38,8 @@ export interface ContainerActions {
   'container.state': Action<{}, { state: NotebookState }>;
   'container.opened-ports': Action<{}, PortInfo[]>;
   'container.set-php': Action<{ version: string }, { version: string }>;
+  'container.stream-telemetry': Action<{}, void>;
+  'container.stop-telemetry': Action<{}, void>;
 }
 
 export default class Container {
@@ -61,6 +63,14 @@ export default class Container {
 
   public setPhp(version: string) {
     return this.okra.invoke('container.set-php', { version });
+  }
+
+  public enableTelemetry() {
+    return this.okra.invoke('container.stream-telemetry');
+  }
+
+  public stopTelemetry() {
+    return this.okra.invoke('container.stop-telemetry');
   }
 
   public listen<T extends keyof ContainerEvents>(event: T, handler: (data: ContainerEvents[T]) => void): void {
