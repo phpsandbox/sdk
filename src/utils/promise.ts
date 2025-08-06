@@ -15,11 +15,11 @@ export class PromiseTimeoutError extends Error {
   }
 }
 
-export const timeout = (prom: Promise<any>, time: number) => {
+export const timeout = <T>(prom: Promise<T>, time: number): Promise<T> => {
   let timer: ReturnType<typeof setTimeout>;
   return Promise.race([
     prom,
-    new Promise(
+    new Promise<never>(
       (_r, rej) => (timer = setTimeout(rej, time, new PromiseTimeoutError('Timeout before promise can resolve', time)))
     ),
   ]).finally(() => clearTimeout(timer));
