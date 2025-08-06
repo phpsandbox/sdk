@@ -13,7 +13,7 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import EventManager, { EventDispatcher } from './events/index.js';
 import Git, { GitActions, GitEvents } from './git.js';
 import { Disposable } from './types.js';
-import { PromiseTimeoutError, timeout } from './utils/promise.js';
+import { timeout } from './utils/promise.js';
 
 export * from './types.js';
 export * from './lsp.js';
@@ -339,7 +339,7 @@ export class NotebookInstance {
   }
 
   #init(): Promise<NotebookInitResult> {
-    return (new Promise<NotebookInitResult>((resolve, reject) => {
+    return new Promise<NotebookInitResult>((resolve, reject) => {
       this.onDidInitialize((result: NotebookInitResult) => {
         this.initialized = result;
         if (result.type === 'error') {
@@ -348,7 +348,7 @@ export class NotebookInstance {
 
         resolve(result);
       });
-    })).then((result) => {
+    }).then((result) => {
       if (this.client.options.telemetry) {
         this.container.enableTelemetry();
       }
