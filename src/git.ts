@@ -23,30 +23,6 @@ export interface GitActions {
   'git.restore': Action<{ ref: string }, GitRef>;
 }
 
-class CommandError extends Error {
-  constructor(
-    public output: string,
-    public exitCode: number
-  ) {
-    super(output);
-  }
-}
-
-class Result {
-  constructor(
-    public output: string,
-    public exitCode: number
-  ) {}
-
-  public throw() {
-    if (this.exitCode !== 0) {
-      throw new CommandError(this.output, this.exitCode);
-    }
-
-    return this;
-  }
-}
-
 export default class Git {
   constructor(protected okra: NotebookInstance) {}
 

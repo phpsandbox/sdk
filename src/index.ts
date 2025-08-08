@@ -341,7 +341,7 @@ export class NotebookInstance {
   }
 
   #init(): Promise<NotebookInitResult> {
-    return (new Promise<NotebookInitResult>((resolve, reject) => {
+    return new Promise<NotebookInitResult>((resolve, reject) => {
       this.onDidInitialize((result: NotebookInitResult) => {
         this.initialized = result;
         if (result.type === 'error') {
@@ -350,7 +350,7 @@ export class NotebookInstance {
 
         resolve(result);
       });
-    })).then((result) => {
+    }).then((result) => {
       if (this.client.options.telemetry) {
         this.container.enableTelemetry();
       }

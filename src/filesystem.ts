@@ -404,7 +404,7 @@ export interface FilesystemActions {
   'fs.readDirectory': Action<{ path: string; include: string[]; exclude: string[] }, [string, FileType, number | null][]>;
   'fs.createDirectory': Action<{ path: string }, void>;
   'fs.watch': Action<{ path: string; options: WatchOptions }, void>;
-  'fs.download': Action<{ id: string; exclude: string[] }, void>;
+  'fs.download': Action<{ id: string; exclude?: string[] }, void>;
   'fs.unwatch': Action<{ path: string }, void>;
   'fs.tree': Action<{ path: string }, string>;
 }
@@ -581,7 +581,10 @@ export class Filesystem {
 
   public readFile(path: string): Promise<Uint8Array>;
   public readFile(path: string, lineRange: { lineStart: number; lineEnd: number }): Promise<ReadFileRangeResult>;
-  public async readFile(path: string, lineRange?: { lineStart: number; lineEnd: number }): Promise<Uint8Array | ReadFileRangeResult> {
+  public async readFile(
+    path: string,
+    lineRange?: { lineStart: number; lineEnd: number }
+  ): Promise<Uint8Array | ReadFileRangeResult> {
     try {
       const content = await this.okra.invoke('fs.readFile', { path, lineRange });
       if (content instanceof Uint8Array) {
