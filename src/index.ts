@@ -13,7 +13,8 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import EventManager, { EventDispatcher } from './events/index.js';
 import Git, { GitActions, GitEvents } from './git.js';
 import { Disposable } from './types.js';
-import { PromiseTimeoutError, timeout } from './utils/promise.js';
+import { timeout } from './utils/promise.js';
+import { Beacon, BeaconOptions, createBeacon } from './beacon/index.js';
 
 export * from './types.js';
 export * from './lsp.js';
@@ -23,6 +24,7 @@ export * from './shell.js';
 export * from './terminal.js';
 export * from './git.js';
 export * from './utils/promise.js';
+export * from './beacon/index.js';
 interface Result<T extends object> {
   type: 'success' | 'error' | 'running';
   message: string;
@@ -371,5 +373,9 @@ export class NotebookInstance {
   public reconnect() {
     this.dispose();
     return new NotebookInstance(this.data, this.client);
+  }
+
+  public beacon(iframe: HTMLIFrameElement, options?: BeaconOptions): Beacon {
+    return createBeacon(iframe, options);
   }
 }
