@@ -122,6 +122,26 @@ export interface PerformanceInfo {
   };
 }
 
+export interface FetchRequest {
+  url: string;
+  options?: RequestInit;
+}
+
+export interface FetchResult {
+  success: boolean;
+  response?: {
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    body: any;
+    url: string;
+    redirected: boolean;
+    type: ResponseType;
+  };
+  error?: string;
+  timestamp: number;
+}
+
 export interface BeaconActions {
   ping: () => Promise<boolean>;
   getDebugInfo: () => Promise<DebugInfo>;
@@ -132,6 +152,7 @@ export interface BeaconActions {
   executeCode: (code: string) => Promise<{ success: boolean; result?: any; error?: string }>;
   inspectElement: (selector: string) => Promise<{ success: boolean; element?: any; error?: string }>;
   debug: (request: DebugRequest) => Promise<DebugResult>;
+  fetch: (request: FetchRequest) => Promise<FetchResult>;
 }
 
 export interface BeaconEvents {
@@ -146,6 +167,7 @@ export interface BeaconEvents {
   codeExecutionResult: { success: boolean; result?: any; error?: string };
   elementInspectionResult: { success: boolean; element?: any; error?: string };
   debugResult: DebugResult;
+  fetchResult: FetchResult;
   navigationResult: { success: boolean; error?: string };
   historyNavigated: { success: boolean; error?: string; action?: string };
   historyStateChanged: { success: boolean; error?: string; action?: string; state?: any; title?: string; url?: string };

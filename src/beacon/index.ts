@@ -11,6 +11,8 @@ import {
   BeaconErrorEvent,
   DebugRequest,
   DebugResult,
+  FetchRequest,
+  FetchResult,
 } from './types.js';
 import { Navigator } from './navigator.js';
 
@@ -450,6 +452,13 @@ export class Beacon implements BeaconActions {
    */
   public async inspectElement(selector: string): Promise<{ success: boolean; element?: any; error?: string }> {
     return this.sendAndWaitFor('inspectElement', 'elementInspectionResult', { selector });
+  }
+
+  /**
+   * Fetch a URL in the beacon context
+   */
+  public async fetch(request: FetchRequest): Promise<FetchResult> {
+    return this.sendAndWaitFor('fetch', 'fetchResult', request);
   }
 
   /**
