@@ -67,7 +67,7 @@ export interface DebugResult {
   url: string;
   timestamp: number;
   loadTime?: number;
-  screenshot?: string; // Base64 encoded screenshot
+  screenshot?: ArrayBuffer;
   console: ConsoleEvent[];
   errors: BeaconErrorEvent[];
   networkInfo?: NetworkInfo;
@@ -135,21 +135,34 @@ export interface BeaconActions {
 }
 
 export interface BeaconEvents {
-  'ready': BeaconConfig & { url: string; timestamp: number };
-  'urlChange': UrlChangeEvent;
-  'console': ConsoleEvent;
-  'error': BeaconErrorEvent;
-  'pong': { timestamp: number };
-  'debugInfo': DebugInfo;
-  'consoleEvents': ConsoleEvent[];
-  'errorEvents': BeaconErrorEvent[];
-  'codeExecutionResult': { success: boolean; result?: any; error?: string };
-  'elementInspectionResult': { success: boolean; element?: any; error?: string };
-  'debugResult': DebugResult;
-  'navigationResult': { success: boolean; error?: string };
-  'historyNavigated': { success: boolean; error?: string; action?: string };
-  'historyStateChanged': { success: boolean; error?: string; action?: string; state?: any; title?: string; url?: string };
-  'historyInfo': {
+  ready: BeaconConfig & { url: string; timestamp: number };
+  urlChange: UrlChangeEvent;
+  console: ConsoleEvent;
+  error: BeaconErrorEvent;
+  pong: { timestamp: number };
+  debugInfo: DebugInfo;
+  consoleEvents: ConsoleEvent[];
+  errorEvents: BeaconErrorEvent[];
+  codeExecutionResult: { success: boolean; result?: any; error?: string };
+  elementInspectionResult: { success: boolean; element?: any; error?: string };
+  debugResult: DebugResult;
+  navigationResult: { success: boolean; error?: string };
+  historyNavigated: { success: boolean; error?: string; action?: string };
+  historyStateChanged: { success: boolean; error?: string; action?: string; state?: any; title?: string; url?: string };
+  historyChange: {
+    url: string;
+    state: any;
+    direction: 'back' | 'forward' | 'push' | 'replace' | 'reload';
+    timestamp: number;
+  };
+  navigationStateChange: {
+    canGoBack: boolean;
+    canGoForward: boolean;
+    currentIndex: number;
+    historyLength: number;
+    timestamp: number;
+  };
+  historyInfo: {
     length: number;
     state: any;
     url: string;

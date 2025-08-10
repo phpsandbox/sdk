@@ -30,7 +30,10 @@ function ensureBrowserEnvironment(): void {
  * BeaconError for beacon-specific errors
  */
 export class BeaconError extends Error {
-  constructor(message: string, public code?: string) {
+  constructor(
+    message: string,
+    public code?: string
+  ) {
     super(message);
     this.name = 'BeaconError';
   }
@@ -60,13 +63,14 @@ export class BeaconConnectionError extends BeaconError {
  * Beacon SDK for communicating with beacon instances in iframes
  */
 export class Beacon implements BeaconActions {
-  private iframe: HTMLIFrameElement;
+  public readonly iframe: HTMLIFrameElement;
   private options: Required<BeaconOptions>;
   private messageHandlers: Map<string, ((payload: any) => void)[]> = new Map();
   private eventEmitter: EventDispatcher;
   private isBeaconReady = false;
   private readyPromise: Promise<void>;
   private disposables: Disposable[] = [];
+  private iframeLoadHandlers: (() => void)[] = [];
 
   public readonly navigator: Navigator;
 
@@ -78,7 +82,7 @@ export class Beacon implements BeaconActions {
       timeout: 10000,
       targetOrigin: '*',
       debug: false,
-      ...options
+      ...options,
     };
 
     this.eventEmitter = EventManager.make();
@@ -86,9 +90,9 @@ export class Beacon implements BeaconActions {
 
     // Initialize navigator
     this.navigator = new Navigator(
-      this.sendAndWaitFor.bind(this),
       this.eventEmitter.listen.bind(this.eventEmitter),
-      this.eventEmitter.once.bind(this.eventEmitter)
+      this.eventEmitter.once.bind(this.eventEmitter),
+      this
     );
 
     // Initialize ready promise
@@ -129,7 +133,7 @@ export class Beacon implements BeaconActions {
 
     // Add to disposables for cleanup
     this.disposables.push({
-      dispose: () => window.removeEventListener('message', messageHandler)
+      dispose: () => window.removeEventListener('message', messageHandler),
     });
   }
 
@@ -154,7 +158,7 @@ export class Beacon implements BeaconActions {
     // Call registered message handlers
     const handlers = this.messageHandlers.get(message.type);
     if (handlers) {
-      handlers.forEach(handler => {
+      handlers.forEach((handler) => {
         try {
           handler(message.payload);
         } catch (error) {
@@ -167,10 +171,51 @@ export class Beacon implements BeaconActions {
   }
 
   /**
+   * Wait for iframe to be loaded and content window to be available
+   */
+  private waitForIframeReady(): Promise<void> {
+    return new Promise((resolve) => {
+      // Check if iframe is already loaded and contentWindow is available
+      if (
+        this.iframe.contentWindow &&
+        (this.iframe.contentDocument?.readyState === 'complete' || this.iframe.contentDocument?.readyState === 'interactive')
+      ) {
+        resolve();
+        return;
+      }
+
+      // Listen for iframe load event
+      const handleLoad = () => {
+        this.iframe.removeEventListener('load', handleLoad);
+        this.iframeLoadHandlers = this.iframeLoadHandlers.filter((h) => h !== handleLoad);
+        // Add small delay to ensure contentWindow is fully available
+        setTimeout(resolve, 100);
+      };
+
+      this.iframe.addEventListener('load', handleLoad);
+      this.iframeLoadHandlers.push(handleLoad);
+
+      // Fallback: if iframe is already loading but hasn't fired load event
+      if (this.iframe.contentWindow) {
+        const checkReady = () => {
+          if (this.iframe.contentDocument?.readyState === 'complete') {
+            this.iframe.removeEventListener('load', handleLoad);
+            this.iframeLoadHandlers = this.iframeLoadHandlers.filter((h) => h !== handleLoad);
+            resolve();
+          } else {
+            setTimeout(checkReady, 100);
+          }
+        };
+        checkReady();
+      }
+    });
+  }
+
+  /**
    * Wait for beacon to be ready
    */
   private waitForBeaconReady(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       if (this.isBeaconReady) {
         resolve();
         return;
@@ -186,7 +231,40 @@ export class Beacon implements BeaconActions {
         unsubscribe.dispose();
         resolve();
       });
+
+      try {
+        // Wait for iframe to be ready before sending discovery message
+        await this.waitForIframeReady();
+        await this.sendDiscoveryMessage();
+      } catch (error) {
+        clearTimeout(timeoutId);
+        unsubscribe.dispose();
+        reject(error);
+      }
     });
+  }
+
+  /**
+   * Send discovery message with retry logic
+   */
+  private async sendDiscoveryMessage(retries = 3): Promise<void> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        if (!this.iframe.contentWindow) {
+          throw new BeaconConnectionError('Iframe contentWindow not available');
+        }
+
+        this.sendMessage('beacon:discover', {});
+        return; // Success, exit retry loop
+      } catch (error) {
+        if (i === retries - 1) {
+          throw error; // Last retry failed, throw error
+        }
+
+        // Wait before retrying
+        await new Promise((resolve) => setTimeout(resolve, 200 * (i + 1)));
+      }
+    }
   }
 
   /**
@@ -197,12 +275,17 @@ export class Beacon implements BeaconActions {
       throw new BeaconConnectionError('Iframe contentWindow is not available');
     }
 
+    // Additional safety check for iframe readiness
+    if (this.iframe.contentDocument && this.iframe.contentDocument.readyState === 'loading') {
+      throw new BeaconConnectionError('Iframe is still loading, contentWindow not ready');
+    }
+
     const message: BeaconMessage<T> = {
       type: `beacon:${type}`,
       payload,
       timestamp: Date.now(),
       source: 'parent',
-      id: this.generateId()
+      id: this.generateId(),
     };
 
     try {
@@ -269,9 +352,9 @@ export class Beacon implements BeaconActions {
   }
 
   /**
-   * Event emitter methods
+   * Event emitter methods (both private and public for navigator access)
    */
-  private emit(event: string, payload: any): void {
+  public emit(event: string, payload: any): void {
     this.eventEmitter.emit(event, payload);
   }
 
@@ -292,20 +375,14 @@ export class Beacon implements BeaconActions {
   /**
    * Listen for beacon events
    */
-  public on<K extends keyof BeaconEvents>(
-    event: K,
-    handler: (payload: BeaconEvents[K]) => void
-  ): Disposable {
+  public on<K extends keyof BeaconEvents>(event: K, handler: (payload: BeaconEvents[K]) => void): Disposable {
     return this.eventEmitter.listen(event as string, handler);
   }
 
   /**
    * Listen for beacon events (one-time)
    */
-  public once<K extends keyof BeaconEvents>(
-    event: K,
-    handler: (payload: BeaconEvents[K]) => void
-  ): void {
+  public once<K extends keyof BeaconEvents>(event: K, handler: (payload: BeaconEvents[K]) => void): void {
     this.eventEmitter.once(event as string, handler);
   }
 
@@ -385,7 +462,7 @@ export class Beacon implements BeaconActions {
 
     if (this.iframe.src !== targetUrl) {
       // Navigate the iframe from parent side
-      this.navigate(targetUrl);
+      this.navigator.visit(targetUrl);
 
       // Wait for beacon to be ready after navigation
       await this.ready();
@@ -408,7 +485,9 @@ export class Beacon implements BeaconActions {
       const targetUrl = new URL(url, this.iframe.src || window.location.origin);
       this.iframe.src = targetUrl.href;
       this.isBeaconReady = false; // Reset ready state since we're navigating
-      this.readyPromise = this.waitForBeaconReady(); // Create new ready promise
+
+      // Create new ready promise that waits for iframe to load first
+      this.readyPromise = this.waitForBeaconReady();
     } catch (error) {
       throw new BeaconConnectionError(`Invalid URL: ${url}`);
     }
@@ -432,7 +511,15 @@ export class Beacon implements BeaconActions {
    * Dispose of all resources
    */
   public dispose(): void {
-    this.disposables.forEach(disposable => disposable.dispose());
+    // Clean up iframe event listeners
+    if (this.iframe) {
+      this.iframeLoadHandlers.forEach((handler) => {
+        this.iframe.removeEventListener('load', handler);
+      });
+      this.iframeLoadHandlers = [];
+    }
+
+    this.disposables.forEach((disposable) => disposable.dispose());
     this.disposables = [];
     this.messageHandlers.clear();
     this.isBeaconReady = false;

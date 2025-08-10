@@ -375,7 +375,9 @@ export class NotebookInstance {
     return new NotebookInstance(this.data, this.client);
   }
 
-  public beacon(iframe: HTMLIFrameElement, options?: BeaconOptions): Beacon {
+  public async beacon(iframe: HTMLIFrameElement, options?: BeaconOptions): Promise<Beacon> {
+    const result = await this.ready();
+    iframe.src = result.data.previewUrl;
     return createBeacon(iframe, options);
   }
 }
