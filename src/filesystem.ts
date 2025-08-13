@@ -407,6 +407,7 @@ export interface FilesystemActions {
   'fs.download': Action<{ id: string; exclude?: string[] }, void>;
   'fs.unwatch': Action<{ path: string }, void>;
   'fs.tree': Action<{ path: string }, string>;
+  'fs.tail': Action<{ path: string; lines: number }, string>;
 }
 
 interface FilesystemEventData {
@@ -599,6 +600,10 @@ export class Filesystem {
     } catch (e) {
       this.handleError(e);
     }
+  }
+
+  public tail(path: string, lines: number = 10): Promise<string> {
+    return this.okra.invoke('fs.tail', { path, lines }).catch((e) => this.handleError(e));
   }
 
   public writeFile(path: string, contents: Uint8Array, options: FileWriteOptions): Promise<void> {

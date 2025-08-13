@@ -127,13 +127,13 @@ export interface FetchRequest {
   options?: RequestInit;
 }
 
-export interface FetchResult {
+export interface FetchResult<T = unknown> {
   success: boolean;
   response?: {
     status: number;
     statusText: string;
     headers: Record<string, string>;
-    body: any;
+    body: T;
     url: string;
     redirected: boolean;
     type: ResponseType;
@@ -197,4 +197,11 @@ export interface BeaconOptions {
   timeout?: number;
   targetOrigin?: string;
   debug?: boolean;
+  retry?: {
+    retries?: number;
+    minTimeout?: number;
+    maxTimeout?: number;
+    factor?: number;
+    randomize?: boolean;
+  };
 }

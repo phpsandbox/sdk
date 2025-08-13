@@ -1,6 +1,7 @@
 import EventManager, { EventDispatcher } from '../events/index.js';
 import { Disposable } from '../types.js';
 import { timeout } from '../utils/promise.js';
+import retry from 'async-retry';
 import {
   BeaconMessage,
   BeaconActions,
@@ -70,7 +71,8 @@ export class Beacon implements BeaconActions {
   private messageHandlers: Map<string, ((payload: any) => void)[]> = new Map();
   private eventEmitter: EventDispatcher;
   private isBeaconReady = false;
-  private readyPromise: Promise<void>;
+  private readyPromise: Promise<void> | null = null;
+  private isStarted = false;
   private disposables: Disposable[] = [];
   private iframeLoadHandlers: (() => void)[] = [];
 
@@ -80,10 +82,24 @@ export class Beacon implements BeaconActions {
     ensureBrowserEnvironment();
 
     this.iframe = iframe;
+
+    // Set up default retry options
+    const defaultRetryOptions = {
+      retries: 3,
+      minTimeout: 1000,
+      maxTimeout: 5000,
+      factor: 2,
+      randomize: true,
+    };
+
     this.options = {
       timeout: 10000,
       targetOrigin: '*',
       debug: false,
+      retry: {
+        ...defaultRetryOptions,
+        ...options.retry,
+      },
       ...options,
     };
 
@@ -97,8 +113,8 @@ export class Beacon implements BeaconActions {
       this
     );
 
-    // Initialize ready promise
-    this.readyPromise = this.waitForBeaconReady();
+    // Note: Beacon ready process is not started automatically
+    // Call start() method to begin beacon initialization
   }
 
   /**
@@ -214,59 +230,85 @@ export class Beacon implements BeaconActions {
   }
 
   /**
-   * Wait for beacon to be ready
+   * Wait for beacon to be ready with retry logic
    */
   private waitForBeaconReady(): Promise<void> {
-    return new Promise(async (resolve, reject) => {
-      if (this.isBeaconReady) {
-        resolve();
-        return;
+    return retry(
+      async () => {
+        return new Promise<void>(async (resolve, reject) => {
+          if (this.isBeaconReady) {
+            resolve();
+            return;
+          }
+
+          const timeoutMs = this.options.timeout;
+          const timeoutId = setTimeout(() => {
+            unsubscribe.dispose();
+            // Reject timeout to trigger retry
+            reject(new BeaconTimeoutError('beacon ready', timeoutMs));
+          }, timeoutMs);
+
+          const unsubscribe = this.on('ready', () => {
+            clearTimeout(timeoutId);
+            unsubscribe.dispose();
+            resolve();
+          });
+
+          try {
+            // Wait for iframe to be ready before sending discovery message
+            await this.waitForIframeReady();
+            await this.sendDiscoveryMessage();
+          } catch (error) {
+            clearTimeout(timeoutId);
+            unsubscribe.dispose();
+            reject(error);
+          }
+        });
+      },
+      {
+        retries: this.options.retry?.retries || 3,
+        minTimeout: this.options.retry?.minTimeout || 1000,
+        maxTimeout: this.options.retry?.maxTimeout || 5000,
+        factor: this.options.retry?.factor || 2,
+        randomize: this.options.retry?.randomize || true,
+        onRetry: (error, attempt) => {
+          if (this.options.debug) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.warn(`[Beacon SDK] Beacon ready retry attempt ${attempt}:`, errorMessage);
+          }
+          // Reset ready state for retry
+          this.isBeaconReady = false;
+        },
       }
-
-      const timeoutMs = this.options.timeout;
-      const timeoutId = setTimeout(() => {
-        reject(new BeaconTimeoutError('beacon ready', timeoutMs));
-      }, timeoutMs);
-
-      const unsubscribe = this.on('ready', () => {
-        clearTimeout(timeoutId);
-        unsubscribe.dispose();
-        resolve();
-      });
-
-      try {
-        // Wait for iframe to be ready before sending discovery message
-        await this.waitForIframeReady();
-        await this.sendDiscoveryMessage();
-      } catch (error) {
-        clearTimeout(timeoutId);
-        unsubscribe.dispose();
-        reject(error);
-      }
-    });
+    );
   }
 
   /**
-   * Send discovery message with retry logic
+   * Send discovery message with configurable retry logic
    */
-  private async sendDiscoveryMessage(retries = 3): Promise<void> {
-    for (let i = 0; i < retries; i++) {
-      try {
+  private async sendDiscoveryMessage(): Promise<void> {
+    return retry(
+      async () => {
         if (!this.iframe.contentWindow) {
           throw new BeaconConnectionError('Iframe contentWindow not available');
         }
 
-        this.sendMessage('beacon:discover', {});
-        return; // Success, exit retry loop
-      } catch (error) {
-        if (i === retries - 1) {
-          throw error; // Last retry failed, throw error
-        }
-
-        // Wait before retrying
-        await new Promise((resolve) => setTimeout(resolve, 200 * (i + 1)));
+        this.sendMessage('discover', {});
+      },
+      {
+        retries: this.options.retry?.retries || 3,
+        minTimeout: this.options.retry?.minTimeout || 1000,
+        maxTimeout: this.options.retry?.maxTimeout || 5000,
+        factor: this.options.retry?.factor || 2,
+        randomize: this.options.retry?.randomize || true,
+        onRetry: (error, attempt) => {
+          if (this.options.debug) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.warn(`[Beacon SDK] Discovery retry attempt ${attempt}:`, errorMessage);
+          }
+        },
       }
-    }
+    );
   }
 
   /**
@@ -302,6 +344,7 @@ export class Beacon implements BeaconActions {
         clonedMessage = JSON.parse(JSON.stringify(message));
       }
 
+      console.log(this.options.targetOrigin, this.iframe.src, this.iframe.contentWindow.location.href);
       this.iframe.contentWindow.postMessage(clonedMessage, this.options.targetOrigin);
 
       if (this.options.debug) {
@@ -313,7 +356,7 @@ export class Beacon implements BeaconActions {
   }
 
   /**
-   * Send a message and wait for a specific response
+   * Send a message and wait for a specific response with retry logic
    */
   private async sendAndWaitFor<TPayload = any, TResponse = any>(
     sendType: string,
@@ -323,27 +366,51 @@ export class Beacon implements BeaconActions {
   ): Promise<TResponse> {
     await this.ready();
 
-    return new Promise((resolve, reject) => {
-      const actualTimeout = timeoutMs || this.options.timeout;
-      const timeoutId = setTimeout(() => {
-        unsubscribe.dispose();
-        reject(new BeaconTimeoutError(sendType, actualTimeout));
-      }, actualTimeout);
+    return retry(
+      async (bail) => {
+        return new Promise<TResponse>((resolve, reject) => {
+          const actualTimeout = timeoutMs || this.options.timeout;
+          const timeoutId = setTimeout(() => {
+            unsubscribe.dispose();
+            // Reject timeout to trigger retry (will only bail on final attempt)
+            const error = new BeaconTimeoutError(sendType, actualTimeout);
+            reject(error);
+          }, actualTimeout);
 
-      const unsubscribe = this.eventEmitter.listen(responseType, (data: any) => {
-        clearTimeout(timeoutId);
-        unsubscribe.dispose();
-        resolve(data as TResponse);
-      });
+          const unsubscribe = this.eventEmitter.listen(responseType, (data: any) => {
+            clearTimeout(timeoutId);
+            unsubscribe.dispose();
+            resolve(data as TResponse);
+          });
 
-      try {
-        this.sendMessage(sendType, payload);
-      } catch (error) {
-        clearTimeout(timeoutId);
-        unsubscribe.dispose();
-        reject(error);
+          try {
+            this.sendMessage(sendType, payload);
+          } catch (error) {
+            clearTimeout(timeoutId);
+            unsubscribe.dispose();
+            // Retry on connection errors, bail on other types of errors
+            if (error instanceof BeaconConnectionError) {
+              reject(error); // Will trigger retry
+            } else {
+              bail(error); // Don't retry for other types of errors
+            }
+          }
+        });
+      },
+      {
+        retries: this.options.retry?.retries || 3,
+        minTimeout: this.options.retry?.minTimeout || 1000,
+        maxTimeout: this.options.retry?.maxTimeout || 5000,
+        factor: this.options.retry?.factor || 2,
+        randomize: this.options.retry?.randomize || true,
+        onRetry: (error, attempt) => {
+          if (this.options.debug) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.warn(`[Beacon SDK] Retry attempt ${attempt} for ${sendType}:`, errorMessage);
+          }
+        },
       }
-    });
+    );
   }
 
   /**
@@ -361,9 +428,30 @@ export class Beacon implements BeaconActions {
   }
 
   /**
+   * Start the beacon initialization process
+   */
+  public start(): Promise<void> {
+    if (this.isStarted) {
+      return this.readyPromise || Promise.resolve();
+    }
+
+    this.isStarted = true;
+    this.readyPromise = this.waitForBeaconReady();
+    return this.readyPromise;
+  }
+
+  /**
    * Wait for the beacon to be ready
    */
   public async ready(): Promise<void> {
+    if (!this.isStarted) {
+      throw new BeaconError('Beacon has not been started. Call start() first.');
+    }
+
+    if (!this.readyPromise) {
+      throw new BeaconError('Beacon ready promise is not available');
+    }
+
     return timeout(this.readyPromise, this.options.timeout);
   }
 
@@ -457,7 +545,7 @@ export class Beacon implements BeaconActions {
   /**
    * Fetch a URL in the beacon context
    */
-  public async fetch(request: FetchRequest): Promise<FetchResult> {
+  public async fetch<T extends unknown>(request: FetchRequest): Promise<FetchResult<T>> {
     return this.sendAndWaitFor('fetch', 'fetchResult', request);
   }
 
@@ -477,9 +565,19 @@ export class Beacon implements BeaconActions {
       await this.ready();
     }
 
+    /**
+     * Let's wait for 2 seconds for page to finish rendering.
+     * Errors, that might occur during this time will be captured.
+     */
+    await this.wait(2);
+
     // Now request debug capture from the beacon (without navigation)
     const timeoutMs = (request.options?.timeout || 30000) + 5000; // Add 5s buffer
     return this.sendAndWaitFor('debug', 'debugResult', request, timeoutMs);
+  }
+
+  private async wait(forSeconds: number) {
+    return new Promise((resolve) => setTimeout(resolve, forSeconds * 1000));
   }
 
   /**
@@ -495,8 +593,10 @@ export class Beacon implements BeaconActions {
       this.iframe.src = targetUrl.href;
       this.isBeaconReady = false; // Reset ready state since we're navigating
 
-      // Create new ready promise that waits for iframe to load first
-      this.readyPromise = this.waitForBeaconReady();
+      // Only create new ready promise if beacon was already started
+      if (this.isStarted) {
+        this.readyPromise = this.waitForBeaconReady();
+      }
     } catch (error) {
       throw new BeaconConnectionError(`Invalid URL: ${url}`);
     }
@@ -532,6 +632,8 @@ export class Beacon implements BeaconActions {
     this.disposables = [];
     this.messageHandlers.clear();
     this.isBeaconReady = false;
+    this.isStarted = false;
+    this.readyPromise = null;
   }
 }
 
