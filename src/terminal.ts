@@ -56,7 +56,7 @@ export interface SandboxProcess {
 
   output: ReadableStream<string>;
 
-  kill(): void;
+  kill(): Promise<boolean>;
 
   resize(dimensions: { cols: number; rows: number }): void;
 }
@@ -75,6 +75,7 @@ export interface SpawnOptions {
 
   id?: string;
   osc?: boolean;
+  tty?: boolean;
 
   abortSignal?: AbortSignal;
 }
@@ -154,7 +155,7 @@ export default class Terminal {
     const kill = () => {
       dispose();
 
-      this.okra.invoke('terminal.close', { id });
+      return this.okra.invoke('terminal.close', { id });
     };
 
     const resize = (dimensions: { cols: number; rows: number }) => {
