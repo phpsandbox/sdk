@@ -344,7 +344,6 @@ export class Beacon implements BeaconActions {
         clonedMessage = JSON.parse(JSON.stringify(message));
       }
 
-      console.log(this.options.targetOrigin, this.iframe.src, this.iframe.contentWindow.location.href);
       this.iframe.contentWindow.postMessage(clonedMessage, this.options.targetOrigin);
 
       if (this.options.debug) {

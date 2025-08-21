@@ -107,7 +107,6 @@ export class Navigator implements NavigatorActions {
    */
   private setupUrlChangeListener(): void {
     this.beacon.on('urlChange', (payload) => {
-      console.log('O ti change to', payload.newUrl);
       this.addToHistory(payload.newUrl);
     });
   }
