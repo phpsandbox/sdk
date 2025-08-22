@@ -552,7 +552,7 @@ export class Beacon implements BeaconActions {
    * Debug a page (navigate and capture debug information). It loads
    * the page fresh in the IFRAME so that we can capture the latest state.
    */
-  public async debug(request: DebugRequest): Promise<DebugResult> {
+  public async debug(request: DebugRequest, waitSeconds?: number): Promise<DebugResult> {
     // First, navigate the iframe if the path is different from current URL
     const targetUrl = new URL(request.path, this.iframe.src || window.location.origin).href;
 
@@ -568,7 +568,7 @@ export class Beacon implements BeaconActions {
      * Let's wait for 2 seconds for page to finish rendering.
      * Errors, that might occur during this time will be captured.
      */
-    await this.wait(2);
+    waitSeconds && (await this.wait(waitSeconds));
 
     // Now request debug capture from the beacon (without navigation)
     const timeoutMs = (request.options?.timeout || 30000) + 5000; // Add 5s buffer

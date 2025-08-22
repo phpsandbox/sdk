@@ -14,7 +14,7 @@ export interface NavigatorActions {
   canGoBack: boolean;
   canGoForward: boolean;
   refresh(): Promise<void>;
-  getCurrentUrl(): string;
+  getCurrentUrl(): URL;
   on<K extends keyof NavigatorEvents>(event: K, handler: (payload: NavigatorEvents[K]) => void): Disposable;
 }
 
@@ -225,11 +225,12 @@ export class Navigator implements NavigatorActions {
   /**
    * Get current URL from internal history
    */
-  getCurrentUrl(): string {
+  getCurrentUrl(): URL {
     if (this.currentIndex >= 0 && this.currentIndex < this.urlHistory.length) {
-      return this.urlHistory[this.currentIndex];
+      return new URL(this.urlHistory[this.currentIndex]);
     }
-    return '';
+
+    return new URL('about:blank');
   }
 
   /**
