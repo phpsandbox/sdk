@@ -404,7 +404,7 @@ export interface FilesystemActions {
   'fs.readDirectory': Action<{ path: string; include: string[]; exclude: string[] }, [string, FileType, number | null][]>;
   'fs.createDirectory': Action<{ path: string }, void>;
   'fs.watch': Action<{ path: string; options: WatchOptions }, void>;
-  'fs.download': Action<{ id: string; exclude?: string[] }, void>;
+  'fs.download': Action<{ id: string; exclude?: string[]; include?: string[] }, void>;
   'fs.unwatch': Action<{ path: string }, void>;
   'fs.tree': Action<{ path: string }, string>;
   'fs.tail': Action<{ path: string; lines: number }, string>;
@@ -666,7 +666,7 @@ export class Filesystem {
       .catch(() => false);
   }
 
-  public async download(chunk?: (data: Uint8Array) => void, exclude?: string[]): Promise<Blob> {
+  public async download(chunk?: (data: Uint8Array) => void, exclude?: string[], include?: string[]): Promise<Blob> {
     const id = nanoid();
     const stream = !!chunk;
     const chunks: Uint8Array[] = [];
@@ -679,7 +679,9 @@ export class Filesystem {
           }
     );
 
-    return this.okra.invoke('fs.download', { id, exclude }).then(() => new Blob(chunks, { type: 'application/octet-stream' }));
+    return this.okra
+      .invoke('fs.download', { id, exclude, include })
+      .then(() => new Blob(chunks, { type: 'application/octet-stream' }));
   }
 
   public tree(path: string = '/'): Promise<string> {
