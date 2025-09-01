@@ -250,14 +250,14 @@ export class Navigator implements NavigatorActions {
   /**
    * Check if can go back synchronously
    */
-  private canGoBackSync(): boolean {
+  public canGoBackSync(): boolean {
     return this.currentIndex > 0;
   }
 
   /**
    * Check if can go forward synchronously
    */
-  private canGoForwardSync(): boolean {
+  public canGoForwardSync(): boolean {
     return this.currentIndex < this.urlHistory.length - 1;
   }
 
@@ -280,7 +280,7 @@ export class Navigator implements NavigatorActions {
   /**
    * Push a new state to internal history (legacy method for compatibility)
    */
-  async pushState(state: unknown, title: string, url: string): Promise<void> {
+  async pushState(url: string): Promise<void> {
     // For compatibility, treat this as a navigation
     this.visit(url);
   }
@@ -288,7 +288,7 @@ export class Navigator implements NavigatorActions {
   /**
    * Replace current state in internal history (legacy method for compatibility)
    */
-  async replaceState(state: unknown, title: string, url: string): Promise<void> {
+  async replaceState(url: string): Promise<void> {
     if (this.currentIndex >= 0 && this.currentIndex < this.urlHistory.length) {
       // Replace the current URL in history
       this.urlHistory[this.currentIndex] = url;
