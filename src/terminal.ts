@@ -167,13 +167,17 @@ export default class Terminal {
       abortSignal.addEventListener('abort', kill);
     }
 
-    const result = await this.okra.invoke('terminal.spawn', {
-      command: [command, ...args],
-      opts: {
-        ...otherOpts,
-        id,
+    const result = await this.okra.invoke(
+      'terminal.spawn',
+      {
+        command: [command, ...args],
+        opts: {
+          ...otherOpts,
+          id,
+        },
       },
-    });
+      { abortSignal }
+    );
 
     return {
       exit,

@@ -47,6 +47,7 @@ export interface NotebookEvents {
 export interface CallOption {
   responseEvent?: string;
   timeout?: number;
+  abortSignal?: AbortSignal;
 }
 
 export interface OkraError {
@@ -236,11 +237,13 @@ export class NotebookInstance {
        * socket to connect if it hasn't already done that.
        */
       if (this.client.options.startClosed && !this.socket.isConnected) {
+        console.log('Socket is not connected, trying to ping...');
         /**
          * We are using the socket directly instead of invoke so we don't
          * cause a case of circular dependency.
          */
         await this.socket.invoke('ping');
+        console.log('Ping sent');
       }
 
       return this.#initPromise;
@@ -248,7 +251,7 @@ export class NotebookInstance {
 
     // Let the underlying ReconnectingWebSocket handle connection retries
     // Just apply a reasonable timeout for the entire initialization process
-    return await timeout(ready(), 30_000);
+    return ready();
   }
 
   public fork(): Promise<NotebookInstance> {
@@ -268,7 +271,7 @@ export class NotebookInstance {
     data: Invokable[T]['args'] = {},
     options: CallOption = {}
   ): Promise<Invokable[T]['response']> {
-    return this.ready().then(() => this.socket.invoke(action, data || {}, options));
+    return this.socket.invoke(action, data || {}, options);
   }
 
   public ping() {

@@ -22,6 +22,7 @@ export interface CallOption {
   timeout?: number;
   retries?: number | false;
   buffer?: boolean;
+  abortSignal?: AbortSignal;
 }
 
 export type WebSocketStatus = 'OPEN' | 'CONNECTING' | 'CLOSED';
@@ -545,6 +546,17 @@ export class Transport {
     };
 
     const handler = async (resolve: (value: any) => void, reject: (reason?: any) => void): Promise<void> => {
+      const abortError = new DOMException('Request aborted', 'AbortError');
+      if (options.abortSignal?.aborted) {
+        reject(abortError);
+      }
+
+      if (options.abortSignal) {
+        options.abortSignal.addEventListener('abort', () => {
+          reject(abortError);
+        });
+      }
+
       // If not connected, queue the message
       if (!this.isConnected && !this.isClosed) {
         this.log('debug', 'Connection not available, queuing message', {
@@ -646,7 +658,8 @@ export class Transport {
             e instanceof ErrorEvent ||
             e instanceof RateLimitError ||
             e instanceof InvalidConfigurationError ||
-            e instanceof InvalidMessageError
+            e instanceof InvalidMessageError ||
+            e instanceof DOMException
           ) {
             this.log('debug', 'Non-retryable error, bailing', {
               error: e.message,
@@ -714,6 +727,7 @@ export class Transport {
     // Reject all queued messages
     const queuedCount = this.messageQueue.length;
     this.messageQueue.forEach((msg) => {
+      console.log('Rejecting queued message due to connection close');
       msg.reject(new Error('Connection closed while message was queued'));
     });
     this.messageQueue = [];
