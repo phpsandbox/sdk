@@ -13,7 +13,6 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import EventManager, { EventDispatcher } from './events/index.js';
 import Git, { GitActions, GitEvents } from './git.js';
 import { Disposable } from './types.js';
-import { timeout } from './utils/promise.js';
 import { Beacon, BeaconOptions, createBeacon } from './beacon/index.js';
 
 export * from './types.js';
