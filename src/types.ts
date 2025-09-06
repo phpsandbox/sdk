@@ -16,6 +16,8 @@ export class RateLimitError extends ErrorEvent {
   }
 }
 
+export class PHPSandboxError extends ErrorEvent {}
+
 export interface Disposable {
   dispose: () => void;
 }
