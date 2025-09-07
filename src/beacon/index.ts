@@ -74,7 +74,11 @@ export class Beacon implements BeaconActions {
   private readyPromise: Promise<void> | null = null;
   private isStarted = false;
   private disposables: Disposable[] = [];
-  private iframeLoadHandlers: (() => void)[] = [];
+
+  // MessagePort communication
+  private messageChannel: MessageChannel | null = null;
+  private port: MessagePort | null = null;
+  private channelEstablished = false;
 
   public readonly navigator: Navigator;
 
@@ -104,24 +108,21 @@ export class Beacon implements BeaconActions {
     };
 
     this.eventEmitter = EventManager.make();
-    this.setupMessageListener();
+    this.setupMessageChannel();
 
-    // Initialize navigator
     this.navigator = new Navigator(
       this.eventEmitter.listen.bind(this.eventEmitter),
       this.eventEmitter.once.bind(this.eventEmitter),
       this
     );
-
-    // Note: Beacon ready process is not started automatically
-    // Call start() method to begin beacon initialization
   }
 
   /**
-   * Setup global message listener for iframe communication
+   * Setup communication channel using MessagePort
    */
-  private setupMessageListener(): void {
-    const messageHandler = (event: MessageEvent) => {
+  private setupMessageChannel(): void {
+    // Listen for beacon ready message via postMessage
+    const readyHandler = (event: MessageEvent) => {
       try {
         // Verify message source
         if (event.source !== this.iframe.contentWindow) {
@@ -129,17 +130,28 @@ export class Beacon implements BeaconActions {
         }
 
         const message: BeaconMessage = event.data;
-
         if (!message || typeof message !== 'object' || !message.type) {
           return;
         }
 
-        // Only handle beacon messages
-        if (!message.type.startsWith('beacon:')) {
-          return;
+        // Handle beacon ready - this means beacon is ready to receive channel establishment
+        if (message.type === 'beacon:ready-for-channel') {
+          this.establishChannel().catch((error) => {
+            if (this.options.debug) {
+              console.error('[Beacon SDK] Channel establishment failed:', error);
+            }
+          });
         }
 
-        this.handleBeaconMessage(message);
+        // Handle channel confirmation
+        if (message.type === 'beacon:channel-established') {
+          this.channelEstablished = true;
+          this.isBeaconReady = true;
+          this.emit('ready', message.payload);
+          if (this.options.debug) {
+            console.log('[Beacon SDK] Channel established and beacon ready');
+          }
+        }
       } catch (error) {
         if (this.options.debug) {
           console.error('[Beacon SDK] Message parsing error:', error);
@@ -147,11 +159,74 @@ export class Beacon implements BeaconActions {
       }
     };
 
-    window.addEventListener('message', messageHandler);
+    window.addEventListener('message', readyHandler);
 
     // Add to disposables for cleanup
     this.disposables.push({
-      dispose: () => window.removeEventListener('message', messageHandler),
+      dispose: () => window.removeEventListener('message', readyHandler),
+    });
+  }
+
+  /**
+   * Establish MessagePort communication channel
+   */
+  private async establishChannel(): Promise<void> {
+    if (!this.iframe.contentWindow) {
+      throw new BeaconConnectionError('Iframe contentWindow not available');
+    }
+
+    // Create the message channel
+    this.messageChannel = new MessageChannel();
+    this.port = this.messageChannel.port1;
+
+    // Set up port message listener
+    this.port.onmessage = (event) => {
+      this.handleBeaconMessage(event.data);
+    };
+
+    // Handle port errors
+    this.port.onmessageerror = (event) => {
+      if (this.options.debug) {
+        console.error('[Beacon SDK] Port message error:', event);
+      }
+    };
+
+    // Start the port
+    this.port.start();
+
+    // Transfer port2 to the iframe
+    const establishMessage = {
+      type: 'beacon:establish-channel',
+      timestamp: Date.now(),
+      id: this.generateId(),
+    };
+
+    this.iframe.contentWindow.postMessage(
+      establishMessage,
+      '*', // Safe for channel establishment
+      [this.messageChannel.port2] // Transfer the port
+    );
+
+    if (this.options.debug) {
+      console.log('[Beacon SDK] Channel establishment message sent');
+    }
+
+    // Wait for channel to be established (beacon will send confirmation via postMessage)
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new BeaconConnectionError('Channel establishment timeout'));
+      }, this.options.timeout);
+
+      const checkReady = () => {
+        if (this.channelEstablished && this.isBeaconReady) {
+          clearTimeout(timeoutId);
+          resolve();
+        } else {
+          setTimeout(checkReady, 100);
+        }
+      };
+
+      checkReady();
     });
   }
 
@@ -161,12 +236,6 @@ export class Beacon implements BeaconActions {
   private handleBeaconMessage(message: BeaconMessage): void {
     if (this.options.debug) {
       console.log('[Beacon SDK] Received message:', message.type, message.payload);
-    }
-
-    // Handle ready message specially
-    if (message.type === 'beacon:ready') {
-      this.isBeaconReady = true;
-      this.emit('ready', message.payload);
     }
 
     // Emit the event (remove 'beacon:' prefix for cleaner API)
@@ -189,80 +258,28 @@ export class Beacon implements BeaconActions {
   }
 
   /**
-   * Wait for iframe to be loaded and content window to be available
-   */
-  private waitForIframeReady(): Promise<void> {
-    return new Promise((resolve) => {
-      // Check if iframe is already loaded and contentWindow is available
-      if (
-        this.iframe.contentWindow &&
-        (this.iframe.contentDocument?.readyState === 'complete' || this.iframe.contentDocument?.readyState === 'interactive')
-      ) {
-        resolve();
-        return;
-      }
-
-      // Listen for iframe load event
-      const handleLoad = () => {
-        this.iframe.removeEventListener('load', handleLoad);
-        this.iframeLoadHandlers = this.iframeLoadHandlers.filter((h) => h !== handleLoad);
-        // Add small delay to ensure contentWindow is fully available
-        setTimeout(resolve, 100);
-      };
-
-      this.iframe.addEventListener('load', handleLoad);
-      this.iframeLoadHandlers.push(handleLoad);
-
-      // Fallback: if iframe is already loading but hasn't fired load event
-      if (this.iframe.contentWindow) {
-        const checkReady = () => {
-          if (this.iframe.contentDocument?.readyState === 'complete') {
-            this.iframe.removeEventListener('load', handleLoad);
-            this.iframeLoadHandlers = this.iframeLoadHandlers.filter((h) => h !== handleLoad);
-            resolve();
-          } else {
-            setTimeout(checkReady, 100);
-          }
-        };
-        checkReady();
-      }
-    });
-  }
-
-  /**
-   * Wait for beacon to be ready with retry logic
+   * Wait for beacon to be ready - simplified approach
    */
   private waitForBeaconReady(): Promise<void> {
     return retry(
       async () => {
-        return new Promise<void>(async (resolve, reject) => {
-          if (this.isBeaconReady) {
+        return new Promise<void>((resolve, reject) => {
+          if (this.isBeaconReady && this.channelEstablished) {
             resolve();
             return;
           }
 
           const timeoutMs = this.options.timeout;
           const timeoutId = setTimeout(() => {
-            unsubscribe.dispose();
-            // Reject timeout to trigger retry
             reject(new BeaconTimeoutError('beacon ready', timeoutMs));
           }, timeoutMs);
 
+          // Listen for beacon ready signal
           const unsubscribe = this.on('ready', () => {
             clearTimeout(timeoutId);
             unsubscribe.dispose();
             resolve();
           });
-
-          try {
-            // Wait for iframe to be ready before sending discovery message
-            await this.waitForIframeReady();
-            await this.sendDiscoveryMessage();
-          } catch (error) {
-            clearTimeout(timeoutId);
-            unsubscribe.dispose();
-            reject(error);
-          }
         });
       },
       {
@@ -278,50 +295,18 @@ export class Beacon implements BeaconActions {
           }
           // Reset ready state for retry
           this.isBeaconReady = false;
+          this.channelEstablished = false;
         },
       }
     );
   }
 
   /**
-   * Send discovery message with configurable retry logic
-   */
-  private async sendDiscoveryMessage(): Promise<void> {
-    return retry(
-      async () => {
-        if (!this.iframe.contentWindow) {
-          throw new BeaconConnectionError('Iframe contentWindow not available');
-        }
-
-        this.sendMessage('discover', {});
-      },
-      {
-        retries: this.options.retry?.retries || 3,
-        minTimeout: this.options.retry?.minTimeout || 1000,
-        maxTimeout: this.options.retry?.maxTimeout || 5000,
-        factor: this.options.retry?.factor || 2,
-        randomize: this.options.retry?.randomize || true,
-        onRetry: (error, attempt) => {
-          if (this.options.debug) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.warn(`[Beacon SDK] Discovery retry attempt ${attempt}:`, errorMessage);
-          }
-        },
-      }
-    );
-  }
-
-  /**
-   * Send a message to the beacon
+   * Send a message to the beacon via MessagePort
    */
   private sendMessage<T = any>(type: string, payload: T = {} as T): void {
-    if (!this.iframe.contentWindow) {
-      throw new BeaconConnectionError('Iframe contentWindow is not available');
-    }
-
-    // Additional safety check for iframe readiness
-    if (this.iframe.contentDocument && this.iframe.contentDocument.readyState === 'loading') {
-      throw new BeaconConnectionError('Iframe is still loading, contentWindow not ready');
+    if (!this.port) {
+      throw new BeaconConnectionError('MessagePort not available - channel not established');
     }
 
     const message: BeaconMessage<T> = {
@@ -333,24 +318,16 @@ export class Beacon implements BeaconActions {
     };
 
     try {
-      // Use structuredClone to ensure message can be posted safely
-      let clonedMessage: BeaconMessage<T>;
-      try {
-        clonedMessage = structuredClone(message);
-      } catch (cloneError) {
-        if (this.options.debug) {
-          console.warn('[Beacon SDK] Failed to clone message, using JSON fallback:', cloneError);
-        }
-        clonedMessage = JSON.parse(JSON.stringify(message));
-      }
-
-      this.iframe.contentWindow.postMessage(clonedMessage, this.options.targetOrigin);
+      // Direct port communication - no need for origin or cloning
+      this.port.postMessage(message);
 
       if (this.options.debug) {
-        console.log('[Beacon SDK] Sent message:', message.type, message.payload);
+        console.log('[Beacon SDK] Sent message via port:', message.type, message.payload);
       }
     } catch (error) {
-      throw new BeaconConnectionError(`Failed to send message: ${error instanceof Error ? error.message : String(error)}`);
+      throw new BeaconConnectionError(
+        `Failed to send message via port: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
 
@@ -590,7 +567,20 @@ export class Beacon implements BeaconActions {
     try {
       const targetUrl = new URL(url, this.iframe.src || window.location.origin);
       this.iframe.src = targetUrl.href;
-      this.isBeaconReady = false; // Reset ready state since we're navigating
+
+      // Reset state since we're navigating
+      this.isBeaconReady = false;
+      this.channelEstablished = false;
+
+      // Close existing port if any
+      if (this.port) {
+        this.port.close();
+        this.port = null;
+      }
+
+      if (this.messageChannel) {
+        this.messageChannel = null;
+      }
 
       // Only create new ready promise if beacon was already started
       if (this.isStarted) {
@@ -619,18 +609,21 @@ export class Beacon implements BeaconActions {
    * Dispose of all resources
    */
   public dispose(): void {
-    // Clean up iframe event listeners
-    if (this.iframe) {
-      this.iframeLoadHandlers.forEach((handler) => {
-        this.iframe.removeEventListener('load', handler);
-      });
-      this.iframeLoadHandlers = [];
+    // Clean up MessagePort
+    if (this.port) {
+      this.port.close();
+      this.port = null;
+    }
+
+    if (this.messageChannel) {
+      this.messageChannel = null;
     }
 
     this.disposables.forEach((disposable) => disposable.dispose());
     this.disposables = [];
     this.messageHandlers.clear();
     this.isBeaconReady = false;
+    this.channelEstablished = false;
     this.isStarted = false;
     this.readyPromise = null;
   }
