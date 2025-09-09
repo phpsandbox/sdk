@@ -1,4 +1,5 @@
 ### Beacon Usage Flow:
+
 - Beacon loads → sends beacon:ready-for-channel (repeats every 1s)
 - SDK receives signal → establishes MessageChannel
 - Beacon gets port → sets up listeners
