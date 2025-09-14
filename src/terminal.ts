@@ -116,7 +116,7 @@ export default class Terminal {
   }
 
   public async spawn(command: string, args: string[], opts?: SpawnOptions): Promise<SandboxProcess & Task> {
-    const id = nanoid();
+    const id = opts?.id || nanoid();
     const disposables = new Set<Disposable>();
     const dispose = () => {
       for (const disposable of disposables) {
@@ -172,8 +172,8 @@ export default class Terminal {
       {
         command: [command, ...args],
         opts: {
-          ...otherOpts,
           id,
+          ...otherOpts,
         },
       },
       { abortSignal }
