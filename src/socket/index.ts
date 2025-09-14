@@ -206,7 +206,7 @@ export class Transport {
 
     // @ts-expect-error
     this.rws = new ReconnectingWebSocket(this.url.toString(), [], {
-      WebSocket,
+      WebSocket: globalThis.WebSocket,
       connectionTimeout: options.connectionTimeout ?? 1000,
       maxReconnectionDelay: 2000,
       minReconnectionDelay: 200,

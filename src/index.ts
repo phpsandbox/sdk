@@ -16,6 +16,7 @@ import { Disposable } from './types.js';
 import { Beacon, BeaconOptions, createBeacon } from './beacon/index.js';
 
 export * from './types.js';
+export { Transport } from './socket/index.js';
 export * from './lsp.js';
 export * from './filesystem.js';
 export * from './container.js';
@@ -89,28 +90,26 @@ export type Invokable = SystemActions &
   ShellActions &
   GitActions;
 
-const defaultAxiosConfig = (baseURL: string, token: string): AxiosRequestConfig => ({
-  /**
-   * withCredentials must be false so that `Allow-Control-Allow-Origin` header is set to `*`
-   * This is required for the PHPSandbox API to work in the browser.
-   */
-  withCredentials: false,
-  timeout: 30000,
-  baseURL,
-  headers: {
-    Accept: 'application/json',
-    Authorization: `Bearer ${token}`,
-  },
-});
-
 export interface CreateNotebookInput {
   title: string;
   visibility: 'public' | 'private' | 'unlisted';
 }
 
 export class NotebookInitError extends Error {
-  constructor(public message: string) {
+  constructor(public readonly message: string) {
     super(message);
+  }
+}
+
+export class ApiError extends Error {
+  public readonly status: number;
+
+  constructor(
+    public readonly response: Response,
+    public readonly body: string
+  ) {
+    super(response.statusText);
+    this.status = response.status;
   }
 }
 
@@ -118,7 +117,7 @@ export class NotebookApi {
   public constructor(private readonly client: Client) {}
 
   public async create(template: string, input: Partial<CreateNotebookInput> = {}, init = true): Promise<NotebookInstance> {
-    const response = await this.client.http.post<NotebookData>('/notebook', { template, ...input });
+    const response = await this.client.post<NotebookData>('/notebook', { template, ...input });
     const instance = new NotebookInstance(response.data, this.client);
 
     if (!init) {
@@ -129,19 +128,19 @@ export class NotebookApi {
   }
 
   public async get(id: string): Promise<NotebookInstance> {
-    const response = await this.client.http.get<NotebookData>(`/notebook/${id}`);
+    const response = await this.client.get<NotebookData>(`/notebook/${id}`);
 
     return new NotebookInstance(response.data, this.client);
   }
 
   public async fork(id: string): Promise<NotebookInstance> {
-    const response = await this.client.http.post<NotebookData>(`/notebook/${id}/fork`);
+    const response = await this.client.post<NotebookData>(`/notebook/${id}/fork`);
 
     return this.init(new NotebookInstance(response.data, this.client));
   }
 
   public async open(id: string): Promise<NotebookInstance> {
-    const response = await this.client.http.get<NotebookData>(`/notebook/${id}`);
+    const response = await this.client.get<NotebookData>(`/notebook/${id}`);
 
     return new NotebookInstance(response.data, this.client);
   }
@@ -161,16 +160,57 @@ export interface PHPSandboxClientOptions {
   debug?: boolean;
   startClosed?: boolean;
   telemetry?: boolean;
+  fetch?: typeof globalThis.fetch;
 }
+
 export class Client {
-  public readonly http: AxiosInstance;
   public readonly notebook: NotebookApi;
   public readonly options: PHPSandboxClientOptions;
 
+  private readonly fetch: typeof globalThis.fetch = globalThis.fetch;
+
+  private readonly baseUrl: string;
+
+  private readonly headers: Record<string, string>;
+
   public constructor(token: string, url: string = 'https://api.phpsandbox.io/v1', options: PHPSandboxClientOptions = {}) {
-    this.http = axios.create(defaultAxiosConfig(url, token));
     this.notebook = new NotebookApi(this);
     this.options = Object.assign({ startClosed: true }, options);
+    this.baseUrl = url;
+
+    if (options.fetch) {
+      this.fetch = options.fetch;
+    }
+
+    this.headers = {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  public get<T extends unknown>(path: string): Promise<{ data: T }> {
+    return this.makeRequest('GET', path);
+  }
+
+  public post<T extends unknown>(path: string, body?: unknown): Promise<{ data: T }> {
+    return this.makeRequest('POST', path, { body: body ? JSON.stringify(body) : undefined });
+  }
+
+  private async makeRequest(method: string, path: string, init?: RequestInit) {
+    const response = await this.fetch(
+      new Request(new URL(`v1/${path.replace(/^\//, '')}`, this.baseUrl), {
+        method,
+        ...init,
+        headers: this.headers,
+      })
+    );
+
+    if (!response.ok) {
+      throw new ApiError(response, await response.text());
+    }
+
+    return { data: await response.json() };
   }
 }
 
@@ -236,13 +276,11 @@ export class NotebookInstance {
        * socket to connect if it hasn't already done that.
        */
       if (this.client.options.startClosed && !this.socket.isConnected) {
-        console.log('Socket is not connected, trying to ping...');
         /**
          * We are using the socket directly instead of invoke so we don't
          * cause a case of circular dependency.
          */
         await this.socket.invoke('ping');
-        console.log('Ping sent');
       }
 
       return this.#initPromise;
