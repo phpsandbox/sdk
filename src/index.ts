@@ -9,7 +9,6 @@ import Laravel, { LaravelActions, LaravelEvents } from './laravel.js';
 import Repl, { ReplActions, ReplEvents } from './repl.js';
 import Shell, { ShellEvents, ShellActions } from './shell.js';
 import { Transport } from './socket/index.js';
-import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import EventManager, { EventDispatcher } from './events/index.js';
 import Git, { GitActions, GitEvents } from './git.js';
 import { Disposable } from './types.js';
