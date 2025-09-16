@@ -18,7 +18,7 @@ export interface TerminalCreateInput {
 
 export interface TerminalSpawnInput {
   command: string | string[];
-  opts?: SpawnOptions;
+  opts: { id: string } & SpawnOptions;
 }
 
 export interface TerminalEventData {

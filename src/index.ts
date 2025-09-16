@@ -30,7 +30,9 @@ interface Result<T extends object> {
   data: T;
 }
 
-type NotebookInitResult = Result<{ env: { name: string; value: string }[]; previewUrl: string; ports: PortInfo[] }>;
+export type NotebookInitResponse = { env: { name: string; value: string }[]; previewUrl: string; ports: PortInfo[] };
+
+export type NotebookInitResult = Result<NotebookInitResponse>;
 export interface NotebookActions {
   'notebook.init': Action<{ force?: boolean; files: { [path: string]: string } }, NotebookInitResult>;
   'notebook.update': Action<null>;
@@ -54,7 +56,7 @@ export interface OkraError {
   message: string;
 }
 
-export interface Action<Args = object, Response = null> {
+export interface Action<Args = object, Response = void> {
   args: Args;
   response: Response;
 }
