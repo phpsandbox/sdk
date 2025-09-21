@@ -1,6 +1,6 @@
 import { Filesystem, FilesystemActions, FilesystemEvents } from './filesystem.js';
 import Terminal, { TerminalEvents, TerminalActions } from './terminal.js';
-import Container, { ContainerActions, ContainerEvents, PortInfo } from './container.js';
+import Container, { ContainerActions, ContainerEvents, PortInfo, TelemetryFeature } from './container.js';
 import Auth, { AuthActions } from './auth.js';
 import Lsp, { LspActions, LspEvents } from './lsp.js';
 import Composer, { ComposerActions, ComposerEvents } from './composer.js';
@@ -160,7 +160,7 @@ export class NotebookApi {
 export interface PHPSandboxClientOptions {
   debug?: boolean;
   startClosed?: boolean;
-  telemetry?: boolean;
+  telemetry?: Set<TelemetryFeature>;
   fetch?: typeof globalThis.fetch;
 }
 
@@ -393,7 +393,7 @@ export class NotebookInstance {
       });
     }).then((result) => {
       if (this.client.options.telemetry) {
-        this.container.enableTelemetry();
+        this.container.enableTelemetry(this.client.options.telemetry);
       }
 
       return result;
