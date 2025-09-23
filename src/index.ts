@@ -357,6 +357,9 @@ export class NotebookInstance {
   private watchConnection(): void {
     this.socket.onDidConnect(() => {
       this.socket.emit('okra.connected');
+      if (this.client.options.telemetry) {
+        this.container.enableTelemetry(this.client.options.telemetry);
+      }
     });
 
     this.socket.onDidClose(() => {
@@ -391,12 +394,6 @@ export class NotebookInstance {
 
         resolve(result);
       });
-    }).then((result) => {
-      if (this.client.options.telemetry) {
-        this.container.enableTelemetry(this.client.options.telemetry);
-      }
-
-      return result;
     });
   }
 

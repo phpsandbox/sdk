@@ -82,7 +82,6 @@ export default class Container {
 
   public onPort(handler: (port: PortInfo, type: 'open' | 'close') => void): Disposable {
     let ports: PortInfo[] = [];
-
     return this.listen('container.ports', (newPorts) => {
       for (const port of newPorts) {
         if (!ports.some((p) => p.port === port.port)) {
