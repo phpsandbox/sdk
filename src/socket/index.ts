@@ -707,7 +707,7 @@ export class Transport {
 
   public disconnect(): void {
     if (this.closed) {
-      console.warn('Transport is already closed, cannot disconnect again');
+      console.trace('Transport is already closed, cannot disconnect again');
       return;
     }
 

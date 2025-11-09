@@ -109,7 +109,7 @@ export class ApiError extends Error {
     public readonly response: Response,
     public readonly body: string
   ) {
-    super(response.statusText);
+    super(`PHPSandbox API Error: ${response.status} ${response.statusText} - ${body}`);
     this.status = response.status;
   }
 }
@@ -322,7 +322,7 @@ export class NotebookInstance {
 
   public dispose(): void {
     this.disposables.forEach((d) => d.dispose());
-    this.socket.disconnect();
+    !this.socket.isClosed && this.socket.disconnect();
   }
 
   public connected(): Promise<NotebookInstance> {
