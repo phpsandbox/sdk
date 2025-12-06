@@ -681,7 +681,7 @@ export class Filesystem {
 
     return this.okra
       .invoke('fs.download', { id, exclude, include })
-      .then(() => new Blob(chunks, { type: 'application/octet-stream' }));
+      .then(() => new Blob(chunks as BlobPart[], { type: 'application/octet-stream' }));
   }
 
   public tree(path: string = '/'): Promise<string> {

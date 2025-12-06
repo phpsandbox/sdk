@@ -641,7 +641,7 @@ export class Transport {
   }
 
   private pack(data: string | ArrayBuffer | Blob | object): string | Blob | ArrayBuffer {
-    return new Blob([encode(data)]);
+    return new Blob([encode(data) as BlobPart]);
   }
 
   private sendWithRetry(sender: () => Promise<any>, retries = 10): Promise<any> {

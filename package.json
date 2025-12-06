@@ -1,9 +1,54 @@
 {
   "name": "@phpsandbox/sdk",
-  "private": true,
   "version": "0.0.1",
-  "main": "src/index.js",
+  "description": "A comprehensive TypeScript SDK for interacting with cloud-based PHP development environments",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "unpkg": "./dist/browser/phpsandbox-sdk.iife.min.js",
+  "jsdelivr": "./dist/browser/phpsandbox-sdk.esm.min.js",
+  "scripts": {
+    "build": "npm run build:tsc && npm run build:browser",
+    "build:tsc": "tsc",
+    "build:browser": "node build.mjs",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "php",
+    "sandbox",
+    "development",
+    "cloud",
+    "typescript",
+    "sdk",
+    "laravel",
+    "composer"
+  ],
+  "author": "PHPSandbox",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phpsandbox/sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/phpsandbox/sdk/issues"
+  },
+  "homepage": "https://github.com/phpsandbox/sdk#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "@msgpack/msgpack": "^3.1.1",
     "async-retry": "^1.3.3",
@@ -15,6 +60,8 @@
   },
   "devDependencies": {
     "@types/async-retry": "^1.4.9",
-    "@types/node": "^24.1.0"
+    "@types/node": "^24.1.0",
+    "esbuild": "^0.27.1",
+    "typescript": "^5.7.2"
   }
 }

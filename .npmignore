@@ -1,0 +1,21 @@
+# Source files
+src/
+tsconfig.json
+
+# Examples and docs
+examples/
+docs/
+
+# Development files
+.git/
+.gitignore
+*.log
+*.tsbuildinfo
+
+# Node modules (already excluded by default)
+node_modules/
+
+# Tests
+*.test.ts
+*.spec.ts
+__tests__/
