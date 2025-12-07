@@ -340,7 +340,7 @@ declare const enum FileChangeFilter {
 /**
  * Possible changes that can occur to a file.
  */
-export const enum FileChangeType {
+export enum FileChangeType {
   UPDATED = 1,
   ADDED = 2,
   DELETED = 3,
