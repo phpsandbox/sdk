@@ -6,14 +6,7 @@
  * @param exception
  */
 
-export class PromiseTimeoutError extends Error {
-  public constructor(
-    message: string,
-    public time: number
-  ) {
-    super(message);
-  }
-}
+import { PromiseTimeoutError } from "../errors/index.js";
 
 export const timeout = <T>(prom: Promise<T>, time: number): Promise<T> => {
   let timer: ReturnType<typeof setTimeout>;

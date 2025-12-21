@@ -24,6 +24,8 @@ export * from './terminal.js';
 export * from './git.js';
 export * from './utils/promise.js';
 export * from './beacon/index.js';
+export * from './errors/index.js';
+
 interface Result<T extends object> {
   type: 'success' | 'error' | 'running';
   message: string;

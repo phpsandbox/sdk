@@ -8,6 +8,7 @@ import { EventDispatcher } from '../events/index.js';
 import { timeout } from '../utils/promise.js';
 import WebSocket from 'isomorphic-ws';
 import { NamedDisposable } from '../utils/disposable.js';
+import { PromiseTimeoutError, SendTimeoutError } from 'src/errors/index.js';
 
 interface WsOptions {
   debug?: boolean;
@@ -634,7 +635,13 @@ export class Transport {
         return promise;
       }
 
-      return timeout(promise, options.timeout).finally(removeListeners);
+      return timeout(promise, options.timeout).catch((error: unknown) => {
+        if (error instanceof PromiseTimeoutError) {
+          throw SendTimeoutError.fromPromiseTimeoutError(error);
+        }
+
+        throw error;
+      }).finally(removeListeners);
     };
 
     return this.sendWithRetry(async () => await send(), options.retries || 10);
@@ -667,6 +674,17 @@ export class Transport {
             });
             bail(e);
             return;
+          }
+
+          /**
+           * If we can't send due to timeout, attempt to reconnect
+           */
+          if (e instanceof SendTimeoutError) {
+            this.reconnect();
+            this.log('warn', 'Send operation timed out, connection reset', {
+              attempt,
+              timeout: e.time,
+            });
           }
 
           // Log retry attempt

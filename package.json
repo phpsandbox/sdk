@@ -24,6 +24,7 @@
     "build:browser": "node build.mjs",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run clean && npm run build",
+    "bumpAndPublish": "npm version patch && npm publish --access public",
     "prepare": "npm run build"
   },
   "keywords": [
