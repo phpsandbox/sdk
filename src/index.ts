@@ -385,7 +385,8 @@ export class NotebookInstance {
   }
 
   #init(): Promise<NotebookInitResult> {
-    return new Promise<NotebookInitResult>((resolve, reject) => {
+    // Reset init promise for reconnection scenarios
+    this.#initPromise = new Promise<NotebookInitResult>((resolve, reject) => {
       this.onDidInitialize((result: NotebookInitResult) => {
         this.initialized = result;
         if (result.type === 'error') {
@@ -395,6 +396,8 @@ export class NotebookInstance {
         resolve(result);
       });
     });
+    
+    return this.#initPromise;
   }
 
   public update() {
@@ -408,9 +411,22 @@ export class NotebookInstance {
     return disposable;
   }
 
-  public reconnect() {
-    this.dispose();
-    return new NotebookInstance(this.data, this.client);
+  public async reconnect(): Promise<NotebookInstance> {
+    // Use the socket's reconnect method which preserves listeners
+    // and uses the underlying ReconnectingWebSocket mechanism
+    this.socket.reconnect();
+
+    // Reset initialization state
+    this.initialized = false;
+
+    // Wait for the socket to reconnect
+    await this.whenConnected();
+
+    // Re-initialize the notebook
+    this.#init();
+    
+    // Wait for initialization to complete
+    return this.ready().then(() => this);
   }
 
   public async beacon(iframe: HTMLIFrameElement, options?: BeaconOptions): Promise<Beacon> {

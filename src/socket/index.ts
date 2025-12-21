@@ -705,6 +705,27 @@ export class Transport {
     return this.call('invoke', { action, data }, options);
   }
 
+  /**
+   * Reconnect the websocket without disposing listeners.
+   * Uses the underlying ReconnectingWebSocket's reconnect mechanism.
+   * This preserves all event listeners and state.
+   */
+  public reconnect(): void {
+    if (this.closed) {
+      throw new Error('Cannot reconnect a closed transport. The transport has been permanently closed.');
+    }
+
+    this.log('info', 'Reconnecting transport');
+
+    // Clear pending connection promise to allow fresh connection
+    this.connectPromise = null;
+
+    // Use ReconnectingWebSocket's built-in reconnect
+    // This will close the current connection and open a new one
+    // without disposing event listeners
+    this.rws.reconnect();
+  }
+
   public disconnect(): void {
     if (this.closed) {
       console.trace('Transport is already closed, cannot disconnect again');
