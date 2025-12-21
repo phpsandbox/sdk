@@ -8,7 +8,7 @@ import { EventDispatcher } from '../events/index.js';
 import { timeout } from '../utils/promise.js';
 import WebSocket from 'isomorphic-ws';
 import { NamedDisposable } from '../utils/disposable.js';
-import { PromiseTimeoutError, SendTimeoutError } from 'src/errors/index.js';
+import { PromiseTimeoutError, SendTimeoutError } from '../errors/index.js';
 
 interface WsOptions {
   debug?: boolean;
