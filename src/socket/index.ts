@@ -194,7 +194,6 @@ export class Transport {
     this.validateConfiguration(options);
 
     this.url = new URL(url);
-    this.url.searchParams.set('sdk_version', '0.0.1');
 
     // Use configurable ping interval
     this.PING_INTERVAL = options.pingInterval ?? 30000;
