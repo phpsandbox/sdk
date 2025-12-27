@@ -136,6 +136,10 @@ export class NotebookApi {
     return new NotebookInstance(response.data, this.client);
   }
 
+  public async delete(id: string): Promise<void> {
+    await this.client.delete<void>(`/notebook/${id}`);
+  }
+
   public async fork(id: string): Promise<NotebookInstance> {
     const response = await this.client.post<NotebookData>(`/notebook/${id}/fork`);
 
@@ -198,6 +202,10 @@ export class Client {
 
   public post<T extends unknown>(path: string, body?: unknown): Promise<{ data: T }> {
     return this.makeRequest('POST', path, { body: body ? JSON.stringify(body) : undefined });
+  }
+
+  public delete<T extends unknown>(path: string): Promise<{ data: T }> {
+    return this.makeRequest('DELETE', path);
   }
 
   private async makeRequest(method: string, path: string, init?: RequestInit) {
@@ -296,6 +304,10 @@ export class NotebookInstance {
 
   public fork(): Promise<NotebookInstance> {
     return this.client.notebook.fork(this.data.id);
+  }
+
+  public delete(): Promise<void> {
+    return this.client.notebook.delete(this.data.id);
   }
 
   public stop(): Promise<void> {
