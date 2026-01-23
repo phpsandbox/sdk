@@ -2,7 +2,7 @@ import { Action, Disposable, NotebookInstance } from './index.js';
 import { nanoid } from 'nanoid';
 export interface Task {
   id: string;
-  command: string;
+  command: string | string[];
   kind: string;
   created: boolean;
 }
