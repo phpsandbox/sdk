@@ -426,6 +426,7 @@ export class NotebookInstance {
   }
 
   public async reconnect(): Promise<NotebookInstance> {
+    const whenConnected = this.whenConnected();
     // Use the socket's reconnect method which preserves listeners
     // and uses the underlying ReconnectingWebSocket mechanism
     this.socket.reconnect();
@@ -434,7 +435,7 @@ export class NotebookInstance {
     this.initialized = false;
 
     // Wait for the socket to reconnect
-    await this.whenConnected();
+    await whenConnected;
 
     // Re-initialize the notebook
     this.#init();
