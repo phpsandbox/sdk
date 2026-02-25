@@ -93,9 +93,21 @@ export type Invokable = SystemActions &
   ShellActions &
   GitActions;
 
+export interface CreateNotebookImportAuthInput {
+  access_token: string;
+}
+
+export interface CreateNotebookImportInput {
+  provider: 'github';
+  repo: string;
+  branch?: string;
+  auth: CreateNotebookImportAuthInput;
+}
+
 export interface CreateNotebookInput {
   title: string;
   visibility: 'public' | 'private' | 'unlisted';
+  import?: CreateNotebookImportInput;
 }
 
 export class NotebookInitError extends Error {

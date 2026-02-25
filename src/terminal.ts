@@ -1,5 +1,6 @@
 import { Action, Disposable, NotebookInstance } from './index.js';
 import { nanoid } from 'nanoid';
+import { once } from './utils/promise.js';
 export interface Task {
   id: string;
   command: string | string[];
@@ -152,11 +153,10 @@ export default class Terminal {
       );
     });
 
-    const kill = () => {
+    const kill = once(() => {
       dispose();
-
       return this.okra.invoke('terminal.close', { id });
-    };
+    });
 
     const resize = (dimensions: { cols: number; rows: number }) => {
       this.okra.invoke('terminal.resize', { id, width: dimensions.cols, height: dimensions.rows });

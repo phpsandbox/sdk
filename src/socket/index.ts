@@ -491,6 +491,11 @@ export class Transport {
 
   public listenOnce(event: string, listener: (data: any) => void, context?: any): void {
     this.eventEmitter.once(event, listener, context);
+    this.disposables.add(`once_${event}_${nanoid()}`, {
+      dispose: () => {
+        this.eventEmitter.removeListener(event, listener);
+      },
+    });
   }
 
   public emit(event: string, ...data: any): void {

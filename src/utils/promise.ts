@@ -17,3 +17,15 @@ export const timeout = <T>(prom: Promise<T>, time: number): Promise<T> => {
     ),
   ]).finally(() => clearTimeout(timer));
 };
+
+/**
+ * Wraps an async function to ensure it only executes once. 
+ * Subsequent calls return the memoized promise result.
+ * 
+ * @param fn The async function to execute once
+ * @returns A wrapped function that memoizes the first execution
+ */
+export const once = <T>(fn: () => Promise<T>): (() => Promise<T>) => {
+  let result: Promise<T> | null = null;
+  return () => result || (result = fn());
+};

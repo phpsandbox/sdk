@@ -144,6 +144,26 @@ open(id: string): Promise<NotebookInstance>
 openFromData(data: NotebookData): Promise<NotebookInstance>
 ```
 
+#### Create Notebook from GitHub Repository
+
+```typescript
+const notebook = await client.notebook.create(
+  'php',
+  {
+    title: 'Imported Repo',
+    import: {
+      provider: 'github',
+      repo: 'https://github.com/acme/private-repo.git',
+      branch: 'main',
+      auth: {
+        access_token: process.env.GITHUB_TOKEN!,
+      },
+    },
+  },
+  false
+);
+```
+
 ### NotebookInstance
 
 The core class providing access to all development environment features.
