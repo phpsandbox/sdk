@@ -1,202 +1,108 @@
 # PHPSandbox SDK API Summary
 
-## Overview
+This is a quick reference for the current SDK surface.
 
-The PHPSandbox SDK provides programmatic access to cloud-based PHP development environments with comprehensive tooling for modern PHP development.
+## Top-Level Client
 
-## Key Features
-
-### 🏗️ **Environment Management**
-
-- **Instant PHP Environments**: Create containerized PHP environments in seconds
-- **Multiple Templates**: PHP, Laravel, Symfony, and custom templates
-- **Resource Monitoring**: Real-time CPU, memory, and disk usage tracking
-- **Port Management**: Automatic port detection and URL generation
-
-### 📁 **Advanced File System**
-
-- **Full CRUD Operations**: Create, read, update, delete files and directories
-- **Intelligent Search**: File name matching and full-text search with regex support
-- **Real-time Monitoring**: Watch file changes with customizable filters
-- **Bulk Operations**: Download entire projects or specific directories
-- **Range Reading**: Read specific line ranges from large files
-
-### 💻 **Terminal & Process Management**
-
-- **Interactive Terminals**: Full terminal access with resize support
-- **Process Spawning**: Execute commands with stream-based I/O
-- **Background Processes**: Long-running processes with proper lifecycle management
-- **Environment Control**: Custom environment variables and working directories
-
-### 📦 **Development Tools**
-
-- **Composer Integration**: Package management with dependency resolution
-- **Git Operations**: Full version control with branch, commit, and remote operations
-- **Language Server Protocol**: IDE-like features (autocomplete, diagnostics, go-to-definition)
-- **Interactive REPL**: Real-time PHP code execution and debugging
-
-### 🔐 **Security & Authentication**
-
-- **Token-based Auth**: Secure API access with JWT tokens
-- **Permission Management**: Granular access control
-- **Rate Limiting**: Built-in protection against abuse
-
-## Quick Start
-
-```typescript
+```ts
 import { PHPSandbox } from '@phpsandbox/sdk';
 
-// Create client
-const client = new PHPSandbox(process.env.PHPSANDBOX_TOKEN);
-
-// Create environment
-const notebook = await client.notebook.create('php');
-await notebook.ready();
-
-// Work with files
-await notebook.file.writeFile('hello.php', new TextEncoder().encode('<?php echo "Hello World!"; ?>'), {
-  create: true,
-  overwrite: true,
-  unlock: false,
-  atomic: false,
+const client = new PHPSandbox(token, 'https://api.phpsandbox.io/v1', {
+  debug: false,
+  startClosed: true,
 });
-
-// Execute code
-const process = await notebook.terminal.spawn('php', ['hello.php']);
-const reader = process.output.getReader();
-const { value } = await reader.read();
-console.log(value); // "Hello World!"
 ```
 
-## Core Classes
+### `NotebookApi`
 
-| Class              | Purpose              | Key Methods                                              |
-| ------------------ | -------------------- | -------------------------------------------------------- |
-| `PHPSandbox`       | Main client          | `notebook.create()`, `notebook.get()`, `notebook.fork()` |
-| `NotebookInstance` | Environment instance | `ready()`, `invoke()`, `listen()`, `dispose()`           |
-| `Filesystem`       | File operations      | `readFile()`, `writeFile()`, `search()`, `watch()`       |
-| `Terminal`         | Process execution    | `spawn()`, `create()`, `input()`, `resize()`             |
-| `Container`        | Environment control  | `start()`, `stop()`, `state()`, `openedPorts()`          |
-| `Lsp`              | Language server      | `connection()`, `message()`, `start()`, `close()`        |
-| `Composer`         | PHP packages         | `install()`, `update()`, `remove()`, `show()`            |
-| `Git`              | Version control      | `init()`, `add()`, `commit()`, `push()`, `pull()`        |
+- `create(template, input?, init = true)`
+- `get(id)`
+- `open(id)`
+- `fork(id)`
+- `delete(id)`
+- `openFromData(data)`
 
-## Event System
+## `NotebookInstance`
 
-Real-time updates through WebSocket connections:
+- Lifecycle: `ready()`, `connected()`, `whenConnected()`, `reconnect()`, `dispose()`
+- Notebook actions: `fork()`, `delete()`, `stop()`, `restart()`, `ping()`, `update()`
+- Events: `listen(event, handler)`, `onDidConnect(handler)`, `onDidDisconnect(handler)`, `onDidInitialize(handler)`
+- Raw call: `invoke(action, data?, options?)`
 
-```typescript
-// File changes
-notebook.file.watch('/app', { recursive: true }, (change) => {
-  console.log(`${change.path} was ${change.type}`);
-});
+## Services
 
-// Terminal output
-notebook.terminal.onOutput('terminal-id', (data) => {
-  console.log(data.output);
-});
+### Filesystem (`notebook.file`)
 
-// Container stats
-notebook.container.listen('container.stats', (stats) => {
-  console.log(`Memory: ${stats.memory.usage}/${stats.memory.limit}`);
-});
+- File data: `info()`, `readFile()`, `write()`, `writeFile()`, `tail()`, `stat()`, `exists()`
+- File management: `move()`, `rename()`, `copy()`, `remove()`, `delete()`
+- Directory: `mkdir()`, `createDirectory()`, `readDirectory()`, `tree()`
+- Search: `find()`, `search()`
+- Streaming/monitoring: `watch()`, `download()`
 
-// Connection status
-notebook.onDidConnect(() => console.log('Connected'));
-notebook.onDidDisconnect(() => console.log('Disconnected'));
-```
+### Terminal (`notebook.terminal`)
 
-## Error Handling
+- Terminal control: `list()`, `start()`, `create()`, `resize()`, `input()`
+- Process API: `spawn(command, args, opts?)`
+- Events: `listen()`, `onStarted()`, `onOutput(id, handler)`
 
-Structured error types with specific handling:
+### Container (`notebook.container`)
 
-```typescript
-import { FilesystemError, FilesystemErrorType, ErrorEvent } from '@phpsandbox/sdk';
+- Lifecycle: `start()`, `stop()`, `state()`
+- Ports: `openedPorts()`, `onPort(handler)`
+- Runtime config: `setPhp(version)`
+- Telemetry: `enableTelemetry(features)`, `stopTelemetry()`, `listen(event, handler)`
 
-try {
-  await notebook.file.readFile('missing.php');
-} catch (error) {
-  if (error instanceof FilesystemError) {
-    switch (error.name) {
-      case FilesystemErrorType.FileNotFound:
-        console.log('File not found');
-        break;
-      case FilesystemErrorType.NoPermissions:
-        console.log('Permission denied');
-        break;
-    }
-  }
-}
-```
+### Shell (`notebook.shell`)
 
-## TypeScript Support
+- `exec(command)` returning `{ output, exitCode }` plus `throw()` helper
 
-Full type safety with comprehensive interfaces:
+### Composer (`notebook.composer`)
 
-```typescript
-import type { NotebookInstance, FileInfo, Stats, TextSearchQuery, ContainerStats, Events } from '@phpsandbox/sdk';
+- Core: `invoke(command, args?, options?)`
+- Helpers: `install()`, `update()`, `require()`, `remove()`, `dumpAutoload()`, `packages()`, `stream(handler)`
 
-// Type-safe event handling
-notebook.listen('fs.watch', (change: Events['fs.watch']) => {
-  // change is properly typed as FileChange
-});
+### Git (`notebook.git`)
 
-// Type-safe API calls
-const stats: Stats = await notebook.file.stat('/app/composer.json');
-const info: FileInfo = await notebook.file.info('/app/index.php');
-```
+- `checkpoint(author, message, branch = 'main')`
+- `sync(url, author, ref?, token?, direction?, force?)`
+- `log(ref = 'main')`
+- `restore(ref)`
 
-## Use Cases
+### LSP (`notebook.lsp`)
 
-### **Web Development**
+- Messaging: `start(id)`, `close(id)`, `message(id, payload)`
+- Events: `onResponse()`, `onError()`, `onClose()`, `onClientDisconnect()`
+- Connection wrapper: `connection(id)`
 
-- Laravel/Symfony application development
-- API development and testing
-- Frontend build processes
-- Database migrations and seeding
+### REPL (`notebook.repl`)
 
-### **DevOps & CI/CD**
+- `start()`, `stop()`, `eval(code, args?, replOpts?)`, `write(input)`, `resize(cols, rows)`
+- Events: `listen()`, `onOutput()`
 
-- Automated testing environments
-- Build pipelines
-- Code quality analysis
-- Deployment preparation
+### Laravel (`notebook.laravel`)
 
-### **Education & Training**
+- `maintenanceInfo()`
+- `toggleMaintenance(downConfigOrEmptyObject)`
 
-- Interactive PHP tutorials
-- Code examples and demonstrations
-- Collaborative coding sessions
-- Skills assessment platforms
+### Auth (`notebook.auth`)
 
-### **Prototyping & Experimentation**
+- `login(newConnectionData)`
+- `logout()`
 
-- Rapid prototyping
-- Package evaluation
-- Performance testing
-- Algorithm development
+### Log (`notebook.log`)
 
-## Performance & Limits
+- `stream(handler)`
+- `listen(event, handler)`
 
-- **File Operations**: Optimized for files up to 10MB
-- **Search**: Full-text search across thousands of files
-- **Memory**: Containers with 512MB-4GB RAM options
-- **Storage**: Persistent storage with automatic backups
-- **Network**: High-speed connections with global CDN
+## Common Errors
 
-## Getting Help
+- `ApiError` for HTTP API failures
+- `NotebookInitError` when notebook initialization returns `type: 'error'`
+- `FilesystemError` + `FilesystemErrorType.*` for file system operations
+- `RateLimitError` for rate-limited flows
 
-- 📚 **Documentation**: [Complete guides and tutorials](./getting-started.md)
-- 🔧 **Examples**: [Practical code examples](../examples/)
-- 💬 **Community**: GitHub Discussions and Stack Overflow
-- 🐛 **Issues**: [GitHub Issues](https://github.com/phpsandbox/sdk/issues)
-- 📧 **Support**: Enterprise support available
+## Notes for Consumers
 
-## What's Next?
-
-1. **Follow the [Getting Started Guide](./getting-started.md)**
-2. **Explore [Example Projects](../examples/)**
-3. **Read the [Full API Reference](../README.md)**
-4. **Join the Community**
-
-The PHPSandbox SDK empowers you to build powerful PHP applications in the cloud with enterprise-grade reliability and performance.
+- `open()` and `get()` do not auto-initialize; call `await notebook.ready()`.
+- `create()` and `fork()` initialize by default.
+- Always call `notebook.dispose()` when finished.

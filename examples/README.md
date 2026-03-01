@@ -2,6 +2,6 @@
 
 ### Running Basic Example
 
-```
-npx tsx examples/basic.ts
+```bash
+PHPSANDBOX_TOKEN=your-token npx tsx examples/basic.ts
 ```

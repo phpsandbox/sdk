@@ -1,7 +1,12 @@
 import { PHPSandbox } from '../src/index.js';
 
-const psb = new PHPSandbox('api-token-here');
-const notebook = await psb.notebook.open('laravel');
+const token = process.env.PHPSANDBOX_TOKEN;
+if (!token) {
+  throw new Error('Missing PHPSANDBOX_TOKEN');
+}
+
+const psb = new PHPSandbox(token);
+const notebook = await psb.notebook.create('laravel');
 
 console.log('====== Ping the notebook ======');
 console.log('Response:', await notebook.ping());
@@ -14,7 +19,6 @@ const decoder = new TextDecoder();
 const content = await notebook.file.readFile('routes/web.php');
 console.log(decoder.decode(content));
 
-/**
- * Important: Always close the notebook when done to clean up connection.
- */
+// Always close the notebook when done to clean up the connection.
 notebook.dispose();
+await notebook.delete();
