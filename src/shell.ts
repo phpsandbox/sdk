@@ -3,7 +3,7 @@ import { Action, NotebookInstance } from './index.js';
 export interface ShellEvents {}
 
 export interface ShellActions {
-  'shell.exec': Action<{ command: string }, { output: string; exitCode: number }>;
+  'shell.exec': Action<{ command: string|string }, { output: string; exitCode: number }>;
 }
 
 export class CommandError extends Error {
@@ -33,7 +33,7 @@ class Result {
 export default class Shell {
   constructor(protected okra: NotebookInstance) {}
 
-  public async exec(command: string): Promise<Result> {
+  public async exec(command: string|string): Promise<Result> {
     const result = await this.okra.invoke('shell.exec', { command });
 
     return new Result(result.output, result.exitCode);
