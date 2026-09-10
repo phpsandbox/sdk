@@ -1,0 +1,263 @@
+// Re-export beacon types for type safety
+export interface BeaconMessage<T = unknown> {
+  type: string;
+  payload: T;
+  timestamp: number;
+  source: 'beacon' | 'parent';
+  id: string;
+}
+
+export interface BeaconConfig {
+  enableUrlTracking?: boolean;
+  enableConsoleCapture?: boolean;
+  enableErrorCapture?: boolean;
+  enableDebugMode?: boolean;
+  targetOrigin?: string;
+}
+
+export interface UrlChangeEvent {
+  oldUrl: string;
+  newUrl: string;
+  timestamp: number;
+}
+
+export interface ConsoleEvent {
+  level: 'log' | 'warn' | 'error' | 'info' | 'debug';
+  args: unknown[];
+  timestamp: number;
+  stack?: string;
+}
+
+export interface BeaconErrorEvent {
+  message: string;
+  filename: string;
+  lineno: number;
+  colno: number;
+  error?: Error;
+  stack?: string;
+  timestamp: number;
+}
+
+export interface DebugInfo {
+  url: string;
+  userAgent: string;
+  viewport: { width: number; height: number };
+  timestamp: number;
+  performance?: {
+    navigation: unknown;
+    timing: unknown;
+  };
+  console?: ConsoleEvent[];
+  errors?: BeaconErrorEvent[];
+}
+
+export interface DebugRequest {
+  path: string;
+  options?: {
+    waitForLoad?: boolean;
+    captureScreenshot?: boolean;
+    captureConsole?: boolean;
+    captureNetworkInfo?: boolean;
+    timeout?: number;
+  };
+}
+
+export interface DebugResult {
+  success: boolean;
+  url: string;
+  timestamp: number;
+  loadTime?: number;
+  screenshot?: ArrayBuffer;
+  console: ConsoleEvent[];
+  errors: BeaconErrorEvent[];
+  networkInfo?: NetworkInfo;
+  domInfo?: DOMInfo;
+  performanceInfo?: PerformanceInfo;
+  error?: string;
+}
+
+export type ScreenshotCoordinateSpace = 'viewport' | 'document';
+
+export interface ScreenshotRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  coordinateSpace?: ScreenshotCoordinateSpace;
+}
+
+export interface ScreenshotAnnotationRegion extends ScreenshotRect {
+  label?: string | number;
+}
+
+export interface ScreenshotRequest {
+  clip?: ScreenshotRect;
+  annotate?: {
+    regions?: ScreenshotAnnotationRegion[];
+  };
+  excludeSelectors?: string[];
+  output?: {
+    maxWidth?: number;
+    maxHeight?: number;
+  };
+  type?: 'image/png' | 'image/jpeg' | 'image/webp' | string;
+  quality?: number;
+  /**
+   * Wait budget for page media/resources while rendering the DOM screenshot.
+   */
+  mediaTimeoutMs?: number;
+  /**
+   * Wait budget for the SDK request/response roundtrip.
+   */
+  transportTimeoutMs?: number;
+  /**
+   * Legacy timeout. Prefer mediaTimeoutMs and transportTimeoutMs for new callers.
+   */
+  timeout?: number;
+}
+
+export interface ScreenshotResult {
+  success: boolean;
+  url: string;
+  timestamp: number;
+  screenshot?: ArrayBuffer;
+  type?: string;
+  size?: number;
+  viewport?: { width: number; height: number };
+  document?: { width: number; height: number };
+  scroll?: { x: number; y: number };
+  clip?: ScreenshotRect & { coordinateSpace: ScreenshotCoordinateSpace };
+  error?: string;
+}
+
+export interface NetworkInfo {
+  resources: Array<{
+    name: string;
+    type: string;
+    size: number;
+    duration: number;
+    status?: number;
+  }>;
+  totalRequests: number;
+  totalSize: number;
+  loadTime: number;
+}
+
+export interface DOMInfo {
+  title: string;
+  elementCount: number;
+  headElements: Array<{
+    tagName: string;
+    attributes: Record<string, string>;
+  }>;
+  bodySize: {
+    scrollWidth: number;
+    scrollHeight: number;
+    clientWidth: number;
+    clientHeight: number;
+  };
+  metaTags: Array<{
+    name?: string;
+    property?: string;
+    content?: string;
+  }>;
+}
+
+export interface PerformanceInfo {
+  navigationTiming: unknown;
+  loadEventEnd: number;
+  domContentLoaded: number;
+  firstPaint?: number;
+  firstContentfulPaint?: number;
+  largestContentfulPaint?: number;
+  memoryUsage?: {
+    used: number;
+    total: number;
+  };
+}
+
+export interface FetchRequest {
+  url: string;
+  options?: RequestInit;
+}
+
+export interface FetchResult<T = unknown> {
+  success: boolean;
+  response?: {
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    body: T;
+    url: string;
+    redirected: boolean;
+    type: ResponseType;
+  };
+  error?: string;
+  timestamp: number;
+}
+
+export interface BeaconActions {
+  ping: () => Promise<boolean>;
+  getDebugInfo: () => Promise<DebugInfo>;
+  getConsoleEvents: () => Promise<ConsoleEvent[]>;
+  getErrorEvents: () => Promise<BeaconErrorEvent[]>;
+  clearConsole: () => Promise<void>;
+  clearErrors: () => Promise<void>;
+  executeCode: (code: string) => Promise<{ success: boolean; result?: unknown; error?: string }>;
+  inspectElement: (selector: string) => Promise<{ success: boolean; element?: unknown; error?: string }>;
+  captureScreenshot: (request?: ScreenshotRequest) => Promise<ScreenshotResult>;
+  debug: (request: DebugRequest) => Promise<DebugResult>;
+  fetch: (request: FetchRequest) => Promise<FetchResult>;
+}
+
+export interface BeaconEvents {
+  ready: BeaconConfig & { url: string; timestamp: number };
+  urlChange: UrlChangeEvent;
+  console: ConsoleEvent;
+  error: BeaconErrorEvent;
+  pong: { timestamp: number };
+  debugInfo: DebugInfo;
+  consoleEvents: ConsoleEvent[];
+  errorEvents: BeaconErrorEvent[];
+  codeExecutionResult: { success: boolean; result?: unknown; error?: string };
+  elementInspectionResult: { success: boolean; element?: unknown; error?: string };
+  screenshotResult: ScreenshotResult;
+  debugResult: DebugResult;
+  fetchResult: FetchResult;
+  navigationResult: { success: boolean; error?: string };
+  historyNavigated: { success: boolean; error?: string; action?: string };
+  historyStateChanged: { success: boolean; error?: string; action?: string; state?: unknown; title?: string; url?: string };
+  historyChange: {
+    url: string;
+    state: unknown;
+    direction: 'back' | 'forward' | 'push' | 'replace' | 'reload';
+    timestamp: number;
+  };
+  navigationStateChange: {
+    canGoBack: boolean;
+    canGoForward: boolean;
+    currentIndex: number;
+    historyLength: number;
+    timestamp: number;
+  };
+  historyInfo: {
+    length: number;
+    state: unknown;
+    url: string;
+    canGoBack: boolean;
+    canGoForward: boolean;
+  };
+}
+
+export interface BeaconOptions {
+  timeout?: number;
+  targetOrigin?: string;
+  debug?: boolean;
+  retry?: {
+    retries?: number;
+    minTimeout?: number;
+    maxTimeout?: number;
+    factor?: number;
+    randomize?: boolean;
+  };
+}

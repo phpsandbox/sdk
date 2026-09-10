@@ -1,0 +1,22 @@
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    # Routine version bumps are off, so the queue stays limited to advisories.
+    # Security update PRs are exempt from this limit and are still opened.
+    open-pull-requests-limit: 0
+    groups:
+      # Batch every advisory into one PR rather than one PR per alert.
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "fix(deps)"
+      prefix-development: "chore(deps)"

@@ -1,0 +1,220 @@
+import * as sdk from '@phpsandbox/sdk';
+import * as beacon from '@phpsandbox/sdk/beacon';
+import type { CapabilityId } from './capabilities.js';
+
+type SurfaceCoverage<T> = { readonly [TKey in keyof T]-?: CapabilityId };
+
+export const sdkRuntimeExports = {
+  FileChangeFilter: 'filesystem.watch',
+  FileChangeType: 'filesystem.watch',
+  FileType: 'filesystem.management',
+  LspConnection: 'lsp',
+  NotebookInstance: 'notebook.lifecycle',
+  PHPSandboxError: 'sdk.contracts',
+  PHPSandbox: 'client.runtime-selection',
+  RemoteError: 'sdk.contracts',
+  TransportError: 'sdk.contracts',
+  notebookBuiltinServices: 'services.read',
+  notebookKnownServices: 'services.read',
+} satisfies SurfaceCoverage<typeof sdk>;
+
+export const beaconRuntimeExports = {
+  Beacon: 'beacon',
+  BeaconConnectionError: 'beacon',
+  BeaconError: 'beacon',
+  BeaconTimeoutError: 'beacon',
+  connectBeacon: 'beacon',
+  isBeaconSupported: 'beacon',
+} satisfies SurfaceCoverage<typeof beacon>;
+
+export const clientSurface = {
+  integrations: 'client.core-http',
+  notebook: 'notebook.lifecycle',
+  publications: 'publication.manage',
+  runtimeTransport: 'client.runtime-selection',
+  servers: 'server.manage',
+} satisfies SurfaceCoverage<sdk.PHPSandbox>;
+
+export const notebookApiSurface = {
+  create: 'notebook.lifecycle',
+  get: 'notebook.lifecycle',
+  open: 'notebook.lifecycle',
+} satisfies SurfaceCoverage<sdk.PHPSandbox['notebook']>;
+
+export const notebookSurface = {
+  auth: 'runtime.initialization',
+  composer: 'composer.read',
+  feedback: 'feedback',
+  config: 'config.read',
+  connected: 'runtime.events',
+  data: 'notebook.lifecycle',
+  destroy: 'notebook.lifecycle',
+  dispose: 'notebook.lifecycle',
+  exec: 'shell.exec',
+  files: 'filesystem.basic',
+  fork: 'notebook.fork',
+  git: 'git.read',
+  initialized: 'runtime.initialization',
+  integrations: 'client.core-http',
+  invoke: 'sdk.contracts',
+  listen: 'runtime.events',
+  lsp: 'lsp',
+  mail: 'mail.read',
+  onDidBootError: 'runtime.events',
+  onDidConnect: 'runtime.events',
+  onDidDisconnect: 'runtime.events',
+  onDidInitialize: 'runtime.events',
+  preview: 'preview',
+  publication: 'publication.read',
+  publish: 'publication.manage',
+  ready: 'runtime.initialization',
+  reconnect: 'runtime.events',
+  repl: 'repl',
+  restart: 'runtime.lifecycle',
+  runtime: 'runtime.lifecycle',
+  run: 'shell.streaming',
+  runtimeTransport: 'client.runtime-selection',
+  secrets: 'secrets',
+  send: 'runtime.events',
+  services: 'services.read',
+  stop: 'runtime.lifecycle',
+  terminals: 'terminal',
+} satisfies SurfaceCoverage<sdk.NotebookInstance>;
+
+export const filesystemSurface = {
+  copy: 'filesystem.management',
+  createDirectory: 'filesystem.management',
+  download: 'filesystem.streaming',
+  exists: 'filesystem.management',
+  find: 'filesystem.search',
+  follow: 'filesystem.streaming',
+  list: 'filesystem.management',
+  move: 'filesystem.management',
+  read: 'filesystem.basic',
+  readLines: 'filesystem.management',
+  readStream: 'filesystem.streaming',
+  readText: 'filesystem.basic',
+  remove: 'filesystem.management',
+  search: 'filesystem.search',
+  stat: 'filesystem.management',
+  tail: 'filesystem.management',
+  tree: 'filesystem.management',
+  watch: 'filesystem.watch',
+  write: 'filesystem.basic',
+} satisfies SurfaceCoverage<sdk.NotebookInstance['files']>;
+
+export const publicationSurface = {
+  buildLogs: 'publication.read',
+  createProtectionSession: 'publication.manage',
+  data: 'publication.read',
+  destroy: 'publication.manage',
+  disableProtection: 'publication.manage',
+  events: 'publication.read',
+  logs: 'publication.read',
+  protection: 'publication.read',
+  publish: 'publication.manage',
+  refresh: 'publication.read',
+  setProtection: 'publication.manage',
+  wait: 'publication.read',
+} satisfies SurfaceCoverage<sdk.PublicationInstance>;
+
+export const runtimeFacadeSurfaces = {
+  composer: {
+    credentials: 'composer.credentials',
+    packages: 'composer.read',
+    run: 'composer.mutate',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['composer']>,
+  config: {
+    get: 'config.read',
+    setPorts: 'config.write',
+    update: 'config.write',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['config']>,
+  runtime: {
+    logs: 'logs.streaming',
+    metrics: 'runtime.metrics',
+    ports: 'ports.read',
+    setPhpVersion: 'php.version',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['runtime']>,
+  git: {
+    abortMerge: 'git.mutate',
+    checkpoint: 'git.mutate',
+    checkout: 'git.mutate',
+    conflicts: 'git.read',
+    continueMerge: 'git.mutate',
+    credentials: 'git.read',
+    diff: 'git.read',
+    log: 'git.read',
+    merge: 'git.mutate',
+    restore: 'git.mutate',
+    revert: 'git.mutate',
+    review: 'git.read',
+    stage: 'git.mutate',
+    status: 'git.read',
+    targets: 'git.mutate',
+    unstage: 'git.mutate',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['git']>,
+  runtimeLogs: {
+    follow: 'logs.streaming',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['runtime']['logs']>,
+  lsp: {
+    close: 'lsp',
+    connection: 'lsp',
+    listen: 'lsp',
+    message: 'lsp',
+    onClientDisconnect: 'lsp',
+    onClose: 'lsp',
+    onError: 'lsp',
+    onResponse: 'lsp',
+    start: 'lsp',
+    whenSocketConnected: 'lsp',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['lsp']>,
+  mail: {
+    delete: 'mail.manage',
+    disable: 'mail.manage',
+    enable: 'mail.manage',
+    get: 'mail.read',
+    list: 'mail.read',
+    status: 'mail.read',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['mail']>,
+  runtimeMetrics: {
+    current: 'runtime.metrics',
+    watch: 'telemetry.streaming',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['runtime']['metrics']>,
+  runtimePorts: {
+    list: 'ports.read',
+    resolve: 'ports.read',
+    watch: 'telemetry.streaming',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['runtime']['ports']>,
+  preview: {
+    createHandoff: 'preview',
+    createSession: 'preview',
+    disable: 'preview',
+    get: 'preview',
+    setPassword: 'preview',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['preview']>,
+  repl: {
+    eval: 'repl',
+    listen: 'repl',
+    onOutput: 'repl',
+    resize: 'repl',
+    stop: 'repl',
+    write: 'repl',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['repl']>,
+  secrets: {
+    delete: 'secrets',
+    list: 'secrets',
+    set: 'secrets',
+    setMany: 'secrets',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['secrets']>,
+  services: {
+    list: 'services.read',
+    logs: 'services.manage',
+    run: 'services.manage',
+    stop: 'services.manage',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['services']>,
+  terminals: {
+    attach: 'terminal.attach',
+    create: 'terminal',
+    list: 'terminal',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['terminals']>,
+};

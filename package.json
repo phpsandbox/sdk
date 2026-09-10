@@ -1,0 +1,87 @@
+{
+  "name": "@phpsandbox/sdk",
+  "version": "0.1.13",
+  "description": "The TypeScript SDK for PHPSandbox cloud development environments",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./beacon": {
+      "types": "./dist/beacon/index.d.ts",
+      "import": "./dist/beacon/index.js",
+      "default": "./dist/beacon/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "unpkg": "./dist/browser/phpsandbox-sdk.iife.min.js",
+  "jsdelivr": "./dist/browser/phpsandbox-sdk.esm.min.js",
+  "scripts": {
+    "build": "npm run build:tsc && npm run build:browser",
+    "build:tsc": "tsc",
+    "build:browser": "node build.mjs",
+    "clean": "rm -rf dist",
+    "test": "npm run build:tsc && vitest run --config vitest.config.ts",
+    "smoke": "npm run smoke:pr",
+    "smoke:pr": "npm run build:tsc && vitest run --config tests/smoke/vitest.config.ts tests/smoke/pr",
+    "smoke:nightly": "npm run build:tsc && vitest run --config tests/smoke/vitest.config.ts tests/smoke/pr tests/smoke/nightly --exclude tests/smoke/nightly/publication.smoke.ts",
+    "smoke:publications": "npm run build:tsc && vitest run --reporter=verbose --config tests/smoke/vitest.config.ts tests/smoke/nightly/publication.smoke.ts",
+    "smoke:composer-credentials": "npm run build:tsc && vitest run --reporter=verbose --config tests/smoke/vitest.config.ts tests/smoke/integrations/composer-credentials.smoke.ts",
+    "smoke:beacon": "npm run build:tsc && vitest run --reporter=verbose --config tests/smoke/vitest.config.ts tests/smoke/integrations/beacon.smoke.ts",
+    "smoke:feedback-widget": "npm run build:tsc && vitest run --reporter=verbose --config tests/smoke/vitest.config.ts tests/smoke/integrations/feedback-widget.smoke.ts",
+    "smoke:reaper": "npm run build:tsc && vitest run --reporter=verbose --config tests/smoke/vitest.config.ts tests/smoke/maintenance/resources.reaper.smoke.ts",
+    "smoke:typecheck": "npm run build:tsc && tsc --project tests/smoke/tsconfig.json --noEmit",
+    "prepublishOnly": "npm test && npm run clean && npm run build",
+    "bumpAndPublish": "npm version patch && npm publish --access public"
+  },
+  "keywords": [
+    "php",
+    "sandbox",
+    "development",
+    "cloud",
+    "typescript",
+    "sdk",
+    "laravel",
+    "composer"
+  ],
+  "author": "PHPSandbox",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/phpsandbox/sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/phpsandbox/sdk/issues"
+  },
+  "homepage": "https://github.com/phpsandbox/sdk#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.1",
+    "isomorphic-ws": "^5.0.0",
+    "mitt": "^3.0.1",
+    "nanoid": "^5.1.2",
+    "reconnecting-websocket": "^4.4.0",
+    "ws": "^8.21.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "@types/ws": "^8.18.1",
+    "axios": "^1.17.0",
+    "esbuild": "^0.27.1",
+    "playwright": "^1.62.1",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
+  }
+}
