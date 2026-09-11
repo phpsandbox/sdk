@@ -1,0 +1,70 @@
+name: Production smoke resource reaper
+
+on:
+  schedule:
+    - cron: "47 4 * * *"
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Provider resources to reap
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - cloudflare-containers
+          - ssh-server
+          - laravel-cloud
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke-resource-reaper
+  cancel-in-progress: false
+
+jobs:
+  reap:
+    name: ${{ matrix.provider }} resource reaper
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        provider: ${{ fromJSON((github.event_name == 'schedule' || inputs.provider == 'all') && '["cloudflare-containers","ssh-server","laravel-cloud"]' || format('["{0}"]', inputs.provider)) }}
+    steps:
+      - name: Check out SDK
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate resource registry token
+        id: registry-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.PHPSANDBOX_SMOKE_GITHUB_APP_CLIENT_ID }}
+          permission-contents: write
+          private-key: ${{ secrets.PHPSANDBOX_SMOKE_GITHUB_APP_PRIVATE_KEY }}
+          owner: phpsandbox
+          repositories: sdk-smoke-fixtures
+
+      - name: Reap expired ${{ matrix.provider }} resources
+        env:
+          PHPSANDBOX_API_URL: https://api.phpsandbox.io/v1
+          PHPSANDBOX_SMOKE_GITHUB_OWNER: phpsandbox
+          PHPSANDBOX_SMOKE_GITHUB_TOKEN: ${{ steps.registry-token.outputs.token }}
+          PHPSANDBOX_SMOKE_REAPER_PROVIDER: ${{ matrix.provider }}
+          PHPSANDBOX_SMOKE_RESOURCE_MAX_AGE_HOURS: 6
+          PHPSANDBOX_SMOKE_RESOURCE_REGISTRY: phpsandbox/sdk-smoke-fixtures
+          PHPSANDBOX_SMOKE_RESOURCE_REGISTRY_BRANCH: smoke-resource-registry
+          PHPSANDBOX_SMOKE_TOKEN: ${{ secrets.PHPSANDBOX_SMOKE_TOKEN }}
+          PHPSANDBOX_SMOKE_TRANSPORT: http
+        run: npm run smoke:reaper

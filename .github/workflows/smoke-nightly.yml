@@ -1,0 +1,202 @@
+name: Comprehensive production smoke tests
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Smoke target to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - realtime
+          - http
+          - cloudflare-containers
+          - ssh-server
+          - laravel-cloud
+          - composer-credentials
+          - beacon
+          - feedback-widget
+
+permissions:
+  contents: read
+
+concurrency:
+  group: comprehensive-production-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'schedule' ||
+      inputs.target == 'all' ||
+      inputs.target == 'realtime' ||
+      inputs.target == 'http'
+    name: ${{ matrix.transport }} comprehensive smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        transport: ${{ fromJSON((github.event_name == 'schedule' || inputs.target == 'all') && '["realtime","http"]' || format('["{0}"]', inputs.target)) }}
+    steps:
+      - name: Check out SDK
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate GitHub App token
+        id: github-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.PHPSANDBOX_SMOKE_GITHUB_APP_CLIENT_ID }}
+          permission-administration: write
+          permission-contents: write
+          private-key: ${{ secrets.PHPSANDBOX_SMOKE_GITHUB_APP_PRIVATE_KEY }}
+          owner: phpsandbox
+
+      - name: Run ${{ matrix.transport }} comprehensive smoke
+        env:
+          PHPSANDBOX_API_URL: https://api.phpsandbox.io/v1
+          PHPSANDBOX_SMOKE_GITHUB_OWNER: phpsandbox
+          PHPSANDBOX_SMOKE_GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
+          PHPSANDBOX_SMOKE_TOKEN: ${{ secrets.PHPSANDBOX_SMOKE_TOKEN }}
+          PHPSANDBOX_SMOKE_TRANSPORT: ${{ matrix.transport }}
+        run: npm run smoke:nightly
+
+  publications:
+    if: >-
+      github.event_name == 'schedule' ||
+      inputs.target == 'all' ||
+      inputs.target == 'cloudflare-containers' ||
+      inputs.target == 'ssh-server' ||
+      inputs.target == 'laravel-cloud'
+    name: ${{ matrix.provider }} publication smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        provider: ${{ fromJSON((github.event_name == 'schedule' || inputs.target == 'all') && '["cloudflare-containers","ssh-server","laravel-cloud"]' || format('["{0}"]', inputs.target)) }}
+    steps:
+      - name: Check out SDK
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate GitHub App token
+        id: github-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.PHPSANDBOX_SMOKE_GITHUB_APP_CLIENT_ID }}
+          permission-contents: write
+          private-key: ${{ secrets.PHPSANDBOX_SMOKE_GITHUB_APP_PRIVATE_KEY }}
+          owner: phpsandbox
+          repositories: sdk-smoke-fixtures
+
+      - name: Run ${{ matrix.provider }} publication smoke
+        env:
+          PHPSANDBOX_API_URL: https://api.phpsandbox.io/v1
+          PHPSANDBOX_SMOKE_CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PHPSANDBOX_SMOKE_CLOUDFLARE_ACCOUNT_ID }}
+          PHPSANDBOX_SMOKE_CLOUDFLARE_API_TOKEN: ${{ secrets.PHPSANDBOX_SMOKE_CLOUDFLARE_API_TOKEN }}
+          PHPSANDBOX_SMOKE_GITHUB_OWNER: phpsandbox
+          PHPSANDBOX_SMOKE_GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
+          PHPSANDBOX_SMOKE_LARAVEL_CLOUD_API_KEY: ${{ secrets.LARAVEL_CLOUD_API_KEY }}
+          PHPSANDBOX_SMOKE_PUBLICATION_PROVIDER: ${{ matrix.provider }}
+          PHPSANDBOX_SMOKE_PUBLICATION_REPOSITORY: phpsandbox/sdk-smoke-fixtures
+          PHPSANDBOX_SMOKE_RESOURCE_REGISTRY: phpsandbox/sdk-smoke-fixtures
+          PHPSANDBOX_SMOKE_RESOURCE_REGISTRY_BRANCH: smoke-resource-registry
+          PHPSANDBOX_SMOKE_TOKEN: ${{ secrets.PHPSANDBOX_SMOKE_TOKEN }}
+          PHPSANDBOX_SMOKE_TRANSPORT: http
+        run: npm run smoke:publications
+
+  integrations:
+    if: >-
+      github.event_name == 'schedule' ||
+      inputs.target == 'all' ||
+      inputs.target == 'composer-credentials' ||
+      inputs.target == 'beacon' ||
+      inputs.target == 'feedback-widget'
+    name: ${{ matrix.integration }} integration smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        integration: ${{ fromJSON((github.event_name == 'schedule' || inputs.target == 'all') && '["composer-credentials","beacon","feedback-widget"]' || format('["{0}"]', inputs.target)) }}
+    steps:
+      - name: Check out SDK
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        if: matrix.integration == 'beacon' || matrix.integration == 'feedback-widget'
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate private Composer fixture token
+        if: matrix.integration == 'composer-credentials'
+        id: composer-github-app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.PHPSANDBOX_SMOKE_GITHUB_APP_CLIENT_ID }}
+          permission-contents: read
+          private-key: ${{ secrets.PHPSANDBOX_SMOKE_GITHUB_APP_PRIVATE_KEY }}
+          owner: phpsandbox
+          repositories: sdk-smoke-composer-package
+
+      - name: Run Composer credential smoke
+        if: matrix.integration == 'composer-credentials'
+        env:
+          PHPSANDBOX_API_URL: https://api.phpsandbox.io/v1
+          PHPSANDBOX_SMOKE_COMPOSER_REPOSITORY: phpsandbox/sdk-smoke-composer-package
+          PHPSANDBOX_SMOKE_GITHUB_OWNER: phpsandbox
+          PHPSANDBOX_SMOKE_GITHUB_TOKEN: ${{ steps.composer-github-app-token.outputs.token }}
+          PHPSANDBOX_SMOKE_TOKEN: ${{ secrets.PHPSANDBOX_SMOKE_TOKEN }}
+          PHPSANDBOX_SMOKE_TRANSPORT: http
+        run: npm run smoke:composer-credentials
+
+      - name: Run Beacon browser smoke
+        if: matrix.integration == 'beacon'
+        env:
+          PHPSANDBOX_API_URL: https://api.phpsandbox.io/v1
+          PHPSANDBOX_SMOKE_TOKEN: ${{ secrets.PHPSANDBOX_SMOKE_TOKEN }}
+          PHPSANDBOX_SMOKE_TRANSPORT: realtime
+        run: npm run smoke:beacon
+
+      - name: Run feedback widget browser smoke
+        if: matrix.integration == 'feedback-widget'
+        env:
+          PHPSANDBOX_API_URL: https://api.phpsandbox.io/v1
+          PHPSANDBOX_SMOKE_REVIEWER_PASSWORD: ${{ secrets.PHPSANDBOX_SMOKE_REVIEWER_PASSWORD }}
+          PHPSANDBOX_SMOKE_REVIEWER_USERNAME: ${{ secrets.PHPSANDBOX_SMOKE_REVIEWER_USERNAME }}
+          PHPSANDBOX_SMOKE_TOKEN: ${{ secrets.PHPSANDBOX_SMOKE_TOKEN }}
+          PHPSANDBOX_SMOKE_TRANSPORT: http
+        run: npm run smoke:feedback-widget
