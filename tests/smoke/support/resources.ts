@@ -22,6 +22,12 @@ export interface CleanupHandle {
   complete(): void;
 }
 
+interface ProcessResult {
+  readonly exitCode: number;
+  readonly stderr: string;
+  readonly stdout: string;
+}
+
 export class SmokeOperationError extends Error {
   public constructor(
     public readonly operation: string,
@@ -180,6 +186,14 @@ export async function operation<T>(
   }
 }
 
+export function processResultDiagnostics(result: ProcessResult): string {
+  return sanitize([
+    `Process exited with code ${result.exitCode}.`,
+    `stdout:\n${result.stdout || '[empty]'}`,
+    `stderr:\n${result.stderr || '[empty]'}`,
+  ].join('\n'));
+}
+
 function createClient(environment: SmokeEnvironment): PHPSandbox {
   const coreClient = PHPSandbox.realtime(environment.token, environment.apiUrl);
   const options: PHPSandboxClientOptions = {
@@ -215,5 +229,7 @@ function sanitize(value: string): string {
   return value
     .replace(/(authorization:\s*bearer\s+)[^\s]+/gi, '$1[REDACTED]')
     .replace(/(--token(?:=|\s+))[^\s]+/gi, '$1[REDACTED]')
-    .replace(/([?&](?:auth|ticket|token)=)[^&\s]+/gi, '$1[REDACTED]');
+    .replace(/([?&](?:auth|ticket|token)=)[^&\s]+/gi, '$1[REDACTED]')
+    .replace(/(https?:\/\/)[^@\s/]+@/gi, '$1[REDACTED]@')
+    .replace(/\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b/g, '[REDACTED]');
 }

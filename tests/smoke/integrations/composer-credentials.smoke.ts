@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { CleanupHandle, SandboxFixture } from '../support/resources.js';
-import { createSandboxFixture, operation } from '../support/resources.js';
+import { createSandboxFixture, operation, processResultDiagnostics } from '../support/resources.js';
 import {
   readComposerCredentialSmokeEnvironment,
   type ComposerCredentialSmokeEnvironment,
@@ -69,7 +69,7 @@ describe.sequential('production Composer credential contract', () => {
   test('installs and executes the authenticated private package', async () => {
     const result = await requirePrivatePackage('with-credential');
 
-    expect(result.exitCode).toBe(0);
+    expect(result.exitCode, processResultDiagnostics(result)).toBe(0);
     expect(result.output).toContain(packageName);
     expect(result.output).not.toContain(environment!.github.token);
     await expect(operation('execute private Composer package marker', () => fixture!.sandbox.exec([
