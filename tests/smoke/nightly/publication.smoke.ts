@@ -33,7 +33,7 @@ const executeFile = promisify(execFile);
 const fixtureMarker = 'phpsandbox-sdk-publication-fixture-v1';
 const fixtureApplicationKey = 'base64:cGhwc2FuZGJveC1zZGstcHVibGljYXRpb24ta2V5ISE=';
 const publicationTimeoutMs = 15 * 60 * 1_000;
-const rookInstallerUrl = 'https://install.phpsandbox.io/agent';
+const rookInstallerUrl = 'https://install.phpsandbox.io/rook';
 
 describe.sequential('production publication provider contract', () => {
   let environment: PublicationSmokeEnvironment | undefined;
