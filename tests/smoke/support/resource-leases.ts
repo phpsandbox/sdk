@@ -1,9 +1,11 @@
+import { RemoteError, type NotebookInstance, type PHPSandbox } from '@phpsandbox/sdk';
 import { z } from 'zod';
 import type {
   GitHubSmokeEnvironment,
   PublicationSmokeProvider,
   SmokeResourceRegistryEnvironment,
 } from './environment.js';
+import { operation } from './resources.js';
 
 const leaseDirectory = '.sdk-smoke/resource-leases';
 
@@ -167,6 +169,101 @@ export function isExpiredResourceLease(
   now = new Date(),
 ): boolean {
   return Date.parse(lease.createdAt) <= now.getTime() - maxAgeHours * 60 * 60 * 1_000;
+}
+
+export async function reapPublicationResources(
+  client: PHPSandbox,
+  registry: PublicationResourceLeaseRegistry,
+  stored: StoredPublicationResourceLease,
+): Promise<void> {
+  const { lease } = stored;
+  console.log(`Reaping ${lease.provider} resources for workflow ${lease.runId}.${lease.runAttempt}.`);
+
+  const notebook = await operationAllowingMissing(
+    'read abandoned publication sandbox',
+    () => client.notebook.get(lease.notebookId),
+  );
+  if (notebook !== undefined) {
+    await reapNotebookPublication(notebook, lease.provider);
+  }
+
+  if (lease.provider === 'ssh-server' && lease.server !== undefined) {
+    const serverId = lease.server.id ?? await findServerIdByExactName(client, lease.server.name);
+    if (serverId !== undefined) {
+      await operationAllowingMissing('delete abandoned Rook server registration', () => (
+        client.servers.get(serverId).then((server) => server.delete())
+      ));
+    }
+  }
+
+  if (notebook !== undefined) {
+    await operationAllowingMissing('delete abandoned publication sandbox', () => notebook.destroy());
+  }
+  await operation('release reaped resource lease', () => registry.delete(stored));
+}
+
+async function reapNotebookPublication(
+  notebook: NotebookInstance,
+  expectedProvider: PublicationSmokeProvider,
+): Promise<void> {
+  const publication = await operationAllowingMissing(
+    'read abandoned publication',
+    () => notebook.publication(),
+  );
+  if (publication === undefined || publication === null) {
+    return;
+  }
+
+  if (publication.data.provider.name !== expectedProvider) {
+    throw new Error(
+      `Refusing to delete publication ${publication.data.id}: expected provider ${expectedProvider}, `
+      + `received ${publication.data.provider.name}.`,
+    );
+  }
+  await operationAllowingMissing(
+    `destroy abandoned ${expectedProvider} publication`,
+    () => publication.destroy(),
+    300_000,
+  );
+}
+
+async function findServerIdByExactName(client: PHPSandbox, name: string): Promise<string | undefined> {
+  let page = 1;
+  let lastPage = 1;
+  do {
+    const response = await client.servers.list({ page });
+    const matching = response.data.find((server) => server.name === name);
+    if (matching !== undefined) {
+      return matching.id;
+    }
+
+    lastPage = paginationLastPage(response.meta);
+    page += 1;
+  } while (page <= lastPage);
+
+  return undefined;
+}
+
+function paginationLastPage(meta: Record<string, unknown> | undefined): number {
+  const lastPage = meta?.last_page;
+  return typeof lastPage === 'number' && Number.isInteger(lastPage) && lastPage > 0 ? lastPage : 1;
+}
+
+async function operationAllowingMissing<T>(
+  name: string,
+  callback: () => Promise<T>,
+  timeoutMs?: number,
+): Promise<T | undefined> {
+  return operation(name, async () => {
+    try {
+      return await callback();
+    } catch (error) {
+      if (RemoteError.is(error) && error.status === 404) {
+        return undefined;
+      }
+      throw error;
+    }
+  }, timeoutMs);
 }
 
 function resourceLeasePath(lease: PublicationResourceLease): string {

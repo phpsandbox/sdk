@@ -1,8 +1,10 @@
+import { RemoteError, type PHPSandbox } from '@phpsandbox/sdk';
 import { describe, expect, test, vi } from 'vitest';
 import {
   createPublicationResourceLease,
   isExpiredResourceLease,
   PublicationResourceLeaseRegistry,
+  reapPublicationResources,
 } from '../support/resource-leases.js';
 
 const github = { owner: 'phpsandbox', token: 'secret-token' };
@@ -66,4 +68,69 @@ describe('publication resource leases', () => {
     expect(JSON.parse(String(request?.body))).toMatchObject({ branch: 'smoke-resource-registry' });
     expect(request?.body).not.toContain('secret-token');
   });
+
+  test('releases a stale lease when its sandbox has already been deleted', async () => {
+    const lease = createPublicationResourceLease({
+      notebookId: 'deleted-notebook',
+      provider: 'cloudflare-containers',
+      runAttempt: '1',
+      runId: '12345',
+    });
+    const stored = { lease, path: 'lease.json', sha: 'lease-sha' };
+    const client = {
+      notebook: {
+        get: vi.fn().mockRejectedValue(missingRemoteError('Notebook not found.')),
+      },
+    } as unknown as PHPSandbox;
+    const registry = {
+      delete: vi.fn().mockResolvedValue(undefined),
+    } as unknown as PublicationResourceLeaseRegistry;
+
+    await expect(reapPublicationResources(client, registry, stored)).resolves.toBeUndefined();
+
+    expect(registry.delete).toHaveBeenCalledWith(stored);
+  });
+
+  test('continues cleanup when resources disappear during reaping', async () => {
+    const lease = createPublicationResourceLease({
+      notebookId: 'notebook-1',
+      provider: 'ssh-server',
+      runAttempt: '1',
+      runId: '12345',
+      serverName: 'SDK Rook 12345.1',
+    });
+    const stored = {
+      lease: { ...lease, server: { id: 'server-1', name: 'SDK Rook 12345.1' } },
+      path: 'lease.json',
+      sha: 'lease-sha',
+    };
+    const notebook = {
+      destroy: vi.fn().mockRejectedValue(missingRemoteError('Notebook not found.')),
+      publication: vi.fn().mockResolvedValue(null),
+    };
+    const server = {
+      delete: vi.fn().mockRejectedValue(missingRemoteError('Server not found.')),
+    };
+    const client = {
+      notebook: { get: vi.fn().mockResolvedValue(notebook) },
+      servers: { get: vi.fn().mockResolvedValue(server) },
+    } as unknown as PHPSandbox;
+    const registry = {
+      delete: vi.fn().mockResolvedValue(undefined),
+    } as unknown as PublicationResourceLeaseRegistry;
+
+    await expect(reapPublicationResources(client, registry, stored)).resolves.toBeUndefined();
+
+    expect(server.delete).toHaveBeenCalledOnce();
+    expect(notebook.destroy).toHaveBeenCalledOnce();
+    expect(registry.delete).toHaveBeenCalledWith(stored);
+  });
 });
+
+function missingRemoteError(message: string): RemoteError<'NotFound'> {
+  return new RemoteError(message, {
+    code: 'NotFound',
+    source: 'core',
+    status: 404,
+  });
+}
