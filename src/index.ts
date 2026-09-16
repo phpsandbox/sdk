@@ -290,7 +290,26 @@ export interface CreateNotebookImportInput {
   provider: 'github';
   repo: string;
   branch?: string;
+  ref?: string;
   auth: CreateNotebookImportAuthInput;
+}
+
+export type InspectNotebookImportInput = CreateNotebookImportInput;
+
+export interface NotebookImportRequiredSecret {
+  name: string;
+  description: string | null;
+}
+
+export interface NotebookImportInspectionData {
+  supported: boolean;
+  repository: string;
+  branch: string;
+  ref: string;
+  framework: 'laravel' | 'adonisjs' | 'custom' | null;
+  template: string | null;
+  reason: string | null;
+  requiredSecrets: NotebookImportRequiredSecret[];
 }
 
 export interface NotebookLifecycleInput {
@@ -302,6 +321,7 @@ export interface CreateNotebookInput extends NotebookLifecycleInput {
   visibility: 'public' | 'private' | 'unlisted';
   import?: CreateNotebookImportInput;
   composerCredentials?: ComposerCredentialInput[];
+  secrets?: UpsertNotebookSecretItemInput[];
 }
 
 export type ForkNotebookInput = NotebookLifecycleInput;
@@ -465,6 +485,12 @@ function normalizeNotebookSecretInputs(input: UpsertNotebookSecretsInput): Upser
 
 class NotebookApi {
   public constructor(private readonly client: Client) {}
+
+  public async inspectImport(input: InspectNotebookImportInput): Promise<NotebookImportInspectionData> {
+    const response = await this.client.post<NotebookImportInspectionData>('/notebook/imports/inspect', input);
+
+    return response.data;
+  }
 
   public async create(template: string, input: Partial<CreateNotebookInput> = {}): Promise<NotebookInstance> {
     const response = await this.client.post<NotebookData>('/notebook', { template, ...input });
