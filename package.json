@@ -1,6 +1,6 @@
 {
   "name": "@phpsandbox/sdk",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "The TypeScript SDK for PHPSandbox cloud development environments",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
