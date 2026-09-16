@@ -13,7 +13,7 @@ describe('Notebook API', () => {
       template: 'laravel-react',
       reason: null,
       requiredSecrets: [
-        { name: 'RUNTIME_SOURCE_ENROLLMENT_ACCESS_CLIENT_ID', description: 'Cloudflare Access client ID.' },
+        { name: 'EXTERNAL_API_TOKEN', description: 'Token required by the imported application.' },
       ],
     };
     const fetch = vi.fn(async (request: Request) => {
@@ -62,13 +62,13 @@ describe('Notebook API', () => {
         ref: 'a'.repeat(40),
         auth: { accessToken: 'github-token' },
       },
-      secrets: [{ name: 'RUNTIME_SOURCE_ENROLLMENT_ACCESS_CLIENT_ID', value: 'client-id' }],
+      secrets: [{ name: 'EXTERNAL_API_TOKEN', value: 'test-token' }],
     });
 
     await expect(requests[0].json()).resolves.toMatchObject({
       template: 'laravel-react',
       import: { ref: 'a'.repeat(40) },
-      secrets: [{ name: 'RUNTIME_SOURCE_ENROLLMENT_ACCESS_CLIENT_ID', value: 'client-id' }],
+      secrets: [{ name: 'EXTERNAL_API_TOKEN', value: 'test-token' }],
     });
   });
 });
