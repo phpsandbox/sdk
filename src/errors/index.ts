@@ -99,11 +99,18 @@ export class RemoteError<
   }
 }
 
+export interface HttpResponseDiagnostics {
+  readonly status: number;
+  readonly statusText: string;
+  readonly body: string;
+}
+
 export class TransportError<TCode extends TransportErrorCode = TransportErrorCode> extends PHPSandboxError {
   public constructor(
     message: string,
     public readonly code: TCode,
-    cause?: unknown
+    cause?: unknown,
+    public readonly response?: HttpResponseDiagnostics
   ) {
     super(message, cause);
   }

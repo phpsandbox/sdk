@@ -116,6 +116,7 @@ export {
   TransportError,
 } from './errors/index.js';
 export type {
+  HttpResponseDiagnostics,
   RemoteErrorCode,
   RemoteErrorSource,
   TransportErrorCode,
@@ -602,7 +603,7 @@ class ClientImplementation {
     );
 
     if (!response.ok) {
-      throw remoteError('core', errorPayload(await responsePayload(response)), response);
+      throw await responseError(response);
     }
 
     if (!response.body) {
@@ -624,7 +625,7 @@ class ClientImplementation {
     );
 
     if (!response.ok) {
-      throw remoteError('core', errorPayload(await responsePayload(response)), response);
+      throw await responseError(response);
     }
 
     if (!response.body) {
@@ -644,7 +645,7 @@ class ClientImplementation {
     );
 
     if (!response.ok) {
-      throw remoteError('core', errorPayload(await responsePayload(response)), response);
+      throw await responseError(response);
     }
 
     if (response.status === 204) {
@@ -685,16 +686,22 @@ class ClientImplementation {
   }
 }
 
-async function responsePayload(response: Response): Promise<unknown> {
+async function responseError(response: Response): Promise<PHPSandboxError> {
   const body = await response.text();
-  if (body === '') {
-    return undefined;
-  }
 
   try {
-    return JSON.parse(body);
-  } catch (error) {
-    throw new TransportError('PHPSandbox API returned an invalid JSON response.', 'InvalidResponse', error);
+    return remoteError('core', errorPayload(body === '' ? undefined : JSON.parse(body)), response);
+  } catch {
+    return new TransportError(
+      `PHPSandbox API returned an invalid error response (HTTP ${response.status}).`,
+      'InvalidResponse',
+      response,
+      {
+        status: response.status,
+        statusText: response.statusText,
+        body: body.slice(0, 4096),
+      }
+    );
   }
 }
 
