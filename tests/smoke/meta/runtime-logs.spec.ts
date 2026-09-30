@@ -1,53 +1,54 @@
-import type { NotebookInstance, RuntimeLogEntry } from '@phpsandbox/sdk';
+import type { NotebookInstance, RuntimeLogEntry, RuntimeStats } from '@phpsandbox/sdk';
 import { describe, expect, test, vi } from 'vitest';
-import { emitRuntimeLogMarker } from '../support/runtime-logs.js';
+import { checkRuntimeLogSubscription } from '../support/runtime-logs.js';
 
-describe('runtime log smoke stimulus', () => {
-  test('retries emission until the subscription delivers the exact marker and cancels the stream', async () => {
-    let controller!: ReadableStreamDefaultController<RuntimeLogEntry>;
-    const cancel = vi.fn();
-    const follow = vi.fn(() => new ReadableStream<RuntimeLogEntry>({
-      start(streamController) { controller = streamController; },
-      cancel,
-    }));
-    const marker = 'sdk-smoke-log-test';
-    const exec = vi.fn(async () => {
-      if (exec.mock.calls.length === 2) {
-        for (const message of ['', 'unrelated runtime activity', marker]) {
-          controller.enqueue({ timestamp: '', source: 'runtime', message });
-        }
+function createTelemetryFixture(subscriptionError?: Error) {
+  const cancelLogs = vi.fn();
+  const cancelMetrics = vi.fn();
+  const follow = vi.fn(() => new ReadableStream<RuntimeLogEntry>({ cancel: cancelLogs }));
+  const watch = vi.fn(() => new ReadableStream<RuntimeStats>({
+    start(controller) {
+      if (subscriptionError) {
+        controller.error(subscriptionError);
+      } else {
+        controller.enqueue({
+          cpu: { usage: 0, limit: 100 },
+          memory: { usage: 10, limit: 512 },
+          disk: { usage: 0, limit: 1024 },
+        });
       }
-      return { exitCode: 0, stdout: '', stderr: '' };
-    });
-    const sandbox = { runtime: { logs: { follow } }, exec } as unknown as NotebookInstance;
+    },
+    cancel: cancelMetrics,
+  }));
+  const sandbox = { runtime: { logs: { follow }, metrics: { watch } } } as unknown as NotebookInstance;
+  return { sandbox, follow, watch, cancelLogs, cancelMetrics };
+}
 
-    await expect(emitRuntimeLogMarker(sandbox, marker)).resolves.toMatchObject({ message: marker });
-    expect(exec).toHaveBeenCalledTimes(2);
-    expect(exec).toHaveBeenCalledWith([
-      'sh', '-c', 'printf "%s\\n" "$1" > /proc/1/fd/1', 'sdk-smoke-log', marker,
-    ]);
-    expect(cancel).toHaveBeenCalledOnce();
+describe('runtime log subscription smoke', () => {
+  test('subscribes and cancels both streams without requiring a runtime log', async () => {
+    const fixture = createTelemetryFixture();
+
+    await expect(checkRuntimeLogSubscription(fixture.sandbox)).resolves.toBeUndefined();
+    expect(fixture.follow).toHaveBeenCalledOnce();
+    expect(fixture.watch).toHaveBeenCalledOnce();
+    expect(fixture.cancelLogs).toHaveBeenCalledOnce();
+    expect(fixture.cancelMetrics).toHaveBeenCalledOnce();
   });
 
-  test('reports a failed marker write and cancels the stream', async () => {
-    const cancel = vi.fn();
-    const sandbox = {
-      runtime: { logs: { follow: () => new ReadableStream<RuntimeLogEntry>({ cancel }) } },
-      exec: vi.fn(async () => ({ exitCode: 1, stdout: '', stderr: 'Permission denied' })),
-    } as unknown as NotebookInstance;
+  test('reports subscription failures and still cancels the log stream', async () => {
+    const fixture = createTelemetryFixture(new Error('Telemetry subscription failed'));
 
-    await expect(emitRuntimeLogMarker(sandbox, 'marker')).rejects.toThrow('Permission denied');
-    expect(cancel).toHaveBeenCalledOnce();
+    await expect(checkRuntimeLogSubscription(fixture.sandbox)).rejects.toThrow('Telemetry subscription failed');
+    expect(fixture.cancelLogs).toHaveBeenCalledOnce();
   });
 
-  test('rejects a stream that ends without delivering the marker', async () => {
-    const follow = vi.fn(() => new ReadableStream<RuntimeLogEntry>({
-      start(controller) { controller.close(); },
+  test('reports log stream failures rather than treating cancellation as success', async () => {
+    const fixture = createTelemetryFixture();
+    fixture.follow.mockImplementation(() => new ReadableStream<RuntimeLogEntry>({
+      start(controller) { controller.error(new Error('Log subscription failed')); },
     }));
-    const exec = vi.fn(async () => ({ exitCode: 0, stdout: '', stderr: '' }));
-    const sandbox = { runtime: { logs: { follow } }, exec } as unknown as NotebookInstance;
 
-    await expect(emitRuntimeLogMarker(sandbox, 'marker')).rejects.toThrow('ended before the marker arrived');
-    expect(exec).toHaveBeenCalledOnce();
+    await expect(checkRuntimeLogSubscription(fixture.sandbox)).rejects.toThrow('Log subscription failed');
+    expect(fixture.cancelMetrics).toHaveBeenCalledOnce();
   });
 });

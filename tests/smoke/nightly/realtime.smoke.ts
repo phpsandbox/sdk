@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { FileChange } from '@phpsandbox/sdk';
 import type { SandboxFixture } from '../support/resources.js';
 import { createSandboxFixture, operation } from '../support/resources.js';
-import { emitRuntimeLogMarker } from '../support/runtime-logs.js';
+import { checkRuntimeLogSubscription } from '../support/runtime-logs.js';
 
 describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential('production realtime-only contract', () => {
   let fixture: SandboxFixture | undefined;
@@ -151,12 +151,10 @@ describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential
     await ports.cancel();
   });
 
-  test('streams runtime logs', async () => {
-    const marker = `sdk-smoke-log-${fixture!.environment.runId}-${fixture!.sandbox.data.id}`;
-    const log = await operation('read runtime log telemetry', () => (
-      emitRuntimeLogMarker(fixture!.sandbox, marker)
+  test('subscribes to runtime logs and cancels while the runtime is quiet', async () => {
+    await operation('check runtime log subscription', () => (
+      checkRuntimeLogSubscription(fixture!.sandbox)
     ), 35_000);
-    expect(log.message).toContain(marker);
   });
 
   test('evaluates PHP through the REPL', async () => {

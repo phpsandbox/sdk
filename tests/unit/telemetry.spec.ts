@@ -42,6 +42,21 @@ class FakeNotebook {
 }
 
 describe('Runtime observability', () => {
+  it('subscribes to an idle log stream and releases telemetry on cancellation', async () => {
+    const notebook = new FakeNotebook();
+    const telemetry = new RuntimeTelemetry(notebook as any);
+    const reader = new Logs(notebook as any, telemetry).follow().getReader();
+
+    await vi.waitFor(() => {
+      expect(notebook.invoke).toHaveBeenCalledWith('container.stream-telemetry', { features: ['logs'] });
+    });
+    const pending = reader.read();
+    await reader.cancel();
+
+    await expect(pending).resolves.toEqual({ done: true, value: undefined });
+    expect(notebook.invoke).toHaveBeenLastCalledWith('container.stop-telemetry');
+  });
+
   it('multiplexes purposeful streams over the internal telemetry subscription', async () => {
     const notebook = new FakeNotebook();
     const telemetry = new RuntimeTelemetry(notebook as any);
