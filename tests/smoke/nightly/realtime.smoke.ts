@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { FileChange } from '@phpsandbox/sdk';
 import type { SandboxFixture } from '../support/resources.js';
 import { createSandboxFixture, operation } from '../support/resources.js';
+import { emitRuntimeLogMarker } from '../support/runtime-logs.js';
 
 describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential('production realtime-only contract', () => {
   let fixture: SandboxFixture | undefined;
@@ -151,21 +152,11 @@ describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential
   });
 
   test('streams runtime logs', async () => {
-    const logs = fixture!.sandbox.runtime.logs.follow().getReader();
-
-    try {
-      const log = await operation('read runtime log telemetry', async () => {
-        for (;;) {
-          const entry = await logs.read();
-          if (entry.done || entry.value.message.trim() !== '') {
-            return entry;
-          }
-        }
-      }, 30_000);
-      expect(log.value?.message.trim()).not.toBe('');
-    } finally {
-      await logs.cancel();
-    }
+    const marker = `sdk-smoke-log-${fixture!.environment.runId}-${fixture!.sandbox.data.id}`;
+    const log = await operation('read runtime log telemetry', () => (
+      emitRuntimeLogMarker(fixture!.sandbox, marker)
+    ), 35_000);
+    expect(log.message).toContain(marker);
   });
 
   test('evaluates PHP through the REPL', async () => {

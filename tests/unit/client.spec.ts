@@ -57,4 +57,49 @@ describe('PHPSandbox', () => {
     expect(urls).toEqual([expectedUrl]);
   });
 
+  it.each([
+    ['HTML', '<html>Bad Gateway</html>'],
+    ['empty', ''],
+    ['non-canonical JSON', JSON.stringify({ message: 'Too many requests.' })],
+    ['unsupported code', JSON.stringify({ error: { status: 502, code: 'Unexpected', message: 'Failure.' } })],
+  ])('preserves HTTP diagnostics for %s errors', async (_label, body) => {
+    const response = new Response(body, { status: 502, statusText: 'Bad Gateway' });
+    const fetch = vi.fn(async () => response) as unknown as typeof globalThis.fetch;
+    const client = PHPSandbox.realtime('private-api-key', undefined, { fetch });
+    const notebook = client.notebook.open({ id: 'abc', runtimeUrl: 'https://runtime.example.test' });
+
+    await expect(notebook.preview.disable()).rejects.toMatchObject({
+      name: 'TransportError',
+      code: 'InvalidResponse',
+      message: 'PHPSandbox API returned an invalid error response (HTTP 502).',
+      cause: response,
+      response: { status: 502, statusText: 'Bad Gateway', body },
+    });
+  });
+
+  it('preserves the full malformed response body', async () => {
+    const fetch = vi.fn(async () => new Response('x'.repeat(5000), { status: 503 })) as unknown as typeof globalThis.fetch;
+    const client = PHPSandbox.realtime('token', undefined, { fetch });
+
+    await expect(client.notebook.get('abc')).rejects.toMatchObject({
+      response: { status: 503, body: 'x'.repeat(5000) },
+    });
+  });
+
+  it('preserves canonical API errors', async () => {
+    const fetch = vi.fn(async () => Response.json({
+      error: { status: 429, code: 'RateLimited', message: 'Too many requests.', details: { retryAfter: 60 } },
+    }, { status: 429 })) as unknown as typeof globalThis.fetch;
+    const client = PHPSandbox.realtime('token', undefined, { fetch });
+
+    await expect(client.notebook.get('abc')).rejects.toMatchObject({
+      name: 'RemoteError',
+      source: 'core',
+      status: 429,
+      code: 'RateLimited',
+      message: 'Too many requests.',
+      details: { retryAfter: 60 },
+    });
+  });
+
 });
