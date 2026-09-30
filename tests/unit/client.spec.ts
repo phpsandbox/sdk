@@ -77,12 +77,12 @@ describe('PHPSandbox', () => {
     });
   });
 
-  it('bounds malformed response excerpts', async () => {
+  it('preserves the full malformed response body', async () => {
     const fetch = vi.fn(async () => new Response('x'.repeat(5000), { status: 503 })) as unknown as typeof globalThis.fetch;
     const client = PHPSandbox.realtime('token', undefined, { fetch });
 
     await expect(client.notebook.get('abc')).rejects.toMatchObject({
-      response: { status: 503, body: 'x'.repeat(4096) },
+      response: { status: 503, body: 'x'.repeat(5000) },
     });
   });
 

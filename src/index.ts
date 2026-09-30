@@ -699,7 +699,7 @@ async function responseError(response: Response): Promise<PHPSandboxError> {
       {
         status: response.status,
         statusText: response.statusText,
-        body: body.slice(0, 4096),
+        body,
       }
     );
   }
