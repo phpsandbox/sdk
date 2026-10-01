@@ -407,13 +407,15 @@ export interface NotebookPreviewDataEnabled {
 
 export type NotebookPreviewData = NotebookPreviewDataDisabled | NotebookPreviewDataEnabled;
 
-export type NotebookPreviewDataWithUrl = NotebookPreviewDataDisabled | (NotebookPreviewDataEnabled & { url: string });
+export type NotebookPreviewDataWithUrl = NotebookPreviewDataDisabled | (NotebookPreviewDataEnabled & { url: string; accessUrl: string });
 
 export interface SetNotebookPreviewInput {
   password: string;
 }
 
 export interface NotebookPreviewSessionData {
+  /** Open this URL to establish preview access. */
+  accessUrl: string;
   previewSessionId: string;
   token: string;
   expiresAt: string;
@@ -431,6 +433,8 @@ export interface CreateNotebookPreviewHandoffInput {
 }
 
 export interface NotebookPreviewHandoffData {
+  /** Open this URL to establish preview access. */
+  accessUrl: string;
   handoffId: string;
   previewSessionId: string;
   token: string;
