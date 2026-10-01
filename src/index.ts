@@ -208,8 +208,19 @@ export type NotebookInitResponse = {
 };
 export type NotebookInitProgressKind = 'phase' | 'log' | 'heartbeat';
 
+export interface NotebookRestoreProgress {
+  phase: 'downloading' | 'extracting' | 'complete' | 'failed';
+  bytesDownloaded: number;
+  filesRestored: number;
+  /** Compressed backup size; null when the server did not provide it. */
+  totalBytes: number | null;
+  /** Percentage of download, not overall restore; null when size is unknown. */
+  downloadPercent: number | null;
+}
+
 export interface NotebookInitProgress {
   message: string;
+  restore?: NotebookRestoreProgress;
   details?: string;
   kind?: NotebookInitProgressKind;
   step?: string;
