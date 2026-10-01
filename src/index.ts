@@ -208,19 +208,14 @@ export type NotebookInitResponse = {
 };
 export type NotebookInitProgressKind = 'phase' | 'log' | 'heartbeat';
 
-export interface NotebookRestoreProgress {
-  phase: 'downloading' | 'extracting' | 'complete' | 'failed';
-  bytesDownloaded: number;
-  filesRestored: number;
+export interface NotebookDownloadProgress {
   /** Compressed backup size; null when the server did not provide it. */
   totalBytes: number | null;
-  /** Percentage of download, not overall restore; null when size is unknown. */
-  downloadPercent: number | null;
+  downloadedBytes: number;
 }
 
-export interface NotebookInitProgress {
+export interface NotebookInitProgressMessage {
   message: string;
-  restore?: NotebookRestoreProgress;
   details?: string;
   kind?: NotebookInitProgressKind;
   step?: string;
@@ -228,6 +223,13 @@ export interface NotebookInitProgress {
   chunk?: string;
   command?: string;
 }
+
+export type NotebookInitProgress = NotebookInitProgressMessage & (
+  | { phase: 'downloading'; download: NotebookDownloadProgress }
+  | { phase: 'waiting' | 'preparing' | 'extracting' | 'provisioning' | 'starting'; download?: never }
+  /** Compatibility with servers that send text-only initialization messages. */
+  | { phase?: undefined; download?: never }
+);
 
 export type NotebookInitErrorCode =
   | 'GitHubImportCredentialMissing'

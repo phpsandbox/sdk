@@ -14,22 +14,36 @@ describe('notebook restore progress', () => {
     const payload: NotebookInitProgress = {
       message: 'Restoring your files...',
       kind: 'phase',
-      restore: { phase: 'downloading', bytesDownloaded: 400, filesRestored: 12, totalBytes: 1000, downloadPercent: 40 },
+      phase: 'downloading',
+      download: { totalBytes: 1000, downloadedBytes: 400 },
     };
     const frame = decode(encode({ event: 'init.event', data: payload })) as { event: string; data: NotebookInitProgress };
     emitter.emit(frame.event, frame.data);
 
     expect(received).toEqual([payload]);
-    expect(received[0].restore?.downloadPercent).toBe(40);
+    const progress = received[0];
+    if (progress.phase !== 'downloading') throw new Error('Expected download phase');
+    expect(progress.download.downloadedBytes / progress.download.totalBytes!).toBe(0.4);
   });
 
   it('keeps unknown sizes and text-only events usable', () => {
     const unknown: NotebookInitProgress = {
       message: 'Restoring your files...',
-      restore: { phase: 'downloading', bytesDownloaded: 400, filesRestored: 0, totalBytes: null, downloadPercent: null },
+      phase: 'downloading',
+      download: { totalBytes: null, downloadedBytes: 400 },
     };
     const legacy: NotebookInitProgress = { message: 'Opening your workspace...' };
     expect(decode(encode(unknown))).toEqual(unknown);
-    expect(legacy.restore).toBeUndefined();
+    expect(legacy.phase).toBeUndefined();
   });
+
+  it.each(['waiting', 'preparing', 'extracting', 'provisioning', 'starting'] as const)(
+    'represents %s without download fields', (phase) => {
+      const payload: NotebookInitProgress = { message: phase, kind: 'phase', phase };
+      const decoded = decode(encode(payload));
+      expect(decoded).toEqual(payload);
+      expect(decoded).not.toHaveProperty('download');
+      expect(decoded).not.toHaveProperty('restore');
+    }
+  );
 });
