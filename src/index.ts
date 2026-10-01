@@ -414,7 +414,7 @@ export interface SetNotebookPreviewInput {
 }
 
 export interface NotebookPreviewSessionData {
-  /** Opaque credential URL to open when establishing preview access. */
+  /** Open this URL to establish preview access. */
   accessUrl: string;
   previewSessionId: string;
   token: string;
@@ -433,7 +433,7 @@ export interface CreateNotebookPreviewHandoffInput {
 }
 
 export interface NotebookPreviewHandoffData {
-  /** Opaque credential URL to open when establishing preview access. */
+  /** Open this URL to establish preview access. */
   accessUrl: string;
   handoffId: string;
   previewSessionId: string;
