@@ -206,17 +206,25 @@ export type NotebookInitResponse = {
   provisioned: boolean;
   provisioningAction: NotebookProvisioningAction | null;
 };
-export type NotebookInitProgressKind = 'phase' | 'log' | 'heartbeat';
 
-export interface NotebookInitProgress {
+export interface NotebookDownloadProgress {
+  totalBytes: number;
+  downloadedBytes: number;
+}
+
+export interface NotebookInitProgressMessage {
   message: string;
   details?: string;
-  kind?: NotebookInitProgressKind;
   step?: string;
   line?: string;
   chunk?: string;
   command?: string;
 }
+
+export type NotebookInitProgress = NotebookInitProgressMessage & (
+  | { phase: 'downloading'; download: NotebookDownloadProgress }
+  | { phase: 'waiting' | 'preparing' | 'extracting' | 'provisioning' | 'starting'; download?: never }
+);
 
 export type NotebookInitErrorCode =
   | 'GitHubImportCredentialMissing'
