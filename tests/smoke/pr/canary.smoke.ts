@@ -19,6 +19,15 @@ describe.sequential('production SDK canary', () => {
     expect(fixture!.sandbox.runtimeTransport).toBe(expected);
   });
 
+  test('lists owned notebook metadata through the public API', async () => {
+    const page = await operation('list notebooks', () => fixture!.client.notebook.list({ page: 1, perPage: 100 }));
+    const listed = page.data.find((notebook) => notebook.id === fixture!.sandbox.data.id);
+    expect(listed).toMatchObject({ id: fixture!.sandbox.data.id, visibility: 'private' });
+    expect(listed).not.toHaveProperty('runtimeUrl');
+    expect(listed).not.toHaveProperty('gitUrl');
+    expect(page.meta).toMatchObject({ current_page: 1, per_page: 100 });
+  });
+
   test('initializes a valid runtime', () => {
     const initialized = fixture!.sandbox.initialized;
 

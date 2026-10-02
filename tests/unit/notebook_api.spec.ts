@@ -2,6 +2,26 @@ import { describe, expect, it, vi } from 'vitest';
 import { PHPSandbox } from '../../src/index.js';
 
 describe('Notebook API', () => {
+  it('lists notebook metadata with pagination without opening runtimes', async () => {
+    const requests: Request[] = [];
+    const page = {
+      data: [{ id: 'notebook-1', title: 'First', visibility: 'private', type: 'standard' }],
+      links: { next: 'https://api.phpsandbox.io/v1/notebook?page=3&per_page=10' },
+      meta: { current_page: 2, per_page: 10, total: 21, last_page: 3 },
+    };
+    const fetch = vi.fn(async (request: Request) => {
+      requests.push(request);
+      return Response.json(page);
+    }) as unknown as typeof globalThis.fetch;
+    const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
+    await expect(client.notebook.list({ page: 2, perPage: 10 })).resolves.toEqual(page);
+    await expect(client.notebook.list()).resolves.toEqual(page);
+    expect(requests.map((request) => [request.method, request.url])).toEqual([
+      ['GET', 'https://api.phpsandbox.io/v1/notebook?page=2&per_page=10'],
+      ['GET', 'https://api.phpsandbox.io/v1/notebook'],
+    ]);
+  });
+
   it('inspects an import before notebook creation', async () => {
     const requests: Request[] = [];
     const inspection = {
