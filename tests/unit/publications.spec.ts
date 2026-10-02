@@ -66,6 +66,30 @@ function openNotebook(client: PHPSandbox, id: string) {
 }
 
 describe('Publications', () => {
+  it('disposes an active stream without deleting or cancelling the publication', async () => {
+    const requests: Request[] = [];
+    const fetch = vi.fn(async (request: Request) => {
+      requests.push(request);
+      if (request.headers.get('Accept') !== 'text/event-stream') return jsonResponse(publicationData(), 201);
+      return new Response(new ReadableStream<Uint8Array>({
+        start(controller) { request.signal.addEventListener('abort', () => controller.error(request.signal.reason), { once: true }); },
+      }));
+    });
+    const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch: fetch as unknown as typeof globalThis.fetch });
+    const notebook = openNotebook(client, 'nb_123');
+    try {
+      const run = await notebook.publish();
+      const events = run.events()[Symbol.asyncIterator]();
+      const pending = events.next();
+      run.dispose();
+      run.dispose();
+      await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+      await expect(run.result()).rejects.toMatchObject({ name: 'AbortError' });
+      expect(requests.find(request => request.headers.get('Accept') === 'text/event-stream')?.signal.aborted).toBe(true);
+      expect(requests.some(request => request.method === 'DELETE')).toBe(false);
+    } finally { notebook.dispose(); }
+  });
+
   it('publishes through the notebook-scoped API and exposes an AsyncIterable run', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (request: Request) => {
