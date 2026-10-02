@@ -131,6 +131,8 @@ export type {
   PublicationBuildData,
   PublicationBuildStatus,
   PublicationData,
+  PublicationDomainData,
+  PublicationDomains,
   PublicationEventData,
   PublicationInstance,
   PublicationJurisdiction,

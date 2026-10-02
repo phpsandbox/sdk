@@ -106,6 +106,7 @@ export const filesystemSurface = {
 } satisfies SurfaceCoverage<sdk.NotebookInstance['files']>;
 
 export const publicationSurface = {
+  domains: 'publication.manage',
   buildLogs: 'publication.read',
   createProtectionSession: 'publication.manage',
   data: 'publication.read',
