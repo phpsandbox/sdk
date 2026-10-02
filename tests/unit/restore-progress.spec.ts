@@ -25,15 +25,15 @@ describe('notebook restore progress', () => {
     expect(progress.download.downloadedBytes / progress.download.totalBytes).toBe(0.4);
   });
 
-  it('keeps known sizes and client-generated text-only events usable', () => {
+  it('keeps known sizes and starting events usable', () => {
     const known: NotebookInitProgress = {
       message: 'Restoring your files...',
       phase: 'downloading',
       download: { totalBytes: 1000, downloadedBytes: 400 },
     };
-    const legacy: NotebookInitProgress = { message: 'Opening your workspace...' };
+    const starting: NotebookInitProgress = { message: 'Opening your workspace...', phase: 'starting' };
     expect(decode(encode(known))).toEqual(known);
-    expect(legacy.phase).toBeUndefined();
+    expect(decode(encode(starting))).toEqual(starting);
   });
 
   it.each(['waiting', 'preparing', 'extracting', 'provisioning', 'starting'] as const)(

@@ -206,7 +206,6 @@ export type NotebookInitResponse = {
   provisioned: boolean;
   provisioningAction: NotebookProvisioningAction | null;
 };
-export type NotebookInitProgressKind = 'phase' | 'log' | 'heartbeat';
 
 export interface NotebookDownloadProgress {
   totalBytes: number;
@@ -216,7 +215,6 @@ export interface NotebookDownloadProgress {
 export interface NotebookInitProgressMessage {
   message: string;
   details?: string;
-  kind?: NotebookInitProgressKind;
   step?: string;
   line?: string;
   chunk?: string;
@@ -226,7 +224,6 @@ export interface NotebookInitProgressMessage {
 export type NotebookInitProgress = NotebookInitProgressMessage & (
   | { phase: 'downloading'; download: NotebookDownloadProgress }
   | { phase: 'waiting' | 'preparing' | 'extracting' | 'provisioning' | 'starting'; download?: never }
-  | { phase?: undefined; download?: never }
 );
 
 export type NotebookInitErrorCode =
