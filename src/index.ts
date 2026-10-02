@@ -209,7 +209,6 @@ export type NotebookInitResponse = {
 export type NotebookInitProgressKind = 'phase' | 'log' | 'heartbeat';
 
 export interface NotebookDownloadProgress {
-  /** Compressed backup size in bytes. */
   totalBytes: number;
   downloadedBytes: number;
 }
@@ -217,7 +216,6 @@ export interface NotebookDownloadProgress {
 export interface NotebookInitProgressMessage {
   message: string;
   details?: string;
-  /** Legacy metadata; current servers use phase as the discriminator. */
   kind?: NotebookInitProgressKind;
   step?: string;
   line?: string;
@@ -228,7 +226,6 @@ export interface NotebookInitProgressMessage {
 export type NotebookInitProgress = NotebookInitProgressMessage & (
   | { phase: 'downloading'; download: NotebookDownloadProgress }
   | { phase: 'waiting' | 'preparing' | 'extracting' | 'provisioning' | 'starting'; download?: never }
-  /** Text-only status messages, including client-generated connection steps. */
   | { phase?: undefined; download?: never }
 );
 
