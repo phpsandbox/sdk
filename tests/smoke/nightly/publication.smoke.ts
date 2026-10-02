@@ -257,25 +257,21 @@ describe.sequential('production publication provider contract', () => {
     const session = await operation('create publication protection session', () => (
       protectedPublication.createProtectionSession()
     ));
-    await expectProtectedPublishedMarker(withPath(session.url, '/sdk-smoke'));
+    await expectProtectedPublishedMarker(withPath(session.accessUrl, '/sdk-smoke'));
     const unprotected = await operation('disable publication protection', () => protectedPublication.disableProtection());
     expect(unprotected.data.protection.enabled).toBe(false);
   });
 
   test.runIf(hasCliSmokeBinary())(
-    'CLI publishes using provider configuration and returns a healthy publication',
+    'CLI redeploys the existing publication and returns a healthy publication',
     async () => {
       const activeCli = requireStageValue(cli, 'compiled CLI');
       const activeFixture = requireStageValue(fixture, 'provider fixture');
       const activeEnvironment = requireStageValue(environment, 'provider environment');
       const activePublication = requireStageValue(publication, 'publication');
-      const config = {
-        slug: activePublication.data.slug,
-        provider: publicationProvider(activeEnvironment, server),
-      };
       const result = await activeCli.run(
-        ['publish', '-'],
-        JSON.stringify(config),
+        ['publish'],
+        undefined,
         0,
         publicationTimeoutMs,
       );
