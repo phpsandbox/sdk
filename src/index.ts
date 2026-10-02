@@ -481,6 +481,24 @@ export interface PaginatedApiResponse<TData> {
   meta?: Record<string, unknown>;
 }
 
+/** Account-owned notebook metadata; listing does not open runtime connections. */
+export interface NotebookListData {
+  id: string;
+  title: string | null;
+  slug: string | null;
+  description: string | null;
+  visibility: 'private' | 'public' | 'listed';
+  type: string;
+  policy: NotebookPolicyData;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface NotebookListOptions {
+  page?: number;
+  perPage?: number;
+}
+
 export interface NotebookMailListOptions {
   page?: number;
 }
@@ -498,6 +516,12 @@ function normalizeNotebookSecretInputs(input: UpsertNotebookSecretsInput): Upser
 
 class NotebookApi {
   public constructor(private readonly client: Client) {}
+
+  public async list(options: NotebookListOptions = {}): Promise<PaginatedApiResponse<NotebookListData>> {
+    return this.client.get<NotebookListData[]>(
+      `/notebook${formatQueryString({ page: options.page, per_page: options.perPage })}`
+    );
+  }
 
   public async inspectImport(input: InspectNotebookImportInput): Promise<NotebookImportInspectionData> {
     const response = await this.client.post<NotebookImportInspectionData>('/notebook/imports/inspect', input);

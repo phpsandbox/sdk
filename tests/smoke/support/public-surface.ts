@@ -39,6 +39,7 @@ export const notebookApiSurface = {
   create: 'notebook.lifecycle',
   get: 'notebook.lifecycle',
   inspectImport: 'notebook.lifecycle',
+  list: 'notebook.lifecycle',
   open: 'notebook.lifecycle',
 } satisfies SurfaceCoverage<sdk.PHPSandbox['notebook']>;
 
