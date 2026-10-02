@@ -353,6 +353,27 @@ describe.sequential('production publication provider contract', () => {
   );
 
   test.runIf(hasCliSmokeBinary())(
+    'CLI adds, refreshes, and deletes an owned custom hostname',
+    async () => {
+      const activeCli = requireStageValue(cli, 'compiled CLI');
+      const hostname = `cli-smoke-${randomUUID()}.phpsandbox.io`;
+      const domain = z.object({ id: z.string(), hostname: z.string() }).parse(
+        await activeCli.run(['domains', 'add', hostname]),
+      );
+      try {
+        expect(domain.hostname).toBe(hostname);
+        const domains = z.array(z.object({ id: z.string() })).parse(await activeCli.run(['domains', 'list']));
+        expect(domains.some(candidate => candidate.id === domain.id)).toBe(true);
+        expect(await activeCli.run(['domains', 'refresh', domain.id])).toMatchObject({ id: domain.id, hostname });
+      } finally {
+        await activeCli.run(['domains', 'delete', domain.id, '--yes']);
+      }
+      const remaining = z.array(z.object({ id: z.string() })).parse(await activeCli.run(['domains', 'list']));
+      expect(remaining.some(candidate => candidate.id === domain.id)).toBe(false);
+    },
+  );
+
+  test.runIf(hasCliSmokeBinary())(
     'CLI reports a connected SSH server and waits for readiness',
     async () => {
       if (requireStageValue(environment, 'provider environment').provider !== 'ssh-server') return;
