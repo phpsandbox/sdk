@@ -1,3 +1,6 @@
+import { createCliSmoke, hasCliSmokeBinary, type CliSmoke } from '../support/cli.js';
+import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -36,6 +39,7 @@ const publicationTimeoutMs = 15 * 60 * 1_000;
 const rookInstallerUrl = 'https://install.phpsandbox.io/rook';
 
 describe.sequential('production publication provider contract', () => {
+  let cli: CliSmoke | undefined;
   let environment: PublicationSmokeEnvironment | undefined;
   let fixture: SandboxFixture | undefined;
   let publication: PublicationInstance | undefined;
@@ -71,6 +75,7 @@ describe.sequential('production publication provider contract', () => {
         repo: `https://github.com/${environment.repository}`,
       },
     });
+    if (hasCliSmokeBinary()) cli = await createCliSmoke(fixture);
     const serverName = environment.provider === 'ssh-server'
       ? `SDK Rook ${fixture.environment.runId}`
       : undefined;
@@ -252,15 +257,105 @@ describe.sequential('production publication provider contract', () => {
     const session = await operation('create publication protection session', () => (
       protectedPublication.createProtectionSession()
     ));
-    await expectProtectedPublishedMarker(withPath(session.url, '/sdk-smoke'));
+    await expectProtectedPublishedMarker(withPath(session.accessUrl, '/sdk-smoke'));
     const unprotected = await operation('disable publication protection', () => protectedPublication.disableProtection());
     expect(unprotected.data.protection.enabled).toBe(false);
   });
 
+  test.runIf(hasCliSmokeBinary())(
+    'CLI redeploys the existing publication and returns a healthy publication',
+    async () => {
+      const activeCli = requireStageValue(cli, 'compiled CLI');
+      const activeFixture = requireStageValue(fixture, 'provider fixture');
+      const activeEnvironment = requireStageValue(environment, 'provider environment');
+      const activePublication = requireStageValue(publication, 'publication');
+      const result = await activeCli.run(
+        ['publish'],
+        undefined,
+        0,
+        publicationTimeoutMs,
+      );
+      expect(result).toMatchObject({
+        id: activePublication.data.id,
+        status: 'healthy',
+        provider: { name: activeEnvironment.provider },
+      });
+      publication = await activeFixture.client.publications.get(activePublication.data.id);
+      expect(await activeCli.run(['publication', 'status'])).toMatchObject({
+        id: publication.data.id,
+        status: 'healthy',
+      });
+      await expectPublishedMarker(publication.data.url);
+    },
+    publicationTimeoutMs,
+  );
+
+  test.runIf(hasCliSmokeBinary())(
+    'CLI streams publication events, build logs and runtime logs',
+    async () => {
+      const activeCli = requireStageValue(cli, 'compiled CLI');
+      expect((await activeCli.lines(['publication', 'events'])).length).toBeGreaterThan(0);
+      expect((await activeCli.lines(['publication', 'build-logs'])).length).toBeGreaterThan(0);
+      expect(await activeCli.lines(['publication', 'logs'])).toBeInstanceOf(Array);
+    },
+    180000,
+  );
+
+  test.runIf(hasCliSmokeBinary())(
+    'CLI sets and removes password protection and creates an access session',
+    async () => {
+      const activeCli = requireStageValue(cli, 'compiled CLI');
+      const activePublication = requireStageValue(publication, 'publication');
+      const password = `cli-protection-${randomUUID()}`;
+      expect(await activeCli.run(['publication', 'protection', 'set'], password)).toMatchObject({
+        protection: { enabled: true, mode: 'password' },
+      });
+      const blocked = await fetch(markerUrl(activePublication.data.url), { redirect: 'manual' });
+      expect(blocked.status).toBeGreaterThanOrEqual(300);
+      expect(await activeCli.run(['publication', 'protection', 'status'])).toEqual({
+        enabled: true,
+        mode: 'password',
+      });
+      const session = z
+        .object({ accessUrl: z.string() })
+        .parse(await activeCli.run(['publication', 'protection', 'session']));
+      await expectProtectedPublishedMarker(withPath(session.accessUrl, '/sdk-smoke'));
+      await activeCli.run(['publication', 'protection', 'disable', '--yes']);
+      expect(await activeCli.run(['publication', 'protection', 'status'])).toEqual({
+        enabled: false,
+        mode: 'none',
+      });
+    },
+    180000,
+  );
+
+  test.runIf(hasCliSmokeBinary())(
+    'CLI reports a connected SSH server and waits for readiness',
+    async () => {
+      if (requireStageValue(environment, 'provider environment').provider !== 'ssh-server') return;
+      const activeCli = requireStageValue(cli, 'compiled CLI');
+      const activeServer = requireStageValue(server, 'SSH server');
+      expect(await activeCli.run(['servers', 'get', activeServer.data.id])).toMatchObject({
+        id: activeServer.data.id,
+        status: 'connected',
+      });
+      expect(
+        await activeCli.run(['servers', 'ready', activeServer.data.id, '--timeout', '30']),
+      ).toMatchObject({ id: activeServer.data.id, status: 'connected' });
+    },
+  );
+
   test('tears down owned provider resources', async () => {
     const activeEnvironment = requireStageValue(environment, 'provider smoke environment');
     const activePublication = requireStageValue(publication, 'healthy publication');
-    await operation('destroy publication', () => activePublication.destroy(), 300_000);
+    if (cli) {
+      const activeCli = cli;
+      await operation('CLI destroys publication', async () => {
+        await activeCli.run(['publication', 'delete', '--yes'], undefined, 0, 300_000);
+      }, 300_000);
+    } else {
+      await operation('destroy publication', () => activePublication.destroy(), 300_000);
+    }
     publicationCleanup?.complete();
 
     if (activeEnvironment.provider === 'ssh-server') {

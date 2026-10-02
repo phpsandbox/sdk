@@ -214,8 +214,8 @@ describe.sequential('production platform API contract', () => {
     const session = await operation('create preview session', () => fixture!.sandbox.preview.createSession({
       url: targetUrl,
     }));
-    const sessionResponse = await operation('request preview with session', () => consumePreviewCredential(session.url));
-    expect(sessionResponse.ok).toBe(true);
+    const sessionResponse = await operation('request preview with session', () => consumePreviewCredential(session.accessUrl));
+    expect(sessionResponse.ok, `Protected preview returned HTTP ${sessionResponse.status}`).toBe(true);
     await expect(sessionResponse.text()).resolves.toContain(marker);
 
     const handoff = await operation('create preview handoff', () => fixture!.sandbox.preview.createHandoff({
@@ -223,8 +223,8 @@ describe.sequential('production platform API contract', () => {
       expiresInSeconds: 60,
       url: targetUrl,
     }));
-    const handoffResponse = await operation('consume preview handoff', () => consumePreviewCredential(handoff.url));
-    expect(handoffResponse.ok).toBe(true);
+    const handoffResponse = await operation('consume preview handoff', () => consumePreviewCredential(handoff.accessUrl));
+    expect(handoffResponse.ok, `Preview handoff returned HTTP ${handoffResponse.status}`).toBe(true);
     await expect(handoffResponse.text()).resolves.toContain(marker);
 
     await fixture!.sandbox.preview.disable();
