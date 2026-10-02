@@ -651,7 +651,7 @@ class ClientImplementation {
     return response.body;
   }
 
-  public async sse(url: string): Promise<ReadableStream<Uint8Array>> {
+  public async sse(url: string, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
     const response = await this.fetchResponse(
       authenticatedRequest(url, {
         method: 'GET',
@@ -659,6 +659,7 @@ class ClientImplementation {
           ...this.headers,
           'Accept': 'text/event-stream',
         },
+        ...(signal === undefined ? {} : { signal }),
       })
     );
 

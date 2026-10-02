@@ -224,6 +224,7 @@ export class PublicationApi {
 }
 
 export class PublicationRun<TProvider extends PublicationProviderName = PublicationProviderName> {
+  private readonly streamAbort = new AbortController();
   private started = false;
   private completed = false;
   private finalError: unknown = null;
@@ -284,6 +285,19 @@ export class PublicationRun<TProvider extends PublicationProviderName = Publicat
     return this;
   }
 
+  /** Stop observing this run; the server-side publication continues. */
+  public dispose(): void {
+    if (this.completed) return;
+    const error = new DOMException('Stopped observing publication; deployment continues.', 'AbortError');
+    if (!this.started) {
+      this.started = true;
+      this.resultPromise = Promise.reject(error);
+      this.resultPromise.catch(() => undefined);
+    }
+    this.streamAbort.abort(error);
+    this.fail(error);
+  }
+
   private subscribe(): AsyncPublishEventQueue {
     const queue = new AsyncPublishEventQueue();
 
@@ -304,7 +318,7 @@ export class PublicationRun<TProvider extends PublicationProviderName = Publicat
 
   private async consumeStream(eventStreamUrl: string): Promise<void> {
     try {
-      const stream = await this.client.sse(eventStreamUrl);
+      const stream = await this.client.sse(eventStreamUrl, this.streamAbort.signal);
 
       for await (const event of readPublishStreamEvents(stream)) {
         this.publish(event);
