@@ -169,6 +169,47 @@ export interface PublicationProtectionSessionData {
   url: string;
 }
 
+export interface PublicationDomainData {
+  id: string;
+  publicationId: string | null;
+  hostname: string;
+  status: string;
+  provider: string;
+  providerHostnameId: string | null;
+  dns: { type: string | null; name: string | null; value: string | null };
+  ssl: { status: string | null };
+  validationErrors: unknown[];
+  validationRecords: unknown[];
+  metadata: Record<string, unknown>;
+  verifiedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export class PublicationDomains {
+  public constructor(private readonly client: Client, private readonly publicationId: string) {}
+
+  public async list(): Promise<PublicationDomainData[]> {
+    return (await this.client.get<PublicationDomainData[]>(this.path())).data;
+  }
+
+  public async create(hostname: string): Promise<PublicationDomainData> {
+    return (await this.client.post<PublicationDomainData>(this.path(), { hostname })).data;
+  }
+
+  public async refresh(id: string): Promise<PublicationDomainData> {
+    return (await this.client.post<PublicationDomainData>(`${this.path()}/${encodeURIComponent(id)}/refresh`)).data;
+  }
+
+  public async delete(id: string): Promise<void> {
+    await this.client.delete<{ deleted: boolean }>(`${this.path()}/${encodeURIComponent(id)}`);
+  }
+
+  private path(): string {
+    return `/publications/${encodeURIComponent(this.publicationId)}/domains`;
+  }
+}
+
 export class PublicationApi {
   public constructor(private readonly client: Client) { }
 
@@ -312,11 +353,14 @@ export class PublicationRun<TProvider extends PublicationProviderName = Publicat
 }
 
 export class PublicationInstance<TProvider extends PublicationProviderName = PublicationProviderName> {
+  public readonly domains: PublicationDomains;
   public constructor(
     public readonly data: PublicationData<TProvider>,
     private readonly client: Client,
     private readonly notebookId?: string
-  ) { }
+  ) {
+    this.domains = new PublicationDomains(client, data.id);
+  }
 
   public async refresh(): Promise<PublicationInstance<TProvider>> {
     const response = await this.client.get<PublicationData<TProvider>>(`/publications/${this.data.id}`);
