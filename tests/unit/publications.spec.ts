@@ -66,6 +66,22 @@ function openNotebook(client: PHPSandbox, id: string) {
 }
 
 describe('Publications', () => {
+  it('exposes the credential-bearing protection session URL separately from the public URL', async () => {
+    const session = {
+      previewSessionId: 'session_123', token: 'session-token', expiresAt: '2026-10-03T12:00:00Z',
+      url: 'https://my-app.example.test',
+      accessUrl: 'https://my-app.example.test?__preview_session=session-token',
+    };
+    const fetch = vi.fn(async (request: Request) => jsonResponse(
+      new URL(request.url).pathname.endsWith('/protection/session') ? session : publicationData()
+    ));
+    const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch: fetch as unknown as typeof globalThis.fetch });
+    const publication = await client.publications.get('pub_123');
+    const result = await publication.createProtectionSession();
+    expect(result.accessUrl).toBe(session.accessUrl);
+    expect(result.url).toBe(session.url);
+    expect(result.accessUrl).not.toBe(result.url);
+  });
   it('disposes an active stream without deleting or cancelling the publication', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (request: Request) => {

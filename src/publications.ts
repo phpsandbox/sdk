@@ -163,6 +163,7 @@ export interface UpdatePublicationProtectionInput {
 }
 
 export interface PublicationProtectionSessionData {
+  accessUrl: string;
   previewSessionId: string;
   token: string;
   expiresAt: string;
