@@ -11,7 +11,7 @@ import Services, { ServiceActions, ServiceEvents } from './services.js';
 import Config, { ConfigActions } from './config.js';
 import { Transport } from './socket/index.js';
 import EventManager, { EventDispatcher } from './events/index.js';
-import Git, { GitActions, GitCredentials } from './git.js';
+import Git, { GitActions, GitCredentials, type GitSyncAuthor } from './git.js';
 import { Disposable } from './types.js';
 import {
   PHPSandboxError,
@@ -323,7 +323,13 @@ export interface NotebookImportInspectionData {
   requiredSecrets: NotebookImportRequiredSecret[];
 }
 
+export interface NotebookGitConfiguration {
+  /** Set a sandbox default identity, or use null to reset it to the Helfer bot. */
+  author: GitSyncAuthor | null;
+}
+
 export interface NotebookLifecycleInput {
+  git?: NotebookGitConfiguration;
   persistent?: true;
 }
 
@@ -336,6 +342,12 @@ export interface CreateNotebookInput extends NotebookLifecycleInput {
 }
 
 export type ForkNotebookInput = NotebookLifecycleInput;
+
+export interface UpdateNotebookInput {
+  title?: string;
+  visibility?: 'public' | 'private' | 'unlisted';
+  git?: NotebookGitConfiguration;
+}
 
 export interface NotebookPolicyData {
   autoDeleteWhenStale: boolean;
@@ -795,6 +807,7 @@ export interface NotebookData {
   slug?: string;
   description?: string | null;
   policy?: NotebookPolicyData;
+  git?: { author: GitSyncAuthor };
 }
 
 export class NotebookInstance {
@@ -912,6 +925,14 @@ export class NotebookInstance {
     // Let the underlying ReconnectingWebSocket handle connection retries
     // Just apply a reasonable timeout for the entire initialization process
     return ready();
+  }
+
+  /** Update sandbox metadata and Git defaults without restarting it. */
+  public async update(input: UpdateNotebookInput): Promise<NotebookData> {
+    const response = await this.client.put<NotebookData>(`/notebook/${this.data.id}`, input);
+    Object.assign(this.data, response.data);
+
+    return this.data;
   }
 
   public async fork(input: Partial<ForkNotebookInput> = {}): Promise<NotebookInstance> {

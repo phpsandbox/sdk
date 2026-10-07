@@ -103,3 +103,28 @@ describe('PHPSandbox', () => {
   });
 
 });
+
+describe('sandbox Git identity', () => {
+  it('passes identity on create and fork, and updates or resets it through the API', async () => {
+    const requests: Array<{ method: string; path: string; body: unknown }> = [];
+    const author = { name: 'Jane', email: 'jane@example.com' };
+    const bot = { name: 'helfer-dev[bot]', email: '220600418+helfer-dev[bot]@users.noreply.github.com' };
+    const fetch = vi.fn(async (request: Request) => {
+      const body = await request.json() as { git: { author: typeof author | null } };
+      requests.push({ method: request.method, path: new URL(request.url).pathname, body });
+      return Response.json({ data: { id: 'abc', runtimeUrl: 'https://runtime.example.test?ticket=test-ticket', git: { author: body.git.author ?? bot } } });
+    }) as unknown as typeof globalThis.fetch;
+    const client = PHPSandbox.rest('token', undefined, { fetch });
+    const sandbox = await client.notebook.create('laravel', { git: { author } });
+    expect(sandbox.data.git?.author).toEqual(author);
+    await sandbox.fork({ git: { author } });
+    const updated = await sandbox.update({ git: { author: null } });
+    expect(updated).toBe(sandbox.data);
+    expect(sandbox.data.git?.author).toEqual(bot);
+    expect(requests).toEqual([
+      { method: 'POST', path: '/v1/notebook', body: { template: 'laravel', git: { author } } },
+      { method: 'POST', path: '/v1/notebook/abc/fork', body: { git: { author } } },
+      { method: 'PUT', path: '/v1/notebook/abc', body: { git: { author: null } } },
+    ]);
+  });
+});
