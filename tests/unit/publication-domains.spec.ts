@@ -25,6 +25,19 @@ describe('publication domains', () => {
       { method: 'DELETE', url: 'https://api.phpsandbox.io/v1/publications/publication%2Fid/domains/domain%2Fid', body: '' },
     ]);
   });
+  it('sets the application address and reports that publication is required', async () => {
+    const requests: Request[] = [];
+    const fetch = vi.fn(async (request: Request) => {
+      requests.push(request);
+      return Response.json({ data: request.url.endsWith('/application-url')
+        ? { url: 'https://app.example.com', requiresPublication: true } : { id: 'pub' } });
+    });
+    const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch: fetch as unknown as typeof globalThis.fetch });
+    const publication = await client.publications.get('pub');
+    await expect(publication.domains.useAsApplicationUrl('domain/id')).resolves.toEqual({ url: 'https://app.example.com', requiresPublication: true });
+    expect(requests[1].method).toBe('POST');
+    expect(requests[1].url).toBe('https://api.phpsandbox.io/v1/publications/pub/domains/domain%2Fid/application-url');
+  });
   it('propagates domain validation and authorization errors', async () => {
     const fetch = vi.fn(async (request: Request) => request.url.endsWith('/publications/pub')
       ? Response.json({ data: { id: 'pub' } })

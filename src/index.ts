@@ -1,3 +1,4 @@
+import type { LaravelCloudCatalog } from './publications.js';
 import { Filesystem, FilesystemActions, FilesystemEvents } from './filesystem.js';
 import Terminals, { TerminalEvents, TerminalActions, type SpawnOptions } from './terminal.js';
 import Auth, { AuthActions } from './auth.js';
@@ -127,6 +128,21 @@ export type {
   CloudflareContainersProviderOptions,
   LaravelCloudProviderData,
   LaravelCloudProviderInput,
+  LaravelCloudCatalog,
+  LaravelCloudCatalogResource,
+  LaravelCloudConfigField,
+  LaravelCloudDatabaseType,
+  LaravelCloudResourceInput,
+  LaravelCloudSetupInput,
+  LaravelCloudSetupState,
+  PublicationDnsRecord,
+  PublicationDnsInstructions,
+  PublicationReadiness,
+  PublicationRequirement,
+  PublicationResourceKind,
+  PublicationResourceMode,
+  PublicationPlanInput,
+  PublicationPlan,
   LaravelCloudRegion,
   PublicationBuildData,
   PublicationBuildStatus,
@@ -955,6 +971,53 @@ export class NotebookInstance {
     }
   }
 
+  /** Commit and push the publication revision, verifying that the remote received it. */
+  public async preparePublicationSource(author: GitSyncAuthor): Promise<string> {
+    const targets = await this.git.targets.list();
+    const target = targets.find((item) => item.data.default);
+    if (!target) throw new Error('Connect GitHub Sync before publishing to Laravel Cloud.');
+    const status = await this.git.status();
+    if (status.branch && status.branch !== target.data.branch) {
+      throw new Error(`Switch to ${target.data.branch} before publishing, or update the GitHub Sync branch.`);
+    }
+    const checkpoint = status.clean && status.ref ? { ref: status.ref }
+      : await this.git.checkpoint(`${author.name} <${author.email}>`, 'Prepare publication', target.data.branch, false);
+    const synced = await target.sync({ direction: 'push', author });
+    if (synced.data.lastCommitSha !== checkpoint.ref) throw new Error('The latest changes have not reached GitHub yet. Resolve the sync issue before publishing.');
+    return checkpoint.ref;
+  }
+
+  /** Resolve a first publication plan, prepare its source, and start the publishing lifecycle. */
+  public async publishPlanned(input: PublishInput & Pick<import('./publications.js').PublicationPlanInput, 'requirements' | 'resources'>, options: { author?: GitSyncAuthor } = {}): Promise<PublicationRun> {
+    const plan = await this.planPublication(input);
+    if (!plan.ready) throw new Error(plan.blockers.map((blocker) => blocker.message).join(' '));
+    const existing = await this.publication();
+    if (existing) throw new Error('This notebook already has a publication. Configure it explicitly, prepare its source, and use publication.publish() to publish changes.');
+    if (plan.source.commitAndPush) {
+      if (!options.author) throw new Error('A commit author is required to prepare the publication source.');
+      await this.preparePublicationSource(options.author);
+    }
+    const { requirements: _requirements, resources: _resources, ...publishInput } = input;
+    const resolved: PublishInput = input.provider.name === 'laravel-cloud'
+      ? { ...publishInput, provider: { ...input.provider, setup: plan.input.provider.setup } }
+      : publishInput;
+    return this.publish(resolved);
+  }
+
+  /** Inspect production requirements without returning secret values or modifying the workspace. */
+  public async publicationReadiness(): Promise<import('./publications.js').PublicationReadiness> {
+    return (await this.client.get<import('./publications.js').PublicationReadiness>(`/notebook/${encodeURIComponent(this.data.id)}/publication/readiness`)).data;
+  }
+
+  /** Resolve requirements against provider capabilities. This never provisions resources. */
+  public async planPublication(input: import('./publications.js').PublicationPlanInput): Promise<import('./publications.js').PublicationPlan> {
+    return (await this.client.post<import('./publications.js').PublicationPlan>(`/notebook/${encodeURIComponent(this.data.id)}/publication/plan`, input)).data;
+  }
+
+  public async laravelCloudCatalog(): Promise<LaravelCloudCatalog> {
+    return (await this.client.get<LaravelCloudCatalog>(`/notebook/${encodeURIComponent(this.data.id)}/laravel-cloud/catalog`)).data;
+  }
+
   public async publish(input?: PublishInput): Promise<PublicationRun> {
     const response = await this.client.post<PublicationData>(`/notebook/${this.data.id}/publication`, input);
     const run = new PublicationRun(new PublicationInstance(response.data, this.client, this.data.id), this.client);
@@ -1363,3 +1426,5 @@ function formatQueryString(params: object): string {
 
   return query === '' ? '' : `?${query}`;
 }
+
+export { laravelCloudSetupForRepublish } from './publications.js';

@@ -66,6 +66,26 @@ function openNotebook(client: PHPSandbox, id: string) {
 }
 
 describe('Publications', () => {
+  it('follows a queued release to its result without posting another publication', async () => {
+    const requests: Request[] = [];
+    const fetch = vi.fn(async (request: Request) => {
+      requests.push(request);
+      return request.headers.get('Accept') === 'text/event-stream'
+        ? publishStream()
+        : jsonResponse(publicationData({ status: 'queued' }));
+    });
+    const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch: fetch as unknown as typeof globalThis.fetch });
+    const notebook = openNotebook(client, 'nb_123');
+    try {
+      const publication = await notebook.publication();
+      const run = publication!.follow();
+      await expect(run.result()).resolves.toMatchObject({ success: true, buildId: 'build_123', status: 'healthy' });
+      run.dispose();
+      expect(requests.some(request => request.method !== 'GET')).toBe(false);
+      expect(requests.filter(request => request.headers.get('Accept') === 'text/event-stream')).toHaveLength(1);
+    } finally { notebook.dispose(); }
+  });
+
   it('disposes an active stream without deleting or cancelling the publication', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (request: Request) => {
@@ -237,6 +257,32 @@ describe('Publications', () => {
         code: 'UnprocessableEntity',
         message: 'Invalid protection settings.',
       } satisfies Partial<RemoteError>);
+  });
+
+  it('reads the account catalog and saves or reconciles production setup without publishing', async () => {
+    const requests: Array<{ method: string; url: string; body: string }> = [];
+    const setup = { database: { mode: 'reuse' as const, id: 'schema-1' }, worker: true };
+    const fetch = vi.fn(async (request: Request) => {
+      requests.push({ method: request.method, url: request.url, body: await request.text() });
+      if (request.url.endsWith('/catalog')) return jsonResponse({ regions: ['eu-central-1'], databases: [] });
+      return jsonResponse(publicationData({ id: 'pub/id', provider: { name: 'laravel-cloud', setup } }));
+    }) as unknown as typeof globalThis.fetch;
+    const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
+    const notebook = openNotebook(client, 'nb_123');
+    try {
+      await expect(notebook.laravelCloudCatalog()).resolves.toMatchObject({ regions: ['eu-central-1'] });
+      const original = await notebook.publication();
+      const updated = await original!.configureLaravelCloud(setup);
+      expect(updated).not.toBe(original);
+      expect(updated.data.provider).toMatchObject({ setup });
+      await updated.reconcileLaravelCloudResource('cluster-1');
+      expect(requests).toEqual([
+        { method: 'GET', url: 'https://api.phpsandbox.io/v1/notebook/nb_123/laravel-cloud/catalog', body: '' },
+        { method: 'GET', url: 'https://api.phpsandbox.io/v1/notebook/nb_123/publication', body: '' },
+        { method: 'PUT', url: 'https://api.phpsandbox.io/v1/publications/pub%2Fid/laravel-cloud/setup', body: JSON.stringify({ setup }) },
+        { method: 'POST', url: 'https://api.phpsandbox.io/v1/publications/pub%2Fid/laravel-cloud/reconcile', body: '{"resourceId":"cluster-1"}' },
+      ]);
+    } finally { notebook.dispose(); }
   });
 
   it('waits until publication status is terminal', async () => {

@@ -86,14 +86,140 @@ export interface SshServerProviderOptions {
   serverId: string;
 }
 
+export interface LaravelCloudResourceInput {
+  mode: 'none' | 'reuse' | 'create';
+  id?: string;
+  type?: string;
+  version?: string;
+  size?: string;
+  config?: Record<string, string | number | boolean | null>;
+}
+
+export type PublicationResourceKind = 'database' | 'cache' | 'storage' | 'worker' | 'scheduler';
+export interface PublicationRequirement {
+  kind: PublicationResourceKind;
+  required?: boolean;
+  recommended?: boolean;
+  engine?: string;
+  reason?: string;
+}
+export interface PublicationReadiness {
+  repository: string | null;
+  branch: string | null;
+  sourceProvider: string | null;
+  requirements: PublicationRequirement[];
+  productionVariables: string[];
+  missingVariables: string[];
+  warnings: string[];
+}
+export interface PublicationPlanInput {
+  slug?: string;
+  provider: { name: PublicationProviderName } & Partial<CloudflareContainersProviderOptions & SshServerProviderOptions & LaravelCloudProviderInput>;
+  requirements?: PublicationRequirement[];
+  resources?: Partial<Record<PublicationResourceKind, Omit<LaravelCloudResourceInput, 'mode'> & { mode: 'none' | 'create' | 'reuse' | 'external' | 'enable' }>>;
+}
+export type PublicationResourceMode = 'none' | 'create' | 'reuse' | 'external' | 'enable';
+export interface PublicationPlan {
+  provider: PublicationProviderName;
+  capabilities: { source: 'git' | 'workspace'; resources: Record<PublicationResourceKind, Array<'none' | 'create' | 'reuse' | 'external' | 'enable'>> };
+  readiness: PublicationReadiness;
+  source: { type: 'git' | 'workspace'; repository: string | null; branch: string | null; commitAndPush: boolean; providerAccess: 'verified' | 'confirmed' | 'confirmation_required' | 'not_required' };
+  resources: Array<{ kind: PublicationResourceKind; mode: PublicationResourceMode | 'unconfigured'; engine: string | null; required: boolean; recommended: boolean; supported: boolean; selection: NonNullable<PublicationPlanInput['resources']>[PublicationResourceKind] | boolean | null }>;
+  blockers: Array<{ code: string; message: string }>;
+  ready: boolean;
+  input: PublicationPlanInput;
+  cost: { status: 'unknown'; message: string };
+}
+export interface PublicationDnsInstructions {
+  stage: 'ownership' | 'traffic' | 'connected';
+  records: PublicationDnsRecord[];
+  trafficRecords: PublicationDnsRecord[];
+}
+
+export interface LaravelCloudSetupInput {
+  repositoryAccessConfirmed?: boolean;
+  database?: LaravelCloudResourceInput;
+  cache?: LaravelCloudResourceInput;
+  storage?: LaravelCloudResourceInput;
+  worker?: boolean;
+  scheduler?: boolean;
+  workerPlacement?: 'app' | 'separate';
+  workerSize?: string;
+  buildCommand?: string;
+  deployCommand?: string;
+}
+
+export interface LaravelCloudCatalogResource {
+  id: string;
+  name: string;
+  region: string | null;
+  type: string | null;
+  status: string | null;
+  clusterId?: string;
+  bucketId?: string;
+  keyName?: string;
+}
+
+export interface LaravelCloudConfigField {
+  name: string;
+  type: string;
+  required: boolean;
+  nullable?: boolean;
+  description?: string;
+  min?: number;
+  max?: number;
+  enum?: Array<string | number>;
+  example?: string | number;
+}
+
+export interface LaravelCloudDatabaseType {
+  type: string;
+  label: string;
+  versions: string[];
+  regions: string[];
+  config_schema: LaravelCloudConfigField[];
+}
+
+export interface LaravelCloudCatalog {
+  regions: Array<{ region: string; label: string; flag?: string }>;
+  databaseTypes: LaravelCloudDatabaseType[];
+  cacheTypes: Array<{ type: string; label: string; regions: string[]; sizes: Array<string | { value?: string; name?: string; size?: string; label?: string; supports_hibernation?: boolean }> }>;
+  databases: LaravelCloudCatalogResource[];
+  caches: LaravelCloudCatalogResource[];
+  storage: LaravelCloudCatalogResource[];
+  pricingUrl: string;
+}
+
+export interface LaravelCloudSetupState {
+  applicationId?: string;
+  environmentId?: string;
+  applicationManaged?: boolean;
+  environmentManaged?: boolean;
+  databaseId?: string;
+  databaseIdManaged?: boolean;
+  cacheId?: string;
+  cacheIdManaged?: boolean;
+  storageId?: string;
+  storageIdManaged?: boolean;
+  workerId?: string;
+  backgroundInstanceId?: string;
+  backgroundProcessId?: string;
+  configuredAt?: string;
+  retainedResources?: Array<{ kind: string; id: string; providerId: string; name: string | null }>;
+  pendingCreation?: { resource: string; name: string | null; startedAt: string };
+}
+
 export interface LaravelCloudProviderData {
+  setup?: LaravelCloudSetupInput;
   region?: LaravelCloudRegion;
   repository?: string;
   branch?: string;
+  expectedCommitSha?: string | null;
   sourceControlProviderType?: 'github' | 'gitlab' | 'bitbucket';
 }
 
 export interface LaravelCloudProviderInput {
+  setup?: LaravelCloudSetupInput;
   region: LaravelCloudRegion;
 }
 
@@ -150,6 +276,8 @@ export interface PublicationData<TProvider extends PublicationProviderName = Pub
   protection: PublicationProtectionData;
   eventStreamUrl: string | null;
   originUrl: string | null;
+  domains?: PublicationDomainData[];
+  setupState?: LaravelCloudSetupState | null;
   currentRelease?: PublicationReleaseData | null;
   latestBuild?: PublicationBuildData<TProvider> | null;
   deployedAt: string | null;
@@ -169,6 +297,13 @@ export interface PublicationProtectionSessionData {
   url: string;
 }
 
+export interface PublicationDnsRecord {
+  type: string;
+  name: string;
+  value: string;
+  purpose?: 'ownership' | 'certificate' | 'traffic';
+}
+
 export interface PublicationDomainData {
   id: string;
   publicationId: string | null;
@@ -178,6 +313,7 @@ export interface PublicationDomainData {
   providerHostnameId: string | null;
   dns: { type: string | null; name: string | null; value: string | null };
   ssl: { status: string | null };
+  dnsInstructions: PublicationDnsInstructions;
   validationErrors: unknown[];
   validationRecords: unknown[];
   metadata: Record<string, unknown>;
@@ -199,6 +335,11 @@ export class PublicationDomains {
 
   public async refresh(id: string): Promise<PublicationDomainData> {
     return (await this.client.post<PublicationDomainData>(`${this.path()}/${encodeURIComponent(id)}/refresh`)).data;
+  }
+
+  /** Sets production APP_URL. Publish again to apply it to the running app. */
+  public async useAsApplicationUrl(id: string): Promise<{ url: string; requiresPublication: boolean }> {
+    return (await this.client.post<{ url: string; requiresPublication: boolean }>(`${this.path()}/${encodeURIComponent(id)}/application-url`)).data;
   }
 
   public async delete(id: string): Promise<void> {
@@ -285,7 +426,7 @@ export class PublicationRun<TProvider extends PublicationProviderName = Publicat
     return this;
   }
 
-  /** Stop observing this run; the server-side publication continues. */
+  /** Stop observing this run. Once its stream has attached, the server-side publication continues. */
   public dispose(): void {
     if (this.completed) return;
     const error = new DOMException('Stopped observing publication; deployment continues.', 'AbortError');
@@ -376,10 +517,25 @@ export class PublicationInstance<TProvider extends PublicationProviderName = Pub
     this.domains = new PublicationDomains(client, data.id);
   }
 
+  public async reconcileLaravelCloudResource(resourceId: string): Promise<PublicationInstance<TProvider>> {
+    const response = await this.client.post<PublicationData<TProvider>>(`/publications/${encodeURIComponent(this.data.id)}/laravel-cloud/reconcile`, { resourceId });
+    return new PublicationInstance(response.data, this.client, this.notebookId);
+  }
+
+  public async configureLaravelCloud(setup: LaravelCloudSetupInput): Promise<PublicationInstance<TProvider>> {
+    const response = await this.client.put<PublicationData<TProvider>>(`/publications/${encodeURIComponent(this.data.id)}/laravel-cloud/setup`, { setup });
+    return new PublicationInstance(response.data, this.client, this.notebookId);
+  }
+
   public async refresh(): Promise<PublicationInstance<TProvider>> {
     const response = await this.client.get<PublicationData<TProvider>>(`/publications/${this.data.id}`);
 
     return new PublicationInstance(response.data, this.client, this.notebookId);
+  }
+
+  /** Start or reattach to the current release stream without queuing another release. */
+  public follow(): PublicationRun<TProvider> {
+    return new PublicationRun(this, this.client).start();
   }
 
   public async publish(): Promise<PublicationRun<TProvider>> {
@@ -681,4 +837,15 @@ function parseNdjsonStream<T>(input: ReadableStream<Uint8Array>, schema: ParseSc
       },
     })
   );
+}
+
+/** Keep retained resources when publishing again after removing the Cloud application. */
+export function laravelCloudSetupForRepublish(setup: LaravelCloudSetupInput = {}, state: LaravelCloudSetupState | null = null): LaravelCloudSetupInput {
+  const next: LaravelCloudSetupInput = { ...setup };
+  const ids = { database: state?.databaseId, cache: state?.cacheId, storage: state?.storageId };
+  for (const kind of ['database', 'cache', 'storage'] as const) {
+    const id = ids[kind];
+    if (setup[kind]?.mode === 'create' && id) next[kind] = { mode: 'reuse', id };
+  }
+  return next;
 }
