@@ -1,4 +1,4 @@
-import type { LaravelCloudCatalog } from './publications.js';
+import { NotebookPublications } from './notebook-publications.js';
 import { Filesystem, FilesystemActions, FilesystemEvents } from './filesystem.js';
 import Terminals, { TerminalEvents, TerminalActions, type SpawnOptions } from './terminal.js';
 import Auth, { AuthActions } from './auth.js';
@@ -26,6 +26,12 @@ import {
   PublicationRun,
   type PublicationData,
   type PublishInput,
+  type PlannedPublishInput,
+  type PublicationPlanInput,
+  type PublicationProviderName,
+  type PublicationPlan,
+  type PublicationReadiness,
+  type LaravelCloudCatalog,
 } from './publications.js';
 import { ServerApi } from './servers.js';
 import { RestRuntimeInvoker } from './runtime/rest.js';
@@ -123,62 +129,7 @@ export type {
   TransportErrorCode,
   ValidationErrorDetails,
 } from './errors/index.js';
-export type {
-  BuiltInPublicationProviderName,
-  CloudflareContainersProviderOptions,
-  LaravelCloudProviderData,
-  LaravelCloudProviderInput,
-  LaravelCloudCatalog,
-  LaravelCloudCatalogResource,
-  LaravelCloudConfigField,
-  LaravelCloudDatabaseType,
-  LaravelCloudResourceInput,
-  LaravelCloudSetupInput,
-  LaravelCloudSetupState,
-  PublicationDnsRecord,
-  PublicationDnsInstructions,
-  PublicationReadiness,
-  PublicationRequirement,
-  PublicationResourceKind,
-  PublicationResourceMode,
-  PublicationPlanInput,
-  PublicationPlan,
-  LaravelCloudRegion,
-  PublicationBuildData,
-  PublicationBuildStatus,
-  PublicationData,
-  PublicationDomainData,
-  PublicationDomains,
-  PublicationEventData,
-  PublicationInstance,
-  PublicationJurisdiction,
-  PublicationLogChunkData,
-  PublicationLogStream,
-  PublicationPlacement,
-  PublicationProtectionData,
-  PublicationProtectionInput,
-  PublicationProtectionMode,
-  PublicationProtectionSessionData,
-  PublicationProvider,
-  PublicationProviderData,
-  PublicationProviderInput,
-  PublicationProviderInputs,
-  PublicationProviderName,
-  PublicationRegion,
-  PublicationReleaseData,
-  PublicationReleaseStatus,
-  PublicationRun,
-  PublicationSize,
-  PublicationStatus,
-  PublishInput,
-  PublishStreamEvent,
-  PublishStreamLog,
-  PublishStreamPhase,
-  PublishStreamResult,
-  PublishStreamSseEvent,
-  SshServerProviderOptions,
-  UpdatePublicationProtectionInput,
-} from './publications.js';
+export type * from './publications.js';
 export type { CreateServerInput, ServerData, ServerInstance, ServerListOptions, ServerSshOptions } from './servers.js';
 export type {
   ConfigureFeedbackInput,
@@ -843,6 +794,7 @@ export class NotebookInstance {
   public readonly preview: NotebookPreview;
   public readonly mail: NotebookMail;
   public readonly feedback: Feedback;
+  private readonly publicationOperations: NotebookPublications;
   private readonly socket: Transport | null;
   private readonly restInvoker: RestRuntimeInvoker | null;
   private readonly emitter: EventDispatcher;
@@ -913,6 +865,7 @@ export class NotebookInstance {
     this.preview = new NotebookPreview(client, this.data.id);
     this.mail = new NotebookMail(client, this.data.id);
     this.feedback = new Feedback(client, this.data.id);
+    this.publicationOperations = new NotebookPublications(this, client);
   }
 
   public async ready(): Promise<NotebookInitSuccessResult> {
@@ -957,73 +910,38 @@ export class NotebookInstance {
     return new NotebookInstance(response.data, this.client);
   }
 
-  public async publication(): Promise<PublicationInstance | null> {
-    try {
-      const response = await this.client.get<PublicationData>(`/notebook/${this.data.id}/publication`);
-
-      return new PublicationInstance(response.data, this.client, this.data.id);
-    } catch (error) {
-      if (RemoteError.is(error) && error.status === 404) {
-        return null;
-      }
-
-      throw error;
-    }
+  public publication(): Promise<PublicationInstance | null> {
+    return this.publicationOperations.current();
   }
 
   /** Commit and push the publication revision, verifying that the remote received it. */
-  public async preparePublicationSource(author: GitSyncAuthor): Promise<string> {
-    const targets = await this.git.targets.list();
-    const target = targets.find((item) => item.data.default);
-    if (!target) throw new Error('Connect GitHub Sync before publishing to Laravel Cloud.');
-    const status = await this.git.status();
-    if (status.branch && status.branch !== target.data.branch) {
-      throw new Error(`Switch to ${target.data.branch} before publishing, or update the GitHub Sync branch.`);
-    }
-    const checkpoint = status.clean && status.ref ? { ref: status.ref }
-      : await this.git.checkpoint(`${author.name} <${author.email}>`, 'Prepare publication', target.data.branch, false);
-    const synced = await target.sync({ direction: 'push', author });
-    if (synced.data.lastCommitSha !== checkpoint.ref) throw new Error('The latest changes have not reached GitHub yet. Resolve the sync issue before publishing.');
-    return checkpoint.ref;
+  public preparePublicationSource(author: GitSyncAuthor): Promise<string> {
+    return this.publicationOperations.prepareSource(author);
   }
 
-  /** Resolve a first publication plan, prepare its source, and start the publishing lifecycle. */
-  public async publishPlanned(input: PublishInput & Pick<import('./publications.js').PublicationPlanInput, 'requirements' | 'resources'>, options: { author?: GitSyncAuthor } = {}): Promise<PublicationRun> {
-    const plan = await this.planPublication(input);
-    if (!plan.ready) throw new Error(plan.blockers.map((blocker) => blocker.message).join(' '));
-    const existing = await this.publication();
-    if (existing) throw new Error('This notebook already has a publication. Configure it explicitly, prepare its source, and use publication.publish() to publish changes.');
-    if (plan.source.commitAndPush) {
-      if (!options.author) throw new Error('A commit author is required to prepare the publication source.');
-      await this.preparePublicationSource(options.author);
-    }
-    const { requirements: _requirements, resources: _resources, ...publishInput } = input;
-    const resolved: PublishInput = input.provider.name === 'laravel-cloud'
-      ? { ...publishInput, provider: { ...input.provider, setup: plan.input.provider.setup } }
-      : publishInput;
-    return this.publish(resolved);
+  /** Resolve a first publication plan and execute its source and publishing lifecycle. */
+  public publishPlanned(input: PlannedPublishInput, options: { author?: GitSyncAuthor } = {}): Promise<PublicationRun> {
+    return this.publicationOperations.publishPlanned(input, options);
   }
 
   /** Inspect production requirements without returning secret values or modifying the workspace. */
-  public async publicationReadiness(): Promise<import('./publications.js').PublicationReadiness> {
-    return (await this.client.get<import('./publications.js').PublicationReadiness>(`/notebook/${encodeURIComponent(this.data.id)}/publication/readiness`)).data;
+  public publicationReadiness(): Promise<PublicationReadiness> {
+    return this.publicationOperations.readiness();
   }
 
-  /** Resolve requirements against provider capabilities. This never provisions resources. */
-  public async planPublication(input: import('./publications.js').PublicationPlanInput): Promise<import('./publications.js').PublicationPlan> {
-    return (await this.client.post<import('./publications.js').PublicationPlan>(`/notebook/${encodeURIComponent(this.data.id)}/publication/plan`, input)).data;
+  /** Resolve requirements against provider capabilities without provisioning resources. */
+  public planPublication<TName extends PublicationProviderName>(
+    input: PublicationPlanInput<TName>
+  ): Promise<PublicationPlan<TName>> {
+    return this.publicationOperations.plan(input);
   }
 
-  public async laravelCloudCatalog(): Promise<LaravelCloudCatalog> {
-    return (await this.client.get<LaravelCloudCatalog>(`/notebook/${encodeURIComponent(this.data.id)}/laravel-cloud/catalog`)).data;
+  public laravelCloudCatalog(): Promise<LaravelCloudCatalog> {
+    return this.publicationOperations.laravelCloudCatalog();
   }
 
-  public async publish(input?: PublishInput): Promise<PublicationRun> {
-    const response = await this.client.post<PublicationData>(`/notebook/${this.data.id}/publication`, input);
-    const run = new PublicationRun(new PublicationInstance(response.data, this.client, this.data.id), this.client);
-    run.start();
-
-    return run;
+  public publish(input?: PublishInput): Promise<PublicationRun> {
+    return this.publicationOperations.publish(input);
   }
 
   public run(command: string | string[], opts?: SpawnOptions): ShellProcess;
