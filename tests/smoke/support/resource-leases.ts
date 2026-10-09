@@ -208,7 +208,7 @@ async function reapNotebookPublication(
 ): Promise<void> {
   const publication = await operationAllowingMissing(
     'read abandoned publication',
-    () => notebook.publication(),
+    () => notebook.publication.current(),
   );
   if (publication === undefined || publication === null) {
     return;

@@ -1,9 +1,5 @@
-import type {
-  LaravelCloudSetupState,
-  LaravelCloudProviderData,
-  LaravelCloudProviderInput
-} from './publication-providers/laravel-cloud.js';
-export type * from './publication-providers/laravel-cloud.js';
+import type { LaravelCloudSetupState, LaravelCloudProviderData, LaravelCloudProviderInput } from './providers/laravel-cloud.js';
+export type * from './providers/laravel-cloud.js';
 import type {
   PublicationBuildStatus,
   PublicationJurisdiction,
@@ -11,8 +7,12 @@ import type {
   PublicationRegion,
   PublicationReleaseStatus,
   PublicationSize,
-  PublicationStatus
-} from './schemas/publications.js';
+  PublicationStatus,
+} from '../schemas/publications.js';
+
+export interface PublicationDestroyOptions {
+  deleteResources?: boolean;
+}
 
 export interface PublicationPlacement {
   regions?: PublicationRegion[];
@@ -47,6 +47,7 @@ export interface CloudflareContainersProviderOptions {
 
 export interface SshServerProviderOptions {
   serverId: string;
+  resources?: Partial<Record<PublicationResourceKind, PublicationResourceSelection>>;
 }
 
 export type PublicationResourceKind = 'database' | 'cache' | 'storage' | 'worker' | 'scheduler';
@@ -94,6 +95,7 @@ export interface PublicationPlan<TName extends PublicationProviderName = Publica
   provider: TName;
   capabilities: {
     source: 'git' | 'workspace';
+    sourceProviders?: string[];
     resources: Record<PublicationResourceKind, PublicationResourceMode[]>;
   };
   readiness: PublicationReadiness;
@@ -221,4 +223,35 @@ export interface PublicationDomainData {
   verifiedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+}
+
+export interface PublicationManagedResource {
+  id: string;
+  parentId: string | null;
+  provider: PublicationProviderName;
+  scope: string;
+  providerId: string;
+  kind: 'database' | 'cache' | 'storage';
+  name: string;
+  type: string | null;
+  version: string | null;
+  managed: boolean;
+  status: 'pending' | 'provisioning' | 'available' | 'unknown' | 'retained' | 'deleting' | 'delete_failed' | 'deleted';
+  attachments: PublicationResourceAttachment[];
+  attachmentCount: number;
+  createdAt: string;
+}
+
+export interface PublicationResourceListOptions {
+  provider?: PublicationProviderName;
+  kind?: PublicationManagedResource['kind'];
+  type?: string;
+  scope?: string;
+  page?: number;
+}
+
+export interface PublicationResourceAttachment {
+  notebookId: string | null;
+  publicationId: string | null;
+  detachedAt: string | null;
 }

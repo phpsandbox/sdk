@@ -70,7 +70,7 @@ export class Beacon implements BeaconActions {
   public readonly iframe: HTMLIFrameElement;
   private options: Required<BeaconOptions>;
   private messageHandlers: Map<string, ((payload: unknown) => void)[]> = new Map();
-  private eventEmitter: EventDispatcher;
+  private eventEmitter: EventDispatcher<{ [Key in keyof BeaconEvents]: BeaconEvents[Key] } & Record<string, unknown>>;
   private isBeaconReady = false;
   private readyPromise: Promise<void> | null = null;
   private isStarted = false;
@@ -108,7 +108,7 @@ export class Beacon implements BeaconActions {
       ...options,
     };
 
-    this.eventEmitter = EventManager.make();
+    this.eventEmitter = EventManager.make<{ [Key in keyof BeaconEvents]: BeaconEvents[Key] } & Record<string, unknown>>();
     this.setupMessageChannel();
 
     this.navigator = new Navigator(
@@ -446,14 +446,14 @@ export class Beacon implements BeaconActions {
    * Listen for beacon events
    */
   public on<K extends keyof BeaconEvents>(event: K, handler: (payload: BeaconEvents[K]) => void): Disposable {
-    return this.eventEmitter.listen(event as string, handler);
+    return this.eventEmitter.listen(event, handler);
   }
 
   /**
    * Listen for beacon events (one-time)
    */
   public once<K extends keyof BeaconEvents>(event: K, handler: (payload: BeaconEvents[K]) => void): Disposable {
-    return this.eventEmitter.once(event as string, handler);
+    return this.eventEmitter.once(event, handler);
   }
 
   /**

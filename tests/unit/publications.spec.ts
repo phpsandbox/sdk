@@ -1,8 +1,12 @@
+import type { LaravelCloudSetupInput } from '../../src/publication/types.js';
 import { describe, expect, it, vi } from 'vitest';
 import { PHPSandbox, RemoteError } from '../../src/index.js';
 
 function jsonResponse(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify({ data }), { status, headers: { 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify({ data }), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 function errorResponse(status: number, code: string, message: string): Response {
@@ -19,7 +23,13 @@ function publicationData(overrides: Record<string, unknown> = {}) {
     url: 'https://my-app.example.test',
     status: 'healthy',
     strategy: 'laravel',
-    provider: { name: 'cloudflare-containers', accountId: '0123456789abcdef0123456789abcdef', size: 'small', sleepAfter: '30m', instances: 1 },
+    provider: {
+      name: 'cloudflare-containers',
+      accountId: '0123456789abcdef0123456789abcdef',
+      size: 'small',
+      sleepAfter: '30m',
+      instances: 1,
+    },
     protection: { mode: 'none', enabled: false },
     eventStreamUrl: 'https://runtime.phpsandbox.io/publish/pub_123',
     originUrl: null,
@@ -27,7 +37,13 @@ function publicationData(overrides: Record<string, unknown> = {}) {
       id: 'build_123',
       status: 'succeeded',
       strategy: 'laravel',
-      provider: { name: 'cloudflare-containers', accountId: '0123456789abcdef0123456789abcdef', size: 'small', sleepAfter: '30m', instances: 1 },
+      provider: {
+        name: 'cloudflare-containers',
+        accountId: '0123456789abcdef0123456789abcdef',
+        size: 'small',
+        sleepAfter: '30m',
+        instances: 1,
+      },
       errorMessage: null,
       startedAt: null,
       finishedAt: null,
@@ -44,14 +60,17 @@ function publishStream(): Response {
   const events = [
     ['phase', { name: 'building', status: 'running' }],
     ['log', { stream: 'publish', content: 'Publishing' }],
-    ['result', {
-      success: true,
-      publicationId: 'pub_123',
-      url: 'https://canonical.example.test',
-      buildId: 'build_123',
-      releaseId: 'release_123',
-      status: 'healthy',
-    }],
+    [
+      'result',
+      {
+        success: true,
+        publicationId: 'pub_123',
+        url: 'https://canonical.example.test',
+        buildId: 'build_123',
+        releaseId: 'release_123',
+        status: 'healthy',
+      },
+    ],
   ];
   const body = events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join('');
   return new Response(body, { headers: { 'Content-Type': 'text/event-stream' } });
@@ -68,61 +87,79 @@ function openNotebook(client: PHPSandbox, id: string) {
 describe('Publications', () => {
   it('follows a queued release to its result without posting another publication', async () => {
     const requests: Request[] = [];
-    const fetch = vi.fn(async (request: Request) => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
       requests.push(request);
       return request.headers.get('Accept') === 'text/event-stream'
         ? publishStream()
         : jsonResponse(publicationData({ status: 'queued' }));
     });
-    const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch: fetch as unknown as typeof globalThis.fetch });
+    const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch: fetch });
     const notebook = openNotebook(client, 'nb_123');
     try {
-      const publication = await notebook.publication();
+      const publication = await notebook.publication.current();
       const run = publication!.follow();
-      await expect(run.result()).resolves.toMatchObject({ success: true, buildId: 'build_123', status: 'healthy' });
+      await expect(run.result()).resolves.toMatchObject({
+        success: true,
+        buildId: 'build_123',
+        status: 'healthy',
+      });
       run.dispose();
-      expect(requests.some(request => request.method !== 'GET')).toBe(false);
-      expect(requests.filter(request => request.headers.get('Accept') === 'text/event-stream')).toHaveLength(1);
-    } finally { notebook.dispose(); }
+      expect(requests.some((request) => request.method !== 'GET')).toBe(false);
+      expect(requests.filter((request) => request.headers.get('Accept') === 'text/event-stream')).toHaveLength(1);
+    } finally {
+      notebook.dispose();
+    }
   });
 
   it('disposes an active stream without deleting or cancelling the publication', async () => {
     const requests: Request[] = [];
-    const fetch = vi.fn(async (request: Request) => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
       requests.push(request);
       if (request.headers.get('Accept') !== 'text/event-stream') return jsonResponse(publicationData(), 201);
-      return new Response(new ReadableStream<Uint8Array>({
-        start(controller) { request.signal.addEventListener('abort', () => controller.error(request.signal.reason), { once: true }); },
-      }));
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            request.signal.addEventListener('abort', () => controller.error(request.signal.reason), { once: true });
+          },
+        })
+      );
     });
-    const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch: fetch as unknown as typeof globalThis.fetch });
+    const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch: fetch });
     const notebook = openNotebook(client, 'nb_123');
     try {
-      const run = await notebook.publish();
+      const run = await notebook.publication.publish();
       const events = run.events()[Symbol.asyncIterator]();
       const pending = events.next();
       run.dispose();
       run.dispose();
       await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
       await expect(run.result()).rejects.toMatchObject({ name: 'AbortError' });
-      expect(requests.find(request => request.headers.get('Accept') === 'text/event-stream')?.signal.aborted).toBe(true);
-      expect(requests.some(request => request.method === 'DELETE')).toBe(false);
-    } finally { notebook.dispose(); }
+      expect(requests.find((request) => request.headers.get('Accept') === 'text/event-stream')?.signal.aborted).toBe(true);
+      expect(requests.some((request) => request.method === 'DELETE')).toBe(false);
+    } finally {
+      notebook.dispose();
+    }
   });
 
   it('publishes through the notebook-scoped API and exposes an AsyncIterable run', async () => {
     const requests: Request[] = [];
-    const fetch = vi.fn(async (request: Request) => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
       requests.push(request);
-      return request.headers.get('Accept') === 'text/event-stream'
-        ? publishStream()
-        : jsonResponse(publicationData(), 201);
-    }) as unknown as typeof globalThis.fetch;
+      return request.headers.get('Accept') === 'text/event-stream' ? publishStream() : jsonResponse(publicationData(), 201);
+    });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
 
-    const run = await openNotebook(client, 'nb_123').publish({
+    const run = await openNotebook(client, 'nb_123').publication.publish({
       slug: 'my-app',
-      provider: { name: 'cloudflare-containers', accountId: '0123456789abcdef0123456789abcdef', size: 'medium', placement: { regions: ['WEUR'] } },
+      provider: {
+        name: 'cloudflare-containers',
+        accountId: '0123456789abcdef0123456789abcdef',
+        size: 'medium',
+        placement: { regions: ['WEUR'] },
+      },
       protection: { mode: 'password', password: 'publication-password' },
     });
     const events = [];
@@ -138,7 +175,11 @@ describe('Publications', () => {
     });
     expect(requests[0].url).toBe('https://api.phpsandbox.io/v1/notebook/nb_123/publication');
     await expect(requests[0].json()).resolves.toMatchObject({
-      provider: { name: 'cloudflare-containers', accountId: '0123456789abcdef0123456789abcdef', size: 'medium' },
+      provider: {
+        name: 'cloudflare-containers',
+        accountId: '0123456789abcdef0123456789abcdef',
+        size: 'medium',
+      },
       protection: { mode: 'password' },
     });
     expect(requests[1].url).toBe('https://runtime.phpsandbox.io/publish/pub_123');
@@ -147,23 +188,27 @@ describe('Publications', () => {
 
   it('publishes to Laravel Cloud through the sandbox integration', async () => {
     const requests: Request[] = [];
-    const fetch = vi.fn(async (request: Request) => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
       requests.push(request);
       if (request.headers.get('Accept') === 'text/event-stream') {
         return publishStream();
       }
-      return jsonResponse(publicationData({
-        provider: {
-          name: 'laravel-cloud',
-          region: 'eu-central-1',
-          repository: 'phpsandbox/app',
-          branch: 'main',
-        },
-      }), 201);
-    }) as unknown as typeof globalThis.fetch;
+      return jsonResponse(
+        publicationData({
+          provider: {
+            name: 'laravel-cloud',
+            region: 'eu-central-1',
+            repository: 'phpsandbox/app',
+            branch: 'main',
+          },
+        }),
+        201
+      );
+    });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
 
-    const run = await openNotebook(client, 'nb_123').publish({
+    const run = await openNotebook(client, 'nb_123').publication.publish({
       slug: 'my-app',
       provider: {
         name: 'laravel-cloud',
@@ -171,7 +216,10 @@ describe('Publications', () => {
       },
     });
 
-    expect(run.initial.data.provider).toMatchObject({ name: 'laravel-cloud', region: 'eu-central-1' });
+    expect(run.initial.data.provider).toMatchObject({
+      name: 'laravel-cloud',
+      region: 'eu-central-1',
+    });
     expect(run.initial.data.provider).not.toHaveProperty('integration');
     await expect(requests[0].json()).resolves.toMatchObject({
       provider: { name: 'laravel-cloud', region: 'eu-central-1' },
@@ -179,27 +227,31 @@ describe('Publications', () => {
   });
 
   it('gets the current publication or null', async () => {
-    const fetch = vi.fn()
+    const fetch = vi
+      .fn()
       .mockResolvedValueOnce(jsonResponse(publicationData()))
       .mockResolvedValueOnce(errorResponse(404, 'NotFound', 'No publication.'));
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
 
-    await expect(openNotebook(client, 'nb_123').publication()).resolves.toMatchObject({ data: { id: 'pub_123' } });
-    await expect(openNotebook(client, 'nb_456').publication()).resolves.toBeNull();
+    await expect(openNotebook(client, 'nb_123').publication.current()).resolves.toMatchObject({
+      data: { id: 'pub_123' },
+    });
+    await expect(openNotebook(client, 'nb_456').publication.current()).resolves.toBeNull();
   });
 
   it('republishes an existing notebook publication without setup input', async () => {
     const requests: Request[] = [];
-    const fetch = vi.fn(async (request: Request) => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
       requests.push(request);
       if (request.headers.get('Accept') === 'text/event-stream') {
         return publishStream();
       }
       return jsonResponse(publicationData(), request.method === 'POST' ? 202 : 200);
-    }) as unknown as typeof globalThis.fetch;
+    });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
 
-    const publication = await openNotebook(client, 'nb_123').publication();
+    const publication = await openNotebook(client, 'nb_123').publication.current();
     await (await publication!.publish()).result();
 
     expect(requests.map((request) => request.method)).toEqual(['GET', 'POST', 'GET']);
@@ -208,12 +260,11 @@ describe('Publications', () => {
 
   it('uses destroy for destructive publication removal', async () => {
     const requests: Request[] = [];
-    const fetch = vi.fn(async (request: Request) => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
       requests.push(request);
-      return request.method === 'GET'
-        ? jsonResponse(publicationData())
-        : jsonResponse({ message: 'Publication destroyed.' });
-    }) as unknown as typeof globalThis.fetch;
+      return request.method === 'GET' ? jsonResponse(publicationData()) : jsonResponse({ message: 'Publication destroyed.' });
+    });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
 
     const publication = await client.publications.get('pub_123');
@@ -221,68 +272,102 @@ describe('Publications', () => {
 
     expect(requests[1].method).toBe('DELETE');
     expect(requests[1].url).toBe('https://api.phpsandbox.io/v1/publications/pub_123');
+
+    await publication.destroy({ deleteResources: true });
+
+    expect(requests[2].method).toBe('DELETE');
+    expect(requests[2].url).toBe('https://api.phpsandbox.io/v1/publications/pub_123?deleteResources=1');
   });
 
   it('parses publication event streams as NDJSON', async () => {
-    const fetch = vi.fn(async (request: Request) => request.url.endsWith('/events/stream')
-      ? new Response(
-        [
-          '{"sequence":1,"type":"build.started","payload":{},"createdAt":null}',
-          '{"sequence":2,"type":"build.completed","payload":[],"createdAt":null}',
-        ].join('\n'),
-        { headers: { 'Content-Type': 'application/x-ndjson' } },
-      )
-      : jsonResponse(publicationData())) as unknown as typeof globalThis.fetch;
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+      new Request(input, init).url.endsWith('/events/stream')
+        ? new Response(
+            [
+              '{"sequence":1,"type":"build.started","payload":{},"createdAt":null}',
+              '{"sequence":2,"type":"build.completed","payload":[],"createdAt":null}',
+            ].join('\n'),
+            { headers: { 'Content-Type': 'application/x-ndjson' } }
+          )
+        : jsonResponse(publicationData())
+    );
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
 
     const publication = await client.publications.get('pub_123');
     const reader = (await publication.events()).getReader();
-    await expect(reader.read()).resolves.toMatchObject({ value: { sequence: 1, type: 'build.started' } });
+    await expect(reader.read()).resolves.toMatchObject({
+      value: { sequence: 1, type: 'build.started' },
+    });
     await expect(reader.read()).resolves.toMatchObject({
       value: { sequence: 2, type: 'build.completed', payload: {} },
     });
   });
 
   it('surfaces parsed API errors', async () => {
-    const fetch = vi.fn(async (request: Request) => request.method === 'GET'
-      ? jsonResponse(publicationData())
-      : errorResponse(422, 'UnprocessableEntity', 'Invalid protection settings.')) as unknown as typeof globalThis.fetch;
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+      new Request(input, init).method === 'GET'
+        ? jsonResponse(publicationData())
+        : errorResponse(422, 'UnprocessableEntity', 'Invalid protection settings.')
+    );
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
 
     const publication = await client.publications.get('pub_123');
-    await expect(publication.setProtection({ mode: 'password', password: 'secret' }))
-      .rejects.toMatchObject({
-        source: 'core',
-        status: 422,
-        code: 'UnprocessableEntity',
-        message: 'Invalid protection settings.',
-      } satisfies Partial<RemoteError>);
+    await expect(publication.setProtection({ mode: 'password', password: 'secret' })).rejects.toMatchObject({
+      source: 'core',
+      status: 422,
+      code: 'UnprocessableEntity',
+      message: 'Invalid protection settings.',
+    } satisfies Partial<RemoteError>);
   });
 
   it('reads the account catalog and saves or reconciles production setup without publishing', async () => {
     const requests: Array<{ method: string; url: string; body: string }> = [];
-    const setup = { database: { mode: 'reuse' as const, id: 'schema-1' }, worker: true };
-    const fetch = vi.fn(async (request: Request) => {
+    const setup: LaravelCloudSetupInput = {
+      database: { mode: 'reuse', id: 'schema-1' },
+      worker: true,
+    };
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
       requests.push({ method: request.method, url: request.url, body: await request.text() });
       if (request.url.endsWith('/catalog')) return jsonResponse({ regions: ['eu-central-1'], databases: [] });
       return jsonResponse(publicationData({ id: 'pub/id', provider: { name: 'laravel-cloud', setup } }));
-    }) as unknown as typeof globalThis.fetch;
+    });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
     const notebook = openNotebook(client, 'nb_123');
     try {
-      await expect(notebook.laravelCloudCatalog()).resolves.toMatchObject({ regions: ['eu-central-1'] });
-      const original = await notebook.publication();
+      await expect(notebook.publication.catalog('laravel-cloud')).resolves.toMatchObject({
+        regions: ['eu-central-1'],
+      });
+      const original = await notebook.publication.current();
       const updated = await original!.configureLaravelCloud(setup);
       expect(updated).not.toBe(original);
       expect(updated.data.provider).toMatchObject({ setup });
       await updated.reconcileLaravelCloudResource('cluster-1');
       expect(requests).toEqual([
-        { method: 'GET', url: 'https://api.phpsandbox.io/v1/notebook/nb_123/laravel-cloud/catalog', body: '' },
-        { method: 'GET', url: 'https://api.phpsandbox.io/v1/notebook/nb_123/publication', body: '' },
-        { method: 'PUT', url: 'https://api.phpsandbox.io/v1/publications/pub%2Fid/laravel-cloud/setup', body: JSON.stringify({ setup }) },
-        { method: 'POST', url: 'https://api.phpsandbox.io/v1/publications/pub%2Fid/laravel-cloud/reconcile', body: '{"resourceId":"cluster-1"}' },
+        {
+          method: 'GET',
+          url: 'https://api.phpsandbox.io/v1/notebook/nb_123/laravel-cloud/catalog',
+          body: '',
+        },
+        {
+          method: 'GET',
+          url: 'https://api.phpsandbox.io/v1/notebook/nb_123/publication',
+          body: '',
+        },
+        {
+          method: 'PUT',
+          url: 'https://api.phpsandbox.io/v1/publications/pub%2Fid/laravel-cloud/setup',
+          body: JSON.stringify({ setup }),
+        },
+        {
+          method: 'POST',
+          url: 'https://api.phpsandbox.io/v1/publications/pub%2Fid/laravel-cloud/reconcile',
+          body: '{"resourceId":"cluster-1"}',
+        },
       ]);
-    } finally { notebook.dispose(); }
+    } finally {
+      notebook.dispose();
+    }
   });
 
   it('waits until publication status is terminal', async () => {
@@ -291,7 +376,7 @@ describe('Publications', () => {
       publicationData({ status: 'deploying' }),
       publicationData({ status: 'healthy' }),
     ];
-    const fetch = vi.fn(async () => jsonResponse(responses.shift())) as unknown as typeof globalThis.fetch;
+    const fetch = vi.fn(async () => jsonResponse(responses.shift()));
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
 
     const publication = await client.publications.get('pub_123');

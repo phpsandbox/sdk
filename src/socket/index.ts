@@ -149,7 +149,7 @@ export class Transport {
 
     this.url = typeof url === 'string' ? new URL(url) : null;
     const urlProvider = typeof url === 'string'
-      ? this.url.toString()
+      ? new URL(url).toString()
       : async () => new URL(await url()).toString();
 
     // Use configurable ping interval
@@ -564,8 +564,10 @@ export class Transport {
   }
 
   public onDidBootError(listener: (error: RemoteError<'NotebookUnavailable'>) => void): { dispose: () => void } {
-    return this.eventEmitter.listen('transport.boot_error', (event: { error: RemoteError<'NotebookUnavailable'> }) => {
-      listener(event.error);
+    return this.eventEmitter.listen('transport.boot_error', (event) => {
+      if (event && typeof event === 'object' && 'error' in event && RemoteError.is(event.error, 'NotebookUnavailable')) {
+        listener(event.error);
+      }
     });
   }
 
@@ -578,7 +580,7 @@ export class Transport {
   }
 
   public emit(event: string, ...data: unknown[]): void {
-    this.eventEmitter.emit(event, ...data);
+    this.eventEmitter.emit(event, data.length > 1 ? data : data[0]);
   }
 
   public get isConnected(): boolean {

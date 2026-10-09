@@ -5,6 +5,13 @@ import type { CapabilityId } from './capabilities.js';
 type SurfaceCoverage<T> = { readonly [TKey in keyof T]-?: CapabilityId };
 
 export const sdkRuntimeExports = {
+  NotebookPublication: 'publication.manage',
+  PublicationApi: 'publication.manage',
+  PublicationInstance: 'publication.manage',
+  PublicationRun: 'publication.manage',
+  PublicationResources: 'publication.manage',
+  PublicationDomains: 'publication.manage',
+  laravelCloudSetupForRepublish: 'publication.manage',
   FileChangeFilter: 'filesystem.watch',
   FileChangeType: 'filesystem.watch',
   FileType: 'filesystem.management',
@@ -68,7 +75,6 @@ export const notebookSurface = {
   onDidInitialize: 'runtime.events',
   preview: 'preview',
   publication: 'publication.read',
-  publish: 'publication.manage',
   ready: 'runtime.initialization',
   reconnect: 'runtime.events',
   repl: 'repl',
@@ -81,6 +87,7 @@ export const notebookSurface = {
   services: 'services.read',
   stop: 'runtime.lifecycle',
   terminals: 'terminal',
+  update: 'notebook.lifecycle',
 } satisfies SurfaceCoverage<sdk.NotebookInstance>;
 
 export const filesystemSurface = {
@@ -105,7 +112,35 @@ export const filesystemSurface = {
   write: 'filesystem.basic',
 } satisfies SurfaceCoverage<sdk.NotebookInstance['files']>;
 
+export const publicationFacadeSurfaces = {
+  notebook: {
+    current: 'publication.read',
+    readiness: 'publication.read',
+    prepare: 'publication.read',
+    catalog: 'publication.read',
+    publish: 'publication.manage',
+    resources: 'publication.read',
+  } satisfies SurfaceCoverage<sdk.NotebookInstance['publication']>,
+  api: {
+    get: 'publication.read',
+    resources: 'publication.read',
+  } satisfies SurfaceCoverage<sdk.PHPSandbox['publications']>,
+  resources: {
+    list: 'publication.read',
+  } satisfies SurfaceCoverage<sdk.PublicationResources>,
+  domains: {
+    list: 'publication.read',
+    create: 'publication.manage',
+    refresh: 'publication.read',
+    delete: 'publication.manage',
+    useAsApplicationUrl: 'publication.manage',
+  } satisfies SurfaceCoverage<sdk.PublicationDomains>,
+};
+
 export const publicationSurface = {
+  configureLaravelCloud: 'publication.manage',
+  reconcileLaravelCloudResource: 'publication.manage',
+  follow: 'publication.read',
   domains: 'publication.manage',
   buildLogs: 'publication.read',
   createProtectionSession: 'publication.manage',

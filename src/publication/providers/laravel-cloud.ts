@@ -71,7 +71,14 @@ export interface LaravelCloudCatalog {
     label: string;
     regions: string[];
     sizes: Array<
-      string | { value?: string; name?: string; size?: string; label?: string; supports_hibernation?: boolean }
+      | string
+      | {
+          value?: string;
+          name?: string;
+          size?: string;
+          label?: string;
+          supports_hibernation?: boolean;
+        }
     >;
   }>;
   databases: LaravelCloudCatalogResource[];
@@ -120,7 +127,8 @@ export function laravelCloudSetupForRepublish(
 ): LaravelCloudSetupInput {
   const next: LaravelCloudSetupInput = { ...setup };
   const ids = { database: state?.databaseId, cache: state?.cacheId, storage: state?.storageId };
-  for (const kind of ['database', 'cache', 'storage'] as const) {
+  const kinds: Array<'database' | 'cache' | 'storage'> = ['database', 'cache', 'storage'];
+  for (const kind of kinds) {
     const id = ids[kind];
     if (setup[kind]?.mode === 'create' && id) {
       next[kind] = { mode: 'reuse', id };

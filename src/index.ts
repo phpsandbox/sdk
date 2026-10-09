@@ -1,4 +1,4 @@
-import { NotebookPublications } from './notebook-publications.js';
+import { NotebookPublication } from './publication/index.js';
 import { Filesystem, FilesystemActions, FilesystemEvents } from './filesystem.js';
 import Terminals, { TerminalEvents, TerminalActions, type SpawnOptions } from './terminal.js';
 import Auth, { AuthActions } from './auth.js';
@@ -14,25 +14,8 @@ import { Transport } from './socket/index.js';
 import EventManager, { EventDispatcher } from './events/index.js';
 import Git, { GitActions, GitCredentials, type GitSyncAuthor } from './git.js';
 import { Disposable } from './types.js';
-import {
-  PHPSandboxError,
-  RemoteError,
-  TransportError,
-  remoteError,
-} from './errors/index.js';
-import {
-  PublicationApi,
-  PublicationInstance,
-  PublicationRun,
-  type PublicationData,
-  type PublishInput,
-  type PlannedPublishInput,
-  type PublicationPlanInput,
-  type PublicationProviderName,
-  type PublicationPlan,
-  type PublicationReadiness,
-  type LaravelCloudCatalog,
-} from './publications.js';
+import { PHPSandboxError, RemoteError, TransportError, remoteError } from './errors/index.js';
+import { PublicationApi, type PublicationData } from './publication/index.js';
 import { ServerApi } from './servers.js';
 import { RestRuntimeInvoker } from './runtime/rest.js';
 import { Feedback } from './feedback.js';
@@ -41,11 +24,7 @@ import { authenticatedRequest } from './http.js';
 
 export type { Disposable } from './types.js';
 export { LspConnection } from './lsp.js';
-export {
-  FileChangeFilter,
-  FileChangeType,
-  FileType,
-} from './filesystem.js';
+export { FileChangeFilter, FileChangeType, FileType } from './filesystem.js';
 export type {
   FileChange,
   FileContents,
@@ -117,11 +96,7 @@ export type {
   ServiceLogStreamOptions,
 } from './services.js';
 export type { ConfigPortMapping, ProjectConfig } from './config.js';
-export {
-  PHPSandboxError,
-  RemoteError,
-  TransportError,
-} from './errors/index.js';
+export { PHPSandboxError, RemoteError, TransportError } from './errors/index.js';
 export type {
   HttpResponseDiagnostics,
   RemoteErrorCode,
@@ -129,7 +104,7 @@ export type {
   TransportErrorCode,
   ValidationErrorDetails,
 } from './errors/index.js';
-export type * from './publications.js';
+export * from './publication/index.js';
 export type { CreateServerInput, ServerData, ServerInstance, ServerListOptions, ServerSshOptions } from './servers.js';
 export type {
   ConfigureFeedbackInput,
@@ -190,10 +165,11 @@ export interface NotebookInitProgressMessage {
   command?: string;
 }
 
-export type NotebookInitProgress = NotebookInitProgressMessage & (
-  | { phase: 'downloading'; download: NotebookDownloadProgress }
-  | { phase: 'waiting' | 'preparing' | 'extracting' | 'provisioning' | 'starting'; download?: never }
-);
+export type NotebookInitProgress = NotebookInitProgressMessage &
+  (
+    | { phase: 'downloading'; download: NotebookDownloadProgress }
+    | { phase: 'waiting' | 'preparing' | 'extracting' | 'provisioning' | 'starting'; download?: never }
+  );
 
 export type NotebookInitErrorCode =
   | 'GitHubImportCredentialMissing'
@@ -354,9 +330,7 @@ export interface UpsertNotebookSecretItemInput extends UpsertNotebookSecretInput
   name: string;
 }
 
-export type UpsertNotebookSecretsInput =
-  | UpsertNotebookSecretItemInput[]
-  | Record<string, string | UpsertNotebookSecretInput>;
+export type UpsertNotebookSecretsInput = UpsertNotebookSecretItemInput[] | Record<string, string | UpsertNotebookSecretInput>;
 
 export interface NotebookSecretDeleteOptions {
   environment?: SecretEnvironment;
@@ -396,7 +370,9 @@ export interface NotebookPreviewDataEnabled {
 
 export type NotebookPreviewData = NotebookPreviewDataDisabled | NotebookPreviewDataEnabled;
 
-export type NotebookPreviewDataWithUrl = NotebookPreviewDataDisabled | (NotebookPreviewDataEnabled & { url: string; accessUrl: string });
+export type NotebookPreviewDataWithUrl =
+  | NotebookPreviewDataDisabled
+  | (NotebookPreviewDataEnabled & { url: string; accessUrl: string });
 
 export interface SetNotebookPreviewInput {
   password: string;
@@ -525,7 +501,6 @@ class NotebookApi {
   public open(data: NotebookData): NotebookInstance {
     return new NotebookInstance(data, this.client);
   }
-
 }
 
 export interface PHPSandboxClientOptions {
@@ -585,30 +560,30 @@ class ClientImplementation {
     }
 
     this.headers = {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`,
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     };
   }
 
   public get<T extends unknown>(path: string): Promise<{ data: T }> {
-    return this.makeRequest<T>('GET', path);
+    return this.requireData(this.makeRequest<T>('GET', path));
   }
 
   public post<T extends unknown>(path: string, body?: unknown): Promise<{ data: T }> {
-    return this.makeRequest<T>('POST', path, { body: body === undefined ? undefined : JSON.stringify(body) });
+    return this.requireData(this.makeRequest<T>('POST', path, { body: body === undefined ? undefined : JSON.stringify(body) }));
   }
 
-  public delete<T extends unknown>(path: string): Promise<{ data: T }> {
+  public delete<T>(path: string): Promise<{ data: T | undefined }> {
     return this.makeRequest<T>('DELETE', path);
   }
 
   public put<T extends unknown>(path: string, body?: unknown): Promise<{ data: T }> {
-    return this.makeRequest<T>('PUT', path, { body: body === undefined ? undefined : JSON.stringify(body) });
+    return this.requireData(this.makeRequest<T>('PUT', path, { body: body === undefined ? undefined : JSON.stringify(body) }));
   }
 
   public patch<T extends unknown>(path: string, body?: unknown): Promise<{ data: T }> {
-    return this.makeRequest<T>('PATCH', path, { body: body === undefined ? undefined : JSON.stringify(body) });
+    return this.requireData(this.makeRequest<T>('PATCH', path, { body: body === undefined ? undefined : JSON.stringify(body) }));
   }
 
   public async stream(path: string): Promise<ReadableStream<Uint8Array>> {
@@ -636,7 +611,7 @@ class ClientImplementation {
         method: 'GET',
         headers: {
           ...this.headers,
-          'Accept': 'text/event-stream',
+          Accept: 'text/event-stream',
         },
         ...(signal === undefined ? {} : { signal }),
       })
@@ -653,7 +628,15 @@ class ClientImplementation {
     return response.body;
   }
 
-  private async makeRequest<T>(method: string, path: string, init?: RequestInit): Promise<{ data: T }> {
+  private async requireData<T>(request: Promise<{ data: T | undefined }>): Promise<{ data: T }> {
+    const response = await request;
+    if (response.data === undefined) {
+      throw new TransportError('PHPSandbox API returned no data for a data request.', 'InvalidResponse');
+    }
+    return { ...response, data: response.data };
+  }
+
+  private async makeRequest<T>(method: string, path: string, init?: RequestInit): Promise<{ data: T | undefined }> {
     const response = await this.fetchResponse(
       authenticatedRequest(new URL(path.replace(/^\//, ''), this.baseUrl), {
         method,
@@ -677,7 +660,12 @@ class ClientImplementation {
 
     try {
       const payload: unknown = JSON.parse(body);
-      if (payload === null || typeof payload !== 'object' || Array.isArray(payload) || !Object.prototype.hasOwnProperty.call(payload, 'data')) {
+      if (
+        payload === null ||
+        typeof payload !== 'object' ||
+        Array.isArray(payload) ||
+        !Object.prototype.hasOwnProperty.call(payload, 'data')
+      ) {
         throw new TransportError('PHPSandbox API returned an invalid success response.', 'InvalidResponse', response);
       }
 
@@ -794,7 +782,7 @@ export class NotebookInstance {
   public readonly preview: NotebookPreview;
   public readonly mail: NotebookMail;
   public readonly feedback: Feedback;
-  private readonly publicationOperations: NotebookPublications;
+  public readonly publication: NotebookPublication;
   private readonly socket: Transport | null;
   private readonly restInvoker: RestRuntimeInvoker | null;
   private readonly emitter: EventDispatcher;
@@ -821,23 +809,22 @@ export class NotebookInstance {
       this.restInvoker = new RestRuntimeInvoker(
         data,
         client.options.fetch ?? globalThis.fetch,
-        runtimeUrlProvider === undefined
-          ? undefined
-          : () => runtimeUrlProvider(data.id)
+        runtimeUrlProvider === undefined ? undefined : () => runtimeUrlProvider(data.id)
       );
     } else {
       this.restInvoker = null;
       let initialConnection = true;
-      const connectionUrl = runtimeUrlProvider === undefined
-        ? data.runtimeUrl
-        : async () => {
-          if (initialConnection) {
-            initialConnection = false;
-            return data.runtimeUrl;
-          }
+      const connectionUrl =
+        runtimeUrlProvider === undefined
+          ? data.runtimeUrl
+          : async () => {
+              if (initialConnection) {
+                initialConnection = false;
+                return data.runtimeUrl;
+              }
 
-          return runtimeUrlProvider(data.id);
-        };
+              return runtimeUrlProvider(data.id);
+            };
       this.socket = new Transport(connectionUrl, this.emitter, {
         debug: client.options.debug,
         webSocket: client.options.webSocket,
@@ -846,10 +833,7 @@ export class NotebookInstance {
       this.#initPromise = this.#init();
     }
 
-    this.files = new Filesystem(
-      this,
-      this.socket === null ? null : (handler) => this.onDidConnect(handler)
-    );
+    this.files = new Filesystem(this, this.socket === null ? null : (handler) => this.onDidConnect(handler));
     this.terminals = new Terminals(this);
     this.auth = new Auth(this);
     this.lsp = new Lsp(this);
@@ -865,7 +849,7 @@ export class NotebookInstance {
     this.preview = new NotebookPreview(client, this.data.id);
     this.mail = new NotebookMail(client, this.data.id);
     this.feedback = new Feedback(client, this.data.id);
-    this.publicationOperations = new NotebookPublications(this, client);
+    this.publication = new NotebookPublication(this.data.id, client);
   }
 
   public async ready(): Promise<NotebookInitSuccessResult> {
@@ -910,40 +894,6 @@ export class NotebookInstance {
     return new NotebookInstance(response.data, this.client);
   }
 
-  public publication(): Promise<PublicationInstance | null> {
-    return this.publicationOperations.current();
-  }
-
-  /** Commit and push the publication revision, verifying that the remote received it. */
-  public preparePublicationSource(author: GitSyncAuthor): Promise<string> {
-    return this.publicationOperations.prepareSource(author);
-  }
-
-  /** Resolve a first publication plan and execute its source and publishing lifecycle. */
-  public publishPlanned(input: PlannedPublishInput, options: { author?: GitSyncAuthor } = {}): Promise<PublicationRun> {
-    return this.publicationOperations.publishPlanned(input, options);
-  }
-
-  /** Inspect production requirements without returning secret values or modifying the workspace. */
-  public publicationReadiness(): Promise<PublicationReadiness> {
-    return this.publicationOperations.readiness();
-  }
-
-  /** Resolve requirements against provider capabilities without provisioning resources. */
-  public planPublication<TName extends PublicationProviderName>(
-    input: PublicationPlanInput<TName>
-  ): Promise<PublicationPlan<TName>> {
-    return this.publicationOperations.plan(input);
-  }
-
-  public laravelCloudCatalog(): Promise<LaravelCloudCatalog> {
-    return this.publicationOperations.laravelCloudCatalog();
-  }
-
-  public publish(input?: PublishInput): Promise<PublicationRun> {
-    return this.publicationOperations.publish(input);
-  }
-
   public run(command: string | string[], opts?: SpawnOptions): ShellProcess;
   public run(command: string, args: string[], opts?: SpawnOptions): ShellProcess;
   public run(command: string | string[], argsOrOpts: string[] | SpawnOptions = [], opts?: SpawnOptions): ShellProcess {
@@ -956,11 +906,7 @@ export class NotebookInstance {
 
   public exec(command: string | string[], opts?: SpawnOptions): Promise<ProcessResult>;
   public exec(command: string, args: string[], opts?: SpawnOptions): Promise<ProcessResult>;
-  public exec(
-    command: string | string[],
-    argsOrOpts: string[] | SpawnOptions = [],
-    opts?: SpawnOptions
-  ): Promise<ProcessResult> {
+  public exec(command: string | string[], argsOrOpts: string[] | SpawnOptions = [], opts?: SpawnOptions): Promise<ProcessResult> {
     if (Array.isArray(argsOrOpts)) {
       return this.run(command as string, argsOrOpts, opts).wait();
     }
@@ -970,12 +916,14 @@ export class NotebookInstance {
 
   public async destroy(): Promise<void> {
     await this.client.delete<void>(`/notebook/${this.data.id}`);
-    this.socket?.terminate(new RemoteError('Notebook has been deleted.', {
-      source: 'runtime',
-      status: 503,
-      code: 'NotebookUnavailable',
-      details: { id: this.data.id },
-    }));
+    this.socket?.terminate(
+      new RemoteError('Notebook has been deleted.', {
+        source: 'runtime',
+        status: 503,
+        code: 'NotebookUnavailable',
+        details: { id: this.data.id },
+      })
+    );
   }
 
   public restart(): Promise<void> {
@@ -1113,7 +1061,11 @@ export class NotebookInstance {
   }
 
   public onDidBootError(handler: (error: RemoteError<'NotebookUnavailable'>) => void): Disposable {
-    const disposable = this.realtimeSocket().listen('okra.boot_error', handler);
+    const disposable = this.realtimeSocket().listen('okra.boot_error', (error) => {
+      if (RemoteError.is(error, 'NotebookUnavailable')) {
+        handler(error);
+      }
+    });
     this.disposables.push(disposable);
 
     return disposable;
@@ -1126,12 +1078,14 @@ export class NotebookInstance {
         initializationListener.dispose();
         this.initialized = result;
         if (result.type === 'error') {
-          reject(new RemoteError(result.message, {
-            source: 'runtime',
-            status: 503,
-            code: 'NotebookInitializationFailed',
-            details: result.data as NotebookInitErrorData,
-          }));
+          reject(
+            new RemoteError(result.message, {
+              source: 'runtime',
+              status: 503,
+              code: 'NotebookInitializationFailed',
+              details: result.data as NotebookInitErrorData,
+            })
+          );
           return;
         }
 
@@ -1149,7 +1103,7 @@ export class NotebookInstance {
     // to await initialization immediately. Keep the promise handled so a later boot
     // or init failure does not surface as an unhandled rejection in Node, while
     // preserving rejection for callers that explicitly await `ready()`.
-    void this.#initPromise.catch(() => { });
+    void this.#initPromise.catch(() => {});
 
     return this.#initPromise;
   }
@@ -1208,7 +1162,7 @@ class NotebookSecrets {
   public constructor(
     private readonly client: Client,
     private readonly notebookId: string
-  ) { }
+  ) {}
 
   public async list(options?: NotebookSecretListOptions): Promise<NotebookSecretData[]> {
     const params = new URLSearchParams();
@@ -1240,9 +1194,7 @@ class NotebookSecrets {
     const params = new URLSearchParams();
     if (options?.environment) params.set('environment', options.environment);
     const query = params.toString();
-    await this.client.delete<void>(
-      `/notebook/${this.notebookId}/secrets/${encodeURIComponent(name)}${query ? `?${query}` : ''}`
-    );
+    await this.client.delete<void>(`/notebook/${this.notebookId}/secrets/${encodeURIComponent(name)}${query ? `?${query}` : ''}`);
   }
 }
 
@@ -1250,7 +1202,7 @@ class NotebookPreview {
   public constructor(
     private readonly client: Client,
     private readonly notebookId: string
-  ) { }
+  ) {}
 
   public get(): Promise<NotebookPreviewData>;
   public get(url: string): Promise<NotebookPreviewDataWithUrl>;
@@ -1272,19 +1224,13 @@ class NotebookPreview {
   }
 
   public async createSession(input: CreateNotebookPreviewSessionInput): Promise<NotebookPreviewSessionData> {
-    const response = await this.client.post<NotebookPreviewSessionData>(
-      `/notebook/${this.notebookId}/preview/session`,
-      input
-    );
+    const response = await this.client.post<NotebookPreviewSessionData>(`/notebook/${this.notebookId}/preview/session`, input);
 
     return response.data;
   }
 
   public async createHandoff(input: CreateNotebookPreviewHandoffInput): Promise<NotebookPreviewHandoffData> {
-    const response = await this.client.post<NotebookPreviewHandoffData>(
-      `/notebook/${this.notebookId}/preview/handoff`,
-      input
-    );
+    const response = await this.client.post<NotebookPreviewHandoffData>(`/notebook/${this.notebookId}/preview/handoff`, input);
 
     return response.data;
   }
@@ -1294,7 +1240,7 @@ class NotebookMail {
   public constructor(
     private readonly client: Client,
     private readonly notebookId: string
-  ) { }
+  ) {}
 
   public async status(): Promise<NotebookMailStateData> {
     const response = await this.client.get<NotebookMailStateData>(`/notebook/${this.notebookId}/mail`);
@@ -1313,15 +1259,11 @@ class NotebookMail {
   }
 
   public async list(options: NotebookMailListOptions = {}): Promise<PaginatedApiResponse<NotebookMailData>> {
-    return this.client.get<NotebookMailData[]>(
-      `/notebook/${this.notebookId}/mails${formatQueryString(options)}`
-    );
+    return this.client.get<NotebookMailData[]>(`/notebook/${this.notebookId}/mails${formatQueryString(options)}`);
   }
 
   public async get(hash: string): Promise<NotebookMailData> {
-    const response = await this.client.get<NotebookMailData>(
-      `/notebook/${this.notebookId}/mails/${encodeURIComponent(hash)}`
-    );
+    const response = await this.client.get<NotebookMailData>(`/notebook/${this.notebookId}/mails/${encodeURIComponent(hash)}`);
 
     return response.data;
   }
@@ -1344,5 +1286,3 @@ function formatQueryString(params: object): string {
 
   return query === '' ? '' : `?${query}`;
 }
-
-export { laravelCloudSetupForRepublish } from './publications.js';
