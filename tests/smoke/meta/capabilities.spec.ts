@@ -8,6 +8,7 @@ import {
   notebookApiSurface,
   notebookSurface,
   publicationSurface,
+  publicationFacadeSurfaces,
   runtimeFacadeSurfaces,
   sdkRuntimeExports,
 } from '../support/public-surface.js';
@@ -18,13 +19,11 @@ describe('production smoke capability catalogue', () => {
   });
 
   test('points every executable capability at existing specs', async () => {
-    const executable = Object.values(capabilities).filter((capability) => (
-      capability.status === 'covered' || capability.status === 'known-broken'
-    ));
+    const executable = Object.values(capabilities).filter(
+      (capability) => capability.status === 'covered' || capability.status === 'known-broken'
+    );
 
-    await Promise.all(executable.flatMap((capability) => (
-      capability.specs.map((spec) => access(spec))
-    )));
+    await Promise.all(executable.flatMap((capability) => capability.specs.map((spec) => access(spec))));
   });
 
   test('keeps all tracked runtime exports and public members mapped to capabilities', () => {
@@ -35,6 +34,7 @@ describe('production smoke capability catalogue', () => {
       ...Object.values(notebookApiSurface),
       ...Object.values(notebookSurface),
       ...Object.values(publicationSurface),
+      ...Object.values(publicationFacadeSurfaces).flatMap((surface) => Object.values(surface)),
       ...Object.values(filesystemSurface),
       ...Object.values(runtimeFacadeSurfaces).flatMap((surface) => Object.values(surface)),
     ];
@@ -56,8 +56,8 @@ describe('production smoke capability catalogue', () => {
     const knownBroken = Object.entries(capabilities).filter(([, capability]) => capability.status === 'known-broken');
 
     console.log(`Known production defects: ${knownBroken.map(([id]) => id).join(', ') || 'none'}.`);
-    expect(Object.values(capabilities).every((capability) => (
-      capability.status !== 'known-broken' || capability.reason.length > 0
-    ))).toBe(true);
+    expect(
+      Object.values(capabilities).every((capability) => capability.status !== 'known-broken' || capability.reason.length > 0)
+    ).toBe(true);
   });
 });

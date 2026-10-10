@@ -260,7 +260,7 @@ describe.sequential('production platform API contract', () => {
 
   test('reads mail, publication, and server state without creating external resources', async () => {
     const mail = await operation('read notebook mail state', () => fixture!.sandbox.mail.status());
-    const publication = await operation('read current publication', () => fixture!.sandbox.publication());
+    const publication = await operation('read current publication', () => fixture!.sandbox.publication.current());
     const servers = await operation('list account servers', () => fixture!.client.servers.list());
 
     expect(mail).toEqual(expect.objectContaining({ enabled: expect.any(Boolean) }));

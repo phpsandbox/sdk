@@ -106,7 +106,7 @@ describe('publication resource leases', () => {
     };
     const notebook = {
       destroy: vi.fn().mockRejectedValue(missingRemoteError('Notebook not found.')),
-      publication: vi.fn().mockResolvedValue(null),
+      publication: { current: vi.fn().mockResolvedValue(null) },
     };
     const server = {
       delete: vi.fn().mockRejectedValue(missingRemoteError('Server not found.')),
