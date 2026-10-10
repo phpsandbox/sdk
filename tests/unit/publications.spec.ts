@@ -329,14 +329,16 @@ describe('Publications', () => {
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init);
       requests.push({ method: request.method, url: request.url, body: await request.text() });
-      if (request.url.endsWith('/catalog')) return jsonResponse({ regions: ['eu-central-1'], databases: [] });
+      if (new URL(request.url).pathname.endsWith('/catalog')) {
+        return jsonResponse({ regions: [{ id: 'eu-central-1', label: 'Frankfurt' }], resourceTypes: [], resources: [] });
+      }
       return jsonResponse(publicationData({ id: 'pub/id', provider: { name: 'laravel-cloud', setup } }));
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
     const notebook = openNotebook(client, 'nb_123');
     try {
       await expect(notebook.publication.catalog('laravel-cloud')).resolves.toMatchObject({
-        regions: ['eu-central-1'],
+        regions: [{ id: 'eu-central-1', label: 'Frankfurt' }],
       });
       const original = await notebook.publication.current();
       const updated = await original!.configureLaravelCloud(setup);
@@ -346,7 +348,7 @@ describe('Publications', () => {
       expect(requests).toEqual([
         {
           method: 'GET',
-          url: 'https://api.phpsandbox.io/v1/notebook/nb_123/laravel-cloud/catalog',
+          url: 'https://api.phpsandbox.io/v1/notebook/nb_123/publication/catalog?provider=laravel-cloud',
           body: '',
         },
         {

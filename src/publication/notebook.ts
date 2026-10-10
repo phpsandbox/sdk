@@ -4,13 +4,13 @@ import { PublicationInstance } from './instance.js';
 import { PublicationRun } from './run.js';
 import { PublicationResources } from './resources.js';
 import type {
-  LaravelCloudCatalog,
   PlannedPublishInput,
   PublicationData,
   PublicationPlan,
   PublicationPlanInput,
   PublicationProviderName,
   PublicationReadiness,
+  PublicationResourceCatalog,
 } from './types.js';
 
 export class NotebookPublication {
@@ -49,8 +49,18 @@ export class NotebookPublication {
     return (await this.client.post<PublicationPlan<TName>>(`${this.path}/publication/plan`, input)).data;
   }
 
-  public async catalog(provider: 'laravel-cloud'): Promise<LaravelCloudCatalog> {
-    return (await this.client.get<LaravelCloudCatalog>(`${this.path}/${provider}/catalog`)).data;
+  public catalog(provider: 'laravel-cloud' | 'cloudflare-containers'): Promise<PublicationResourceCatalog>;
+  public catalog(provider: 'ssh-server', serverId: string): Promise<PublicationResourceCatalog>;
+  public async catalog(
+    provider: PublicationProviderName,
+    serverId?: string
+  ): Promise<PublicationResourceCatalog> {
+    const query = new URLSearchParams({ provider });
+    if (serverId !== undefined) {
+      query.set('serverId', serverId);
+    }
+    return (await this.client.get<PublicationResourceCatalog>(`${this.path}/publication/catalog?${query}`))
+      .data;
   }
 
   /** Core validates the plan, prepares source and executes publishing. */

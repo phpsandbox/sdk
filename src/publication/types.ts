@@ -39,6 +39,7 @@ export type PublicationProtectionInput =
     };
 
 export interface CloudflareContainersProviderOptions {
+  resources?: Partial<Record<PublicationResourceKind, PublicationResourceSelection>>;
   accountId: string;
   size?: PublicationSize;
   sleepAfter?: string;
@@ -104,6 +105,47 @@ export interface PublicationCapabilities {
   resourceCleanup?: boolean;
   resources: Record<PublicationResourceKind, PublicationResourceMode[]>;
   access: { managed: PublicationAccessCapabilities; custom: PublicationAccessCapabilities };
+}
+
+export interface PublicationCatalogConfigField {
+  name: string;
+  type: string;
+  required: boolean;
+  label?: string;
+  nullable?: boolean;
+  description?: string;
+  min?: number;
+  max?: number;
+  enum?: Array<string | number>;
+  example?: string | number;
+}
+
+export interface PublicationCatalogResourceType {
+  kind: PublicationResourceKind;
+  type: string;
+  label: string;
+  versions: string[];
+  regions: string[];
+  sizes: { id: string; label: string }[];
+  configFields: PublicationCatalogConfigField[];
+}
+
+export interface PublicationResourceCatalog {
+  provider: PublicationProviderName;
+  scope: string | null;
+  capabilities: PublicationCapabilities;
+  regions: { id: string; label: string; flag?: string }[];
+  resourceTypes: PublicationCatalogResourceType[];
+  resources: {
+    id: string;
+    name: string;
+    kind: PublicationResourceKind;
+    type: string | null;
+    version: string | null;
+    region: string | null;
+    status: string;
+  }[];
+  pricingUrl: string | null;
 }
 
 export interface PublicationPlan<TName extends PublicationProviderName = PublicationProviderName> {
@@ -249,7 +291,11 @@ export interface PublicationManagedResource {
   version: string | null;
   managed: boolean;
   status: 'pending' | 'provisioning' | 'available' | 'unknown' | 'retained' | 'deleting' | 'delete_failed' | 'deleted';
-  observation?: { status: 'present' | 'missing' | 'unreachable' | 'unauthorized' | 'unsupported'; message: string; checkedAt: string } | null;
+  observation?: {
+    status: 'present' | 'missing' | 'unreachable' | 'unauthorized' | 'unsupported';
+    message: string;
+    checkedAt: string;
+  } | null;
   attachments: PublicationResourceAttachment[];
   attachmentCount: number;
   createdAt: string;

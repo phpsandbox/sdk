@@ -21,6 +21,43 @@ async function notebook() {
 }
 
 describe('publication planning', () => {
+  it('requests provider catalogs with an encoded SSH server scope without publishing', async () => {
+    const requests: Request[] = [];
+    const client = PHPSandbox.rest('token', 'https://api.example/v1', {
+      fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        return Response.json({
+          data: request.url.endsWith('/notebook/nb')
+            ? {
+                id: 'nb',
+                status: 'running',
+                runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket',
+              }
+            : { regions: [], resourceTypes: [], resources: [] },
+        });
+      }),
+    });
+    const nb = await client.notebook.get('nb');
+    await nb.publication.catalog('ssh-server', 'server/a');
+    await nb.publication.catalog('laravel-cloud');
+    await nb.publication.catalog('cloudflare-containers');
+    expect(requests.slice(1).map((request) => ({ url: request.url, method: request.method }))).toEqual([
+      {
+        url: 'https://api.example/v1/notebook/nb/publication/catalog?provider=ssh-server&serverId=server%2Fa',
+        method: 'GET',
+      },
+      {
+        url: 'https://api.example/v1/notebook/nb/publication/catalog?provider=laravel-cloud',
+        method: 'GET',
+      },
+      {
+        url: 'https://api.example/v1/notebook/nb/publication/catalog?provider=cloudflare-containers',
+        method: 'GET',
+      },
+    ]);
+    nb.dispose();
+  });
   it('reuses retained resources after unpublish without changing the saved setup', () => {
     const setup: LaravelCloudSetupInput = {
       database: { mode: 'create', type: 'laravel_mysql' },

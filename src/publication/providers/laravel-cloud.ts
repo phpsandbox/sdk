@@ -11,7 +11,7 @@ export type LaravelCloudRegion =
   | 'ap-northeast-1';
 
 export interface LaravelCloudResourceInput {
-  mode: 'none' | 'reuse' | 'create';
+  mode: 'none' | 'reuse' | 'create' | 'external';
   id?: string;
   type?: string;
   version?: string;
