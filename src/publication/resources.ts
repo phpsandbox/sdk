@@ -7,6 +7,10 @@ export class PublicationResources {
     private readonly path = '/publication-resources'
   ) {}
 
+  public async inspect(id: string): Promise<PublicationManagedResource> {
+    return (await this.client.post<PublicationManagedResource>(`/publication-resources/${encodeURIComponent(id)}/inspect`, {})).data;
+  }
+
   public async list(options: PublicationResourceListOptions = {}): Promise<PaginatedApiResponse<PublicationManagedResource>> {
     const query = new URLSearchParams();
     for (const [name, value] of Object.entries(options)) {

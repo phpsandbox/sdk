@@ -22,6 +22,7 @@ export interface PublicationPlacement {
 export interface PublicationProtectionData {
   mode: PublicationProtectionMode;
   enabled: boolean;
+  supported?: boolean;
   token?: string;
   expiresAt?: string;
   url?: string;
@@ -91,13 +92,23 @@ export interface PublicationPlanInput<TName extends PublicationProviderName = Pu
 
 export type PlannedPublishInput = PublishInput & Pick<PublicationPlanInput, 'requirements' | 'resources'>;
 
+export interface PublicationAccessCapabilities {
+  routing: 'platform' | 'provider';
+  protection: boolean;
+  feedback: boolean;
+}
+
+export interface PublicationCapabilities {
+  source: 'git' | 'workspace';
+  sourceProviders?: string[];
+  resourceCleanup?: boolean;
+  resources: Record<PublicationResourceKind, PublicationResourceMode[]>;
+  access: { managed: PublicationAccessCapabilities; custom: PublicationAccessCapabilities };
+}
+
 export interface PublicationPlan<TName extends PublicationProviderName = PublicationProviderName> {
   provider: TName;
-  capabilities: {
-    source: 'git' | 'workspace';
-    sourceProviders?: string[];
-    resources: Record<PublicationResourceKind, PublicationResourceMode[]>;
-  };
+  capabilities: PublicationCapabilities;
   readiness: PublicationReadiness;
   source: {
     type: 'git' | 'workspace';
@@ -170,6 +181,7 @@ export interface PublicationReleaseData {
 }
 
 export interface PublicationData<TProvider extends PublicationProviderName = PublicationProviderName> {
+  capabilities?: PublicationCapabilities;
   id: string;
   slug: string;
   url: string;
@@ -237,6 +249,7 @@ export interface PublicationManagedResource {
   version: string | null;
   managed: boolean;
   status: 'pending' | 'provisioning' | 'available' | 'unknown' | 'retained' | 'deleting' | 'delete_failed' | 'deleted';
+  observation?: { status: 'present' | 'missing' | 'unreachable' | 'unauthorized' | 'unsupported'; message: string; checkedAt: string } | null;
   attachments: PublicationResourceAttachment[];
   attachmentCount: number;
   createdAt: string;

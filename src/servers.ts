@@ -55,6 +55,10 @@ export class ServerInstance {
     private readonly client: Client
   ) {}
 
+  public async installation(): Promise<{ installCommand: string }> {
+    return (await this.client.get<{ installCommand: string }>(`/servers/${encodeURIComponent(this.data.id)}/installation`)).data;
+  }
+
   public refresh(): Promise<ServerInstance> {
     return this.client.servers.get(this.data.id);
   }

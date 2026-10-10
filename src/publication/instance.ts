@@ -124,6 +124,11 @@ export class PublicationInstance<TProvider extends PublicationProviderName = Pub
       .then((stream) => parseNdjsonStream(stream, PublicationLogChunkDataSchema));
   }
 
+  public async logSnapshot(stream: 'build' | 'runtime', limit = 50): Promise<{ stream: 'build' | 'runtime'; content: string; truncated: boolean }> {
+    const query = new URLSearchParams({ stream, limit: String(limit) });
+    return (await this.client.get<{ stream: 'build' | 'runtime'; content: string; truncated: boolean }>(`/publications/${encodeURIComponent(this.data.id)}/logs?${query}`)).data;
+  }
+
   public async logs(): Promise<ReadableStream<PublicationLogChunkData>> {
     return parseNdjsonStream(
       await this.client.stream(`/publications/${encodeURIComponent(this.data.id)}/logs/stream`),
