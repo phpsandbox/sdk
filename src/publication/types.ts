@@ -63,6 +63,7 @@ export interface PublicationRequirement {
 export interface PublicationReadiness {
   repository: string | null;
   branch: string | null;
+  revision?: string | null;
   sourceProvider: string | null;
   requirements: PublicationRequirement[];
   productionVariables: string[];
@@ -102,6 +103,8 @@ export interface PublicationAccessCapabilities {
 export interface PublicationCapabilities {
   source: 'git' | 'workspace';
   sourceProviders?: string[];
+  buildModes?: Array<PublicationComponentBuild['mode']>;
+  componentKinds?: PublicationComponentKind[];
   resourceCleanup?: boolean;
   resources: Record<PublicationResourceKind, PublicationResourceMode[]>;
   access: { managed: PublicationAccessCapabilities; custom: PublicationAccessCapabilities };
@@ -172,6 +175,84 @@ export interface PublicationPlan<TName extends PublicationProviderName = Publica
   ready: boolean;
   input: PublicationPlanInput<TName>;
   cost: { status: 'unknown'; message: string };
+}
+
+export type PublicationComponentKind = 'frontend' | 'http-service' | 'static-site' | 'worker' | 'scheduler';
+export type PublicationDockerfile =
+  | { source: 'generated'; content: string; digest?: string }
+  | { source: 'project'; path: string; digest?: string };
+export type PublicationComponentBuild =
+  | { mode: 'provider-native'; workingDirectory?: string; context?: string; installCommand?: string; buildCommand?: string; deployCommand?: string; outputDirectory?: string }
+  | { mode: 'dockerfile'; workingDirectory?: string; context?: string; dockerfile: PublicationDockerfile; target?: string; arguments?: Record<string, string>; secrets?: string[] }
+  | { mode: 'image'; reference: string };
+export interface PublicationComponentRuntime {
+  kind?: 'http' | 'static' | 'process';
+  command?: string[];
+  port?: number;
+  healthCheck?: { path: string };
+}
+export type PublicationComponentPlacement<TName extends PublicationProviderName = PublicationProviderName> = {
+  [Name in TName]: { provider: Name } & Partial<PublicationProviderInputs[Name]>;
+}[TName];
+export interface PublicationApplicationComponentInput<TName extends PublicationProviderName = PublicationProviderName> {
+  id: string;
+  kind: PublicationComponentKind;
+  root: string;
+  build: PublicationComponentBuild;
+  sourceDependencies?: string[];
+  runtime?: PublicationComponentRuntime;
+  resources?: string[];
+  placement: PublicationComponentPlacement<TName>;
+}
+export interface PublicationApplicationResourceInput {
+  id: string;
+  kind: PublicationResourceKind;
+  mode: PublicationResourceMode;
+  engine?: string;
+  provider?: PublicationProviderName;
+  selection?: Omit<PublicationResourceSelection, 'mode'>;
+}
+export interface PublicationApplicationRouteInput { hostname: string; component: string }
+export interface PublicationPlanAssumption {
+  id: string;
+  statement: string;
+  basis?: string;
+  confidence?: 'low' | 'medium' | 'high';
+  requiresConfirmation?: boolean;
+}
+export interface PublicationApplicationPlanInput {
+  schemaVersion: 1;
+  slug?: string;
+  source?: { repository?: string; revision?: string; root?: string };
+  components: PublicationApplicationComponentInput[];
+  resources?: PublicationApplicationResourceInput[];
+  routes?: PublicationApplicationRouteInput[];
+  assumptions?: PublicationPlanAssumption[];
+}
+export interface PublicationApplicationComponentPlan extends PublicationApplicationComponentInput {
+  sourceDependencies: string[];
+  resources: string[];
+  providerPlan: PublicationPlan;
+}
+export interface PublicationApplicationPlan {
+  schemaVersion: 1;
+  source: { repository: string | null; revision: string | null; root: string };
+  components: PublicationApplicationComponentPlan[];
+  resources: PublicationApplicationResourceInput[];
+  routes: PublicationApplicationRouteInput[];
+  assumptions: PublicationPlanAssumption[];
+  blockers: Array<{ code: string; message: string; component?: string; resource?: string }>;
+  ready: boolean;
+  input: PublicationApplicationPlanInput;
+}
+export interface PublicationApplicationComponentData {
+  componentId: string;
+  publication: PublicationData;
+}
+export interface PublicationApplicationData {
+  id: string;
+  status: 'publishing' | 'healthy' | 'failed' | 'deleted';
+  components: PublicationApplicationComponentData[];
 }
 export interface PublicationDnsInstructions {
   stage: 'ownership' | 'traffic' | 'connected';

@@ -5,6 +5,9 @@ import { PublicationRun } from './run.js';
 import { PublicationResources } from './resources.js';
 import type {
   PlannedPublishInput,
+  PublicationApplicationPlan,
+  PublicationApplicationPlanInput,
+  PublicationApplicationData,
   PublicationData,
   PublicationPlan,
   PublicationPlanInput,
@@ -47,6 +50,47 @@ export class NotebookPublication {
     input: PublicationPlanInput<TName>
   ): Promise<PublicationPlan<TName>> {
     return (await this.client.post<PublicationPlan<TName>>(`${this.path}/publication/plan`, input)).data;
+  }
+
+  /** Review a multi-component publishing plan without creating resources or starting releases. */
+  public async prepareApplication(input: PublicationApplicationPlanInput): Promise<PublicationApplicationPlan> {
+    return (await this.client.post<PublicationApplicationPlan>(`${this.path}/publication/application-plan`, input)).data;
+  }
+
+  /** Publish every component in a reviewed application plan. */
+  public async publishApplication(input: PublicationApplicationPlanInput): Promise<PublicationApplicationData> {
+    const application = (await this.client.post<PublicationApplicationData>(`${this.path}/publication/application`, input)).data;
+    this.startApplicationRuns(application);
+    return application;
+  }
+
+  public async application(applicationId: string): Promise<PublicationApplicationData> {
+    return (await this.client.get<PublicationApplicationData>(`${this.path}/publication/application/${encodeURIComponent(applicationId)}`)).data;
+  }
+
+  /** Retry only failed components while leaving healthy components untouched. */
+  public async retryApplication(applicationId: string): Promise<PublicationApplicationData> {
+    const application = (await this.client.post<PublicationApplicationData>(
+      `${this.path}/publication/application/${encodeURIComponent(applicationId)}/retry`,
+      {}
+    )).data;
+    this.startApplicationRuns(application);
+    return application;
+  }
+
+  public async destroyApplication(applicationId: string, options: { deleteResources?: boolean } = {}): Promise<void> {
+    const query = options.deleteResources ? '?deleteResources=1' : '';
+    await this.client.delete(`${this.path}/publication/application/${encodeURIComponent(applicationId)}${query}`);
+  }
+
+  private startApplicationRuns(application: PublicationApplicationData): void {
+    for (const component of application.components) {
+      if (!['pending', 'queued', 'building', 'deploying'].includes(component.publication.status)) continue;
+      new PublicationRun(
+        new PublicationInstance(component.publication, this.client, this.notebookId),
+        this.client
+      ).start();
+    }
   }
 
   public catalog(provider: 'laravel-cloud' | 'cloudflare-containers'): Promise<PublicationResourceCatalog>;
