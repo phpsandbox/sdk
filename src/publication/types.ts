@@ -69,6 +69,13 @@ export interface PublicationReadiness {
   productionVariables: string[];
   missingVariables: string[];
   warnings: string[];
+  configuration?: PublicationConfigurationField[];
+  defaultBuild?: 'laravel' | 'dockerfile' | 'unresolved' | null;
+}
+export interface PublicationConfigurationField {
+  name: string;
+  requirement: 'required' | 'optional' | 'platform';
+  source: string;
 }
 export type PublicationResourceMode = 'none' | 'create' | 'reuse' | 'external' | 'enable';
 
@@ -231,7 +238,7 @@ export interface PublicationApplicationPlan extends PublicationApplicationPlanIn
   publicationId: string | null;
   destinations: Record<string, string | null>;
   productionVariables: string[];
-  configuration: Array<{name: string; requirement: 'required' | 'optional' | 'platform'; source: string}>;
+  configuration: PublicationConfigurationField[];
   source: {type: 'workspace' | 'git'; repository: string | null; branch: string | null};
   digest: string;
  };

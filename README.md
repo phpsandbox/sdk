@@ -369,3 +369,33 @@ try {
 ## License
 
 MIT
+
+### Publishing without Helfer
+
+Publishing is a platform capability. An API-key client can assign production settings with `notebook.secrets`, discover destinations and owned resources through `notebook.publication.catalog`, and submit its application choices through `prepareApplication`.
+
+```ts
+const notebook = await client.notebook.get('SANDBOX_ID');
+const review = await notebook.publication.prepareApplication({
+  schemaVersion: 1,
+  components: [{
+    id: 'web', kind: 'http-service', root: '.',
+    build: { mode: 'dockerfile', context: '.', dockerfile: { source: 'project', path: 'Dockerfile' } },
+    runtime: { kind: 'http', port: 3333, healthCheck: { path: '/' } },
+    placement: { provider: 'ssh-server', serverId: 'OWNED_SERVER_ID' },
+  }],
+});
+if (!review.review.ready) {
+  console.log(review.review.blockers);
+} else {
+  // Present this exact review and obtain confirmation before executing.
+  const application = await notebook.publication.publishApplication({ reviewId: review.review.id });
+  const current = await notebook.publication.application(application.id);
+  console.log(current.status); // publishing, healthy, failed, or deleted
+}
+notebook.dispose();
+```
+
+Core owns validation, source snapshots, review expiry, identity, resource ownership, execution and recovery. The confirmation reference binds the resolved review; another client does not copy source revisions or recreate provider logic. Repeated confirmation of an executed reference returns its existing application. A corrected review retains the publication and address. `retryApplication(id)` asks the platform to revalidate and retry failed components; inspect current state and logs when an outcome is uncertain. `destroyApplication(id)` unpublishes, and resource deletion requires the explicit `deleteResources` option.
+
+Helfer presents choices, recommendations and explanations, and resumes its own conversation from platform outcomes. Its chat monitor does not own builds or publication state. The CLI exposes the same operations as `application plan`, `application publish`, `application status`, `application retry`, and `application delete`; JSON input is available for multi-component plans.
