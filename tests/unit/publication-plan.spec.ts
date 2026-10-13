@@ -72,13 +72,8 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    const plan = { schemaVersion: 1 as const, slug: 'product', components: [{
-      id: 'api', kind: 'http-service' as const, root: '.',
-      build: { mode: 'dockerfile' as const, dockerfile: { source: 'generated' as const, content: 'FROM scratch' } },
-      runtime: { kind: 'http' as const, port: 8080, healthCheck: { path: '/health' } },
-      placement: { provider: 'cloudflare-containers' as const, accountId: 'a'.repeat(32) },
-    }] };
-    expect((await nb.publication.publishApplication(plan)).id).toBe('app-1');
+    expect((await nb.publication.publishApplication({ reviewId: 'review-1' })).id).toBe('app-1');
+    expect(await requests.find((request) => request.url.endsWith('/publication/application'))!.clone().json()).toEqual({reviewId: 'review-1'});
     await nb.publication.application('app-1');
     await nb.publication.retryApplication('app-1');
     await nb.publication.destroyApplication('app-1', { deleteResources: true });

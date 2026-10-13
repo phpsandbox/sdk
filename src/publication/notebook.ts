@@ -7,6 +7,7 @@ import type {
   PlannedPublishInput,
   PublicationApplicationPlan,
   PublicationApplicationPlanInput,
+  PublicationApplicationPublishInput,
   PublicationApplicationData,
   PublicationData,
   PublicationPlan,
@@ -58,7 +59,7 @@ export class NotebookPublication {
   }
 
   /** Publish every component in a reviewed application plan. */
-  public async publishApplication(input: PublicationApplicationPlanInput): Promise<PublicationApplicationData> {
+  public async publishApplication(input: PublicationApplicationPublishInput): Promise<PublicationApplicationData> {
     const application = (await this.client.post<PublicationApplicationData>(`${this.path}/publication/application`, input)).data;
     this.startApplicationRuns(application);
     return application;
