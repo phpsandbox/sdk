@@ -213,13 +213,6 @@ export interface PublicationApplicationResourceInput {
   selection?: Omit<PublicationResourceSelection, 'mode'>;
 }
 export interface PublicationApplicationRouteInput { hostname: string; component: string }
-export interface PublicationPlanAssumption {
-  id: string;
-  statement: string;
-  basis?: string;
-  confidence?: 'low' | 'medium' | 'high';
-  requiresConfirmation?: boolean;
-}
 export interface PublicationApplicationPlanInput {
   schemaVersion: 1;
   slug?: string;
@@ -227,24 +220,9 @@ export interface PublicationApplicationPlanInput {
   components: PublicationApplicationComponentInput[];
   resources?: PublicationApplicationResourceInput[];
   routes?: PublicationApplicationRouteInput[];
-  assumptions?: PublicationPlanAssumption[];
 }
-export interface PublicationApplicationComponentPlan extends PublicationApplicationComponentInput {
-  sourceDependencies: string[];
-  resources: string[];
-  providerPlan: PublicationPlan;
-}
-export interface PublicationApplicationPlan {
-  schemaVersion: 1;
-  source: { repository: string | null; revision: string | null; root: string };
-  components: PublicationApplicationComponentPlan[];
-  resources: PublicationApplicationResourceInput[];
-  routes: PublicationApplicationRouteInput[];
-  assumptions: PublicationPlanAssumption[];
-  blockers: Array<{ code: string; message: string; component?: string; resource?: string }>;
-  ready: boolean;
-  input: PublicationApplicationPlanInput;
-}
+/** A validated application plan has the exact shape submitted by the caller. */
+export type PublicationApplicationPlan = PublicationApplicationPlanInput;
 export interface PublicationApplicationComponentData {
   componentId: string;
   publication: PublicationData;

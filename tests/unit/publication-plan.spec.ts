@@ -30,12 +30,7 @@ describe('publication planning', () => {
         return Response.json({
           data: request.url.endsWith('/notebook/nb')
             ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
-            : {
-                schemaVersion: 1,
-                source: { repository: 'owner/repo', revision: 'abc123', root: '.' },
-                components: [], resources: [], routes: [], assumptions: [], blockers: [], ready: true,
-                input: { schemaVersion: 1, components: [] },
-              },
+            : { schemaVersion: 1, components: [] },
         });
       }),
     });
