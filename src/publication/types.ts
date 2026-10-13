@@ -221,8 +221,22 @@ export interface PublicationApplicationPlanInput {
   resources?: PublicationApplicationResourceInput[];
   routes?: PublicationApplicationRouteInput[];
 }
-/** A validated application plan has the exact shape submitted by the caller. */
-export type PublicationApplicationPlan = PublicationApplicationPlanInput;
+/** A draft becomes executable only through its server-owned review reference. */
+export interface PublicationApplicationPlan extends PublicationApplicationPlanInput {
+ review: {
+  id: string;
+  ready: boolean;
+  blockers: Array<{code: string; message: string}>;
+  action: 'create' | 'update' | 'retry';
+  publicationId: string | null;
+  destinations: Record<string, string | null>;
+  productionVariables: string[];
+  configuration: Array<{name: string; requirement: 'required' | 'optional' | 'platform'; source: string}>;
+  source: {type: 'workspace' | 'git'; repository: string | null; branch: string | null};
+  digest: string;
+ };
+}
+export interface PublicationApplicationPublishInput { reviewId: string }
 export interface PublicationApplicationComponentData {
   componentId: string;
   publication: PublicationData;
