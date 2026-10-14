@@ -7,10 +7,13 @@ describe('publication HTTP contract', () => {
   let server: Server;
   let origin: string;
   let ready: boolean;
+  let streamReceived: Promise<void>;
+  let receiveStream: () => void;
   let requests: Array<{ method: string; path: string; body: unknown }>;
 
   beforeEach(async () => {
     ready = true;
+    streamReceived = new Promise(resolve => { receiveStream = resolve; });
     requests = [];
     server = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
@@ -69,6 +72,7 @@ describe('publication HTTP contract', () => {
           data = { id: 'project', status: 'publishing', selectedAppIds: ['backend'], apps: [{ appId: 'backend', publication: { id: 'publication', eventStreamUrl: `${origin}/events`, provider: { name: 'laravel-cloud' }, status: 'queued' } }] };
           break;
         case '/events':
+          receiveStream();
           response.setHeader('Content-Type', 'text/event-stream');
           response.end(
             'event: result\ndata: {"success":true,"publicationId":"publication","url":"https://app.example.test","buildId":"build","releaseId":"release","status":"healthy"}\n\n'
@@ -100,7 +104,7 @@ describe('publication HTTP contract', () => {
       const input = { reviewId: 'review-http' };
       const application = await notebook.publication.publish(input);
       expect(application.id).toBe('project');
-      await new Promise(resolve => setTimeout(resolve, 20));
+      await streamReceived;
       expect(requests.map((request) => request.path)).toEqual(['/v1/notebook/nb', '/v1/notebook/nb/publication', '/events']);
       expect(requests[1].body).toEqual(input);
     } finally {
