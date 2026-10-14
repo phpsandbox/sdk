@@ -372,30 +372,38 @@ MIT
 
 ### Publishing without Helfer
 
-Publishing is a platform capability. An API-key client can assign production settings with `notebook.secrets`, discover destinations and owned resources through `notebook.publication.catalog`, and submit its application choices through `prepareApplication`.
+Publishing is a platform capability. An API-key client can assign production settings with `notebook.secrets`, discover destinations and owned resources through `notebook.publication.catalog`, and submit its application choices through `prepare`.
 
 ```ts
 const notebook = await client.notebook.get('SANDBOX_ID');
-const review = await notebook.publication.prepareApplication({
-  schemaVersion: 1,
-  components: [{
-    id: 'web', kind: 'http-service', root: '.',
+const configuration = await notebook.publication.updateConfiguration({
+  expectedRevision: 0,
+  operations: [{ op: 'add-app', app: {
+    name: 'Backend', kind: 'http', root: '.',
     build: { mode: 'dockerfile', context: '.', dockerfile: { source: 'project', path: 'Dockerfile' } },
-    runtime: { kind: 'http', port: 3333, healthCheck: { path: '/' } },
-    placement: { provider: 'ssh-server', serverId: 'OWNED_SERVER_ID' },
-  }],
+    runtime: { mode: 'container', port: 3333, healthCheck: { path: '/' } },
+    destination: { provider: 'ssh-server', serverId: 'OWNED_SERVER_ID' },
+    routing: { mode: 'managed' }, resourceIds: [],
+  } }],
+});
+const review = await notebook.publication.prepare({
+  expectedRevision: configuration.revision, appIds: [configuration.apps[0].id],
 });
 if (!review.review.ready) {
   console.log(review.review.blockers);
 } else {
   // Present this exact review and obtain confirmation before executing.
-  const application = await notebook.publication.publishApplication({ reviewId: review.review.id });
+  const application = await notebook.publication.publish({ reviewId: review.review.id });
   const current = await notebook.publication.application(application.id);
-  console.log(current.status); // publishing, healthy, failed, or deleted
+  console.log(current.status); // publishing, healthy, partial, failed, or deleted
 }
 notebook.dispose();
 ```
 
-Core owns validation, source snapshots, review expiry, identity, resource ownership, execution and recovery. The confirmation reference binds the resolved review; another client does not copy source revisions or recreate provider logic. Repeated confirmation of an executed reference returns its existing application. A corrected review retains the publication and address. `retryApplication(id)` asks the platform to revalidate and retry failed components; inspect current state and logs when an outcome is uncertain. `destroyApplication(id)` unpublishes, and resource deletion requires the explicit `deleteResources` option.
+Core owns validation, source snapshots, review expiry, identity, resource ownership, execution and recovery. The confirmation reference binds the resolved review; another client does not copy source revisions or recreate provider logic. Repeated confirmation of an executed reference returns its existing application. A corrected review retains the publication and address. `retryApplication(id)` asks the platform to revalidate and retry failed apps; inspect current state and logs when an outcome is uncertain. `destroyApplication(id)` unpublishes, and resource deletion requires the explicit `deleteResources` option.
 
 Helfer presents choices, recommendations and explanations, and resumes its own conversation from platform outcomes. Its chat monitor does not own builds or publication state. The CLI exposes the same operations as `application plan`, `application publish`, `application status`, `application retry`, and `application delete`; JSON input is available for multi-component plans.
+
+`configuration()` is the authoritative saved App configuration and deployment inventory. Changes use explicit revision-checked operations; adding an app preserves omitted apps. Review and confirm use `prepare({ expectedRevision, appIds? })` and `publish({ reviewId })`. The provider-input publishing contract and `PublicationInstance.publish()` have been removed. Inspect per-app reviewed source and route state; a workspace digest includes uncommitted changes, while a native Git destination commits and pushes that workspace before building. The commit reported at review is the last synced commit, not a promise of the final prepared build commit.
+
+Shared managed-resource creation currently starts with one app. After creation, update the resource definition to `reuse` with its actual catalog inventory ID, then attach further apps. Simultaneous first-time shared-resource provisioning is not supported. Historical deployments require explicit adoption by their exact publication ID; new publishing always creates a saved App.

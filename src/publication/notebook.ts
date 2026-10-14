@@ -4,7 +4,6 @@ import { PublicationInstance } from './instance.js';
 import { PublicationRun } from './run.js';
 import { PublicationResources } from './resources.js';
 import type {
-  PlannedPublishInput,
   PublicationProjectConfiguration,
   PublicationConfigurationUpdate,
   PublicationApplicationPlan,
@@ -12,8 +11,6 @@ import type {
   PublicationApplicationPublishInput,
   PublicationApplicationData,
   PublicationData,
-  PublicationPlan,
-  PublicationPlanInput,
   PublicationProviderName,
   PublicationReadiness,
   PublicationResourceCatalog,
@@ -48,13 +45,6 @@ export class NotebookPublication {
     return (await this.client.get<PublicationReadiness>(`${this.path}/publication/readiness`)).data;
   }
 
-  /** Review a publishing plan without committing changes or creating resources. */
-  public async prepare<TName extends PublicationProviderName>(
-    input: PublicationPlanInput<TName>
-  ): Promise<PublicationPlan<TName>> {
-    return (await this.client.post<PublicationPlan<TName>>(`${this.path}/publication/plan`, input)).data;
-  }
-
   /** Inspect saved configuration and the actual inventory, including removed and legacy apps. */
   public async configuration(): Promise<PublicationProjectConfiguration> {
     return (await this.client.get<PublicationProjectConfiguration>(`${this.path}/publication/configuration`)).data;
@@ -66,13 +56,13 @@ export class NotebookPublication {
   }
 
   /** Review all or selected configured apps at an exact saved revision. */
-  public async prepareApplication(input: PublicationApplicationPlanInput): Promise<PublicationApplicationPlan> {
-    return (await this.client.post<PublicationApplicationPlan>(`${this.path}/publication/application-plan`, input)).data;
+  public async prepare(input: PublicationApplicationPlanInput): Promise<PublicationApplicationPlan> {
+    return (await this.client.post<PublicationApplicationPlan>(`${this.path}/publication/plan`, input)).data;
   }
 
   /** Publish the exact app selection in a server-owned review. */
-  public async publishApplication(input: PublicationApplicationPublishInput): Promise<PublicationApplicationData> {
-    const application = (await this.client.post<PublicationApplicationData>(`${this.path}/publication/application`, input)).data;
+  public async publish(input: PublicationApplicationPublishInput): Promise<PublicationApplicationData> {
+    const application = (await this.client.post<PublicationApplicationData>(`${this.path}/publication`, input)).data;
     this.startApplicationRuns(application);
     return application;
   }
@@ -121,9 +111,4 @@ export class NotebookPublication {
       .data;
   }
 
-  /** Core validates the plan, prepares source and executes publishing. */
-  public async publish(input?: PlannedPublishInput): Promise<PublicationRun> {
-    const response = await this.client.post<PublicationData>(`${this.path}/publication`, input);
-    return new PublicationRun(new PublicationInstance(response.data, this.client, this.notebookId), this.client).start();
-  }
 }

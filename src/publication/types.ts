@@ -88,19 +88,6 @@ export interface PublicationResourceSelection {
   config?: Record<string, string | number | boolean | null>;
 }
 
-export type PublicationPlanProviderInput<TName extends PublicationProviderName = PublicationProviderName> = {
-  [Name in TName]: { name: Name } & Partial<PublicationProviderInputs[Name]>;
-}[TName];
-
-export interface PublicationPlanInput<TName extends PublicationProviderName = PublicationProviderName> {
-  slug?: string;
-  provider: PublicationPlanProviderInput<TName>;
-  requirements?: PublicationRequirement[];
-  resources?: Partial<Record<PublicationResourceKind, PublicationResourceSelection>>;
-}
-
-export type PlannedPublishInput = PublishInput & Pick<PublicationPlanInput, 'requirements' | 'resources'>;
-
 export interface PublicationAccessCapabilities {
   routing: 'platform' | 'provider';
   protection: boolean;
@@ -156,32 +143,6 @@ export interface PublicationResourceCatalog {
     status: string;
   }[];
   pricingUrl: string | null;
-}
-
-export interface PublicationPlan<TName extends PublicationProviderName = PublicationProviderName> {
-  provider: TName;
-  capabilities: PublicationCapabilities;
-  readiness: PublicationReadiness;
-  source: {
-    type: 'git' | 'workspace';
-    repository: string | null;
-    branch: string | null;
-    commitAndPush: boolean;
-    providerAccess: 'verified' | 'confirmed' | 'confirmation_required' | 'not_required';
-  };
-  resources: Array<{
-    kind: PublicationResourceKind;
-    mode: PublicationResourceMode | 'unconfigured';
-    engine: string | null;
-    required: boolean;
-    recommended: boolean;
-    supported: boolean;
-    selection: PublicationResourceSelection | boolean | null;
-  }>;
-  blockers: Array<{ code: string; message: string }>;
-  ready: boolean;
-  input: PublicationPlanInput<TName>;
-  cost: { status: 'unknown'; message: string };
 }
 
 export type PublicationDockerfile =
@@ -282,6 +243,7 @@ export interface PublicationApplicationPlan {
   apps: Array<PublicationApp & {
     action: 'create' | 'update' | 'retry'; publicationId: string | null;
     routeAttachment: 'pending_after_deployment' | 'not_required';
+    /** Digest fingerprints the reviewed workspace; revision is the last synced Git commit, before native commit-and-push preparation. */
     source: { type: 'workspace' | 'git'; repository: string | null; branch: string | null; revision: string | null; digest: string | null };
   }>;
   resources: PublicationApplicationResourceInput[];
@@ -289,7 +251,7 @@ export interface PublicationApplicationPlan {
     id: string; ready: boolean; blockers: Array<{ code: string; message: string }>;
     destinations: Record<string, string | null>;
     productionVariables: string[]; configuration: PublicationConfigurationField[];
-    source: { type: 'workspace' | 'git'; repository: string | null; branch: string | null; revision: string | null; digest: string | null };
+    source: { type: 'workspace' | 'git' | 'mixed'; repository: string | null; branch: string | null; revision: string | null; digest: string | null };
     digest: string; expiresAt: string;
   };
 }
@@ -338,13 +300,6 @@ export type PublicationProviderInput<TName extends PublicationProviderName = Pub
 export type PublicationProvider<TName extends PublicationProviderName = PublicationProviderName> = {
   [Name in TName]: { name: Name } & PublicationProviderData[Name];
 }[TName];
-
-export interface PublishInput<TName extends PublicationProviderName = PublicationProviderName> {
-  slug: string;
-  provider: PublicationProviderInput<TName>;
-  protection?: PublicationProtectionInput;
-  metadata?: Record<string, unknown>;
-}
 
 export interface PublicationBuildData<TProvider extends PublicationProviderName = PublicationProviderName> {
   id: string;

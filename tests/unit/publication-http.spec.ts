@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { PHPSandbox, RemoteError, type PublicationPlan, type PublicationPlanInput } from '../../src/index.js';
+import { PHPSandbox, RemoteError, type PublicationApplicationPlan } from '../../src/index.js';
 
 describe('publication HTTP contract', () => {
   let server: Server;
@@ -32,48 +32,17 @@ describe('publication HTTP contract', () => {
           };
           break;
         case '/v1/notebook/nb/publication/plan': {
-          const input = z.object({ provider: z.object({ name: z.enum(['ssh-server', 'laravel-cloud']) }) }).parse(body);
-          const plan: PublicationPlan = {
-            provider: input.provider.name,
-            capabilities: {
-              source: input.provider.name === 'ssh-server' ? 'workspace' : 'git',
-              resources: { database: ['reuse'], cache: [], storage: [], worker: [], scheduler: [] },
-            },
-            readiness: {
-              repository: 'owner/app',
-              branch: 'main',
-              sourceProvider: 'github',
-              requirements: [],
-              productionVariables: [],
-              missingVariables: [],
-              warnings: [],
-            },
-            source: {
-              type: 'git',
-              repository: 'owner/app',
-              branch: 'main',
-              commitAndPush: input.provider.name !== 'ssh-server',
-              providerAccess: 'confirmed',
-            },
-            resources: [],
-            blockers: ready ? [] : [{ code: 'source.provider_access', message: 'Connect repository access' }],
-            ready,
-            input: {
-              provider:
-                input.provider.name === 'ssh-server'
-                  ? { name: 'ssh-server', serverId: 'resolved-server' }
-                  : {
-                      name: 'laravel-cloud',
-                      region: 'eu-central-1',
-                      setup: { database: { mode: 'reuse', id: 'retained-database' } },
-                    },
-            },
-            cost: { status: 'unknown', message: 'Provider pricing applies.' },
+          z.strictObject({ expectedRevision: z.number().int(), appIds: z.array(z.string()).optional() }).parse(body);
+          const plan: PublicationApplicationPlan = {
+            schemaVersion: 1, configurationId: 'project', configurationRevision: 2, apps: [], resources: [],
+            review: { id: 'review-http', ready, blockers: ready ? [] : [{ code: 'source.provider_access', message: 'Connect repository access' }], destinations: {}, productionVariables: [], configuration: [],
+              source: { type: 'git', repository: 'owner/app', branch: 'main', revision: null, digest: 'workspace-digest' }, digest: 'review-digest', expiresAt: '2026-10-14T12:00:00Z' },
           };
           data = plan;
           break;
         }
         case '/v1/notebook/nb/publication':
+          if (request.method === 'POST') z.strictObject({ reviewId: z.string() }).parse(body);
           if (request.method === 'GET') {
             response.statusCode = 404;
             response.end(
@@ -97,12 +66,7 @@ describe('publication HTTP contract', () => {
             );
             return;
           }
-          data = {
-            id: 'publication',
-            eventStreamUrl: `${origin}/events`,
-            provider: { name: 'laravel-cloud' },
-            status: 'queued',
-          };
+          data = { id: 'project', status: 'publishing', selectedAppIds: ['backend'], apps: [{ appId: 'backend', publication: { id: 'publication', eventStreamUrl: `${origin}/events`, provider: { name: 'laravel-cloud' }, status: 'queued' } }] };
           break;
         case '/events':
           response.setHeader('Content-Type', 'text/event-stream');
@@ -133,16 +97,10 @@ describe('publication HTTP contract', () => {
   it('submits generic selections to Core and consumes the terminal stream without coordinating Git', async () => {
     const notebook = await PHPSandbox.rest('test-token', `${origin}/v1`).notebook.get('nb');
     try {
-      const input: PublicationPlanInput<'laravel-cloud'> & { slug: string } = {
-        slug: 'app',
-        provider: { name: 'laravel-cloud', region: 'eu-central-1' },
-        resources: { database: { mode: 'reuse', id: 'retained-database' } },
-      };
-      const run = await notebook.publication.publish({
-        ...input,
-        provider: { name: 'laravel-cloud', region: 'eu-central-1' },
-      });
-      await expect(run.result()).resolves.toMatchObject({ success: true, status: 'healthy' });
+      const input = { reviewId: 'review-http' };
+      const application = await notebook.publication.publish(input);
+      expect(application.id).toBe('project');
+      await new Promise(resolve => setTimeout(resolve, 20));
       expect(requests.map((request) => request.path)).toEqual(['/v1/notebook/nb', '/v1/notebook/nb/publication', '/events']);
       expect(requests[1].body).toEqual(input);
     } finally {
@@ -154,8 +112,8 @@ describe('publication HTTP contract', () => {
     const notebook = await PHPSandbox.rest('test-token', `${origin}/v1`).notebook.get('nb');
     try {
       ready = false;
-      const plan = await notebook.publication.prepare({ provider: { name: 'ssh-server' } });
-      expect(plan.ready).toBe(false);
+      const plan = await notebook.publication.prepare({ expectedRevision: 2, appIds: ['backend'] });
+      expect(plan.review.ready).toBe(false);
       expect(requests.map((request) => request.path)).toEqual(['/v1/notebook/nb', '/v1/notebook/nb/publication/plan']);
     } finally {
       notebook.dispose();
@@ -166,10 +124,7 @@ describe('publication HTTP contract', () => {
     ready = false;
     const notebook = await PHPSandbox.rest('test-token', `${origin}/v1`).notebook.get('nb');
     try {
-      const promise = notebook.publication.publish({
-        slug: 'app',
-        provider: { name: 'laravel-cloud', region: 'eu-central-1' },
-      });
+      const promise = notebook.publication.publish({ reviewId: 'blocked-review' });
       await expect(promise).rejects.toBeInstanceOf(RemoteError);
       expect(requests.some((request) => request.path.includes('/git/'))).toBe(false);
       expect(requests.some((request) => request.path.endsWith('/plan'))).toBe(false);
@@ -181,10 +136,10 @@ describe('publication HTTP contract', () => {
   it('publishing again uses the same backend endpoint with no separate preparation calls', async () => {
     const notebook = await PHPSandbox.rest('test-token', `${origin}/v1`).notebook.get('nb');
     try {
-      const run = await notebook.publication.publish();
-      await expect(run.result()).resolves.toMatchObject({ success: true });
+      const application = await notebook.publication.publish({ reviewId: 'fresh-review' });
+      expect(application.selectedAppIds).toEqual(['backend']);
       expect(requests[1]).toMatchObject({ method: 'POST', path: '/v1/notebook/nb/publication' });
-      expect(requests[1].body).toBeUndefined();
+      expect(requests[1].body).toEqual({ reviewId: 'fresh-review' });
     } finally {
       notebook.dispose();
     }

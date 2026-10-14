@@ -3,7 +3,7 @@ import {
   laravelCloudSetupForRepublish,
   PHPSandbox,
   type LaravelCloudSetupInput,
-  type PublicationPlanInput,
+  type PublicationApplicationPlanInput,
 } from '../../src/index.js';
 
 async function notebook() {
@@ -35,8 +35,8 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    await nb.publication.prepareApplication({ expectedRevision: 3, appIds: ['stable-api-id'] });
-    expect(requests[1]?.url).toBe('https://api.example/v1/notebook/nb/publication/application-plan');
+    await nb.publication.prepare({ expectedRevision: 3, appIds: ['stable-api-id'] });
+    expect(requests[1]?.url).toBe('https://api.example/v1/notebook/nb/publication/plan');
     expect(requests[1]?.method).toBe('POST');
     expect(JSON.parse(await requests[1]!.text())).toEqual({ expectedRevision: 3, appIds: ['stable-api-id'] });
     nb.dispose();
@@ -87,13 +87,13 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    expect((await nb.publication.publishApplication({ reviewId: 'review-1' })).id).toBe('app-1');
-    expect(await requests.find((request) => request.url.endsWith('/publication/application'))!.clone().json()).toEqual({reviewId: 'review-1'});
+    expect((await nb.publication.publish({ reviewId: 'review-1' })).id).toBe('app-1');
+    expect(await requests.find((request) => request.url.endsWith('/publication'))!.clone().json()).toEqual({reviewId: 'review-1'});
     await nb.publication.application('app-1');
     await nb.publication.retryApplication('app-1');
     await nb.publication.destroyApplication('app-1', { deleteResources: true });
     expect(requests.slice(1).map((request) => [request.method, request.url])).toEqual([
-      ['POST', 'https://api.example/v1/notebook/nb/publication/application'],
+      ['POST', 'https://api.example/v1/notebook/nb/publication'],
       ['GET', 'https://runtime.example/publish/component-1'],
       ['GET', 'https://api.example/v1/notebook/nb/publication/application/app-1'],
       ['POST', 'https://api.example/v1/notebook/nb/publication/application/app-1/retry'],
@@ -117,10 +117,10 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    await nb.publication.publishApplication({ reviewId: 'frontend-review' });
+    await nb.publication.publish({ reviewId: 'frontend-review' });
     expect(requests.map(request => request.url)).toEqual([
       'https://api.example/v1/notebook/nb',
-      'https://api.example/v1/notebook/nb/publication/application',
+      'https://api.example/v1/notebook/nb/publication',
     ]);
     nb.dispose();
   });
@@ -190,19 +190,15 @@ describe('publication planning', () => {
                 status: 'running',
                 runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket',
               }
-            : { ready: false, blockers: [{ code: 'source.connect' }] },
+            : { review: { ready: false, blockers: [{ code: 'source.connect' }] } },
         });
       }),
     });
     const nb = await client.notebook.get('nb');
     await nb.publication.readiness();
-    const input: PublicationPlanInput = {
-      provider: { name: 'ssh-server' },
-      requirements: [{ kind: 'database', required: true, engine: 'mysql' }],
-      resources: { database: { mode: 'external' } },
-    };
+    const input: PublicationApplicationPlanInput = { expectedRevision: 4, appIds: ['backend'] };
     const plan = await nb.publication.prepare(input);
-    expect(plan.ready).toBe(false);
+    expect(plan.review.ready).toBe(false);
     expect(requests.slice(1)).toEqual([
       { url: 'https://api.example/v1/notebook/nb/publication/readiness', method: 'GET', body: '' },
       {

@@ -115,6 +115,11 @@ export const filesystemSurface = {
 export const publicationFacadeSurfaces = {
   notebook: {
     current: 'publication.read',
+    configuration: 'publication.read',
+    updateConfiguration: 'publication.manage',
+    application: 'publication.read',
+    retryApplication: 'publication.manage',
+    destroyApplication: 'publication.manage',
     readiness: 'publication.read',
     prepare: 'publication.read',
     catalog: 'publication.read',
@@ -127,6 +132,7 @@ export const publicationFacadeSurfaces = {
   } satisfies SurfaceCoverage<sdk.PHPSandbox['publications']>,
   resources: {
     list: 'publication.read',
+    inspect: 'publication.read',
   } satisfies SurfaceCoverage<sdk.PublicationResources>,
   domains: {
     list: 'publication.read',
@@ -149,8 +155,8 @@ export const publicationSurface = {
   disableProtection: 'publication.manage',
   events: 'publication.read',
   logs: 'publication.read',
+  logSnapshot: 'publication.read',
   protection: 'publication.read',
-  publish: 'publication.manage',
   refresh: 'publication.read',
   setProtection: 'publication.manage',
   wait: 'publication.read',
