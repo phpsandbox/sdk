@@ -5,6 +5,8 @@ import { PublicationRun } from './run.js';
 import { PublicationResources } from './resources.js';
 import type {
   PlannedPublishInput,
+  PublicationProjectConfiguration,
+  PublicationConfigurationUpdate,
   PublicationApplicationPlan,
   PublicationApplicationPlanInput,
   PublicationApplicationPublishInput,
@@ -53,12 +55,22 @@ export class NotebookPublication {
     return (await this.client.post<PublicationPlan<TName>>(`${this.path}/publication/plan`, input)).data;
   }
 
-  /** Review a multi-component publishing plan without creating resources or starting releases. */
+  /** Inspect saved configuration and the actual inventory, including removed and legacy apps. */
+  public async configuration(): Promise<PublicationProjectConfiguration> {
+    return (await this.client.get<PublicationProjectConfiguration>(`${this.path}/publication/configuration`)).data;
+  }
+
+  /** Explicit operations preserve omitted apps. Removals never stop deployments or delete resource data. */
+  public async updateConfiguration(input: PublicationConfigurationUpdate): Promise<PublicationProjectConfiguration> {
+    return (await this.client.patch<PublicationProjectConfiguration>(`${this.path}/publication/configuration`, input)).data;
+  }
+
+  /** Review all or selected configured apps at an exact saved revision. */
   public async prepareApplication(input: PublicationApplicationPlanInput): Promise<PublicationApplicationPlan> {
     return (await this.client.post<PublicationApplicationPlan>(`${this.path}/publication/application-plan`, input)).data;
   }
 
-  /** Publish every component in a reviewed application plan. */
+  /** Publish the exact app selection in a server-owned review. */
   public async publishApplication(input: PublicationApplicationPublishInput): Promise<PublicationApplicationData> {
     const application = (await this.client.post<PublicationApplicationData>(`${this.path}/publication/application`, input)).data;
     this.startApplicationRuns(application);
@@ -69,7 +81,7 @@ export class NotebookPublication {
     return (await this.client.get<PublicationApplicationData>(`${this.path}/publication/application/${encodeURIComponent(applicationId)}`)).data;
   }
 
-  /** Retry only failed components while leaving healthy components untouched. */
+  /** Retry failed apps and pending route attachments while preserving running releases. */
   public async retryApplication(applicationId: string): Promise<PublicationApplicationData> {
     const application = (await this.client.post<PublicationApplicationData>(
       `${this.path}/publication/application/${encodeURIComponent(applicationId)}/retry`,
@@ -85,10 +97,11 @@ export class NotebookPublication {
   }
 
   private startApplicationRuns(application: PublicationApplicationData): void {
-    for (const component of application.components) {
-      if (!['pending', 'queued', 'building', 'deploying'].includes(component.publication.status)) continue;
+    for (const app of application.apps) {
+      if (!(application.selectedAppIds ?? []).includes(app.appId)) continue;
+      if (!['pending', 'queued', 'building', 'deploying'].includes(app.publication.status)) continue;
       new PublicationRun(
-        new PublicationInstance(component.publication, this.client, this.notebookId),
+        new PublicationInstance(app.publication, this.client, this.notebookId),
         this.client
       ).start();
     }
