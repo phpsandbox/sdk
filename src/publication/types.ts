@@ -252,6 +252,7 @@ export type PublicationApplicationResourceInput = {
 } & (
   | { mode: 'none' | 'external' | 'enable'; selection?: never }
   | { mode: 'reuse'; selection: { id: string } }
+  | { mode: 'create'; provider: 'laravel-cloud'; kind: 'storage'; selection?: never }
   | { mode: 'create'; selection: { type: string; version?: string; size?: string; config?: Record<string, string | number | boolean | null> } }
 );
 export type PublicationConfigurationOperation =
