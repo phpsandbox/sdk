@@ -437,13 +437,13 @@ return createPublicationStreamResponse(bytes, {
 
 The helper forwards bytes unchanged and supplies SSE headers. It releases resources on completion, upstream failure, or downstream cancellation. Dispose resources yourself if opening the upstream stream fails. Opening this endpoint can start an already queued release; it is not a purely passive log subscription.
 
-In the browser, use the lightweight `publication-stream` entry point without constructing a client or exposing a PHPSandbox token:
+In the browser, use the lightweight `publication-stream` entry point without constructing a client or exposing a PHPSandbox token. For example, if your backend exposes the proxy at `/api/publishing/stream`:
 
 ```ts
 import { readPublicationStream } from '@phpsandbox/sdk/publication-stream';
 
 const controller = new AbortController();
-const response = await fetch('/api/project/PROJECT_ID/publication/logs/stream?publicationId=PUBLICATION_ID&buildId=BUILD_ID', {
+const response = await fetch('/api/publishing/stream', {
   credentials: 'same-origin',
   headers: { Accept: 'text/event-stream' },
   signal: controller.signal,
