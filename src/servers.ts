@@ -6,12 +6,20 @@ export interface ServerData {
   host: string;
   provider: string;
   status: string;
+  access?: 'owner' | 'deployer';
   token?: string;
   sshPublicKey?: string;
   installCommand?: string;
   connectedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+}
+
+export interface ServerMemberData {
+  id: number;
+  name: string;
+  email: string;
+  access: 'deployer';
 }
 
 export interface ServerSshOptions {
@@ -57,6 +65,19 @@ export class ServerInstance {
 
   public async installation(): Promise<{ installCommand: string }> {
     return (await this.client.get<{ installCommand: string }>(`/servers/${encodeURIComponent(this.data.id)}/installation`)).data;
+  }
+
+  public async members(options: ServerListOptions = {}): Promise<PaginatedApiResponse<ServerMemberData>> {
+    const query = options.page === undefined ? '' : `?${new URLSearchParams({ page: String(options.page) }).toString()}`;
+    return this.client.get<ServerMemberData[]>(`/servers/${encodeURIComponent(this.data.id)}/members${query}`);
+  }
+
+  public async share(email: string): Promise<ServerMemberData> {
+    return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, { email })).data;
+  }
+
+  public async revokeAccess(memberId: number): Promise<void> {
+    await this.client.delete<{ deleted: boolean }>(`/servers/${encodeURIComponent(this.data.id)}/members/${encodeURIComponent(String(memberId))}`);
   }
 
   public refresh(): Promise<ServerInstance> {
