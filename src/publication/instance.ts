@@ -70,6 +70,14 @@ export class PublicationInstance<TProvider extends PublicationProviderName = Pub
     return new PublicationRun(this, this.client).start();
   }
 
+  /** Open the original publishing SSE bytes for an authenticated, transparent proxy. */
+  public async stream(signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+    if (!this.data.eventStreamUrl) {
+      throw new PHPSandboxError(`Publication ${this.data.id} has no eventStreamUrl for SSE streaming`);
+    }
+    return this.client.sse(this.data.eventStreamUrl, signal);
+  }
+
   public async destroy(options: PublicationDestroyOptions = {}): Promise<void> {
     const query = options.deleteResources ? '?deleteResources=1' : '';
     await this.client.delete<{ message?: string }>(`/publications/${encodeURIComponent(this.data.id)}${query}`);

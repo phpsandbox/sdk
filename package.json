@@ -12,6 +12,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./stream": {
+      "types": "./dist/publication/stream.d.ts",
+      "import": "./dist/publication/stream.js",
+      "default": "./dist/publication/stream.js"
+    },
     "./beacon": {
       "types": "./dist/beacon/index.d.ts",
       "import": "./dist/beacon/index.js",

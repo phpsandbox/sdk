@@ -85,6 +85,28 @@ function openNotebook(client: PHPSandbox, id: string) {
 }
 
 describe('Publications', () => {
+  it('opens the raw authenticated stream without parsing or queuing another release', async () => {
+    const abort = new AbortController();
+    const wire = ':heartbeat\r\nevent: future\r\ndata: not-json\r\n\r\n';
+    const requests: Request[] = [];
+    const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', {
+      fetch: async (input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        return request.headers.get('Accept') === 'text/event-stream' ? new Response(wire) : jsonResponse(publicationData());
+      },
+    });
+    const publication = await client.publications.get('pub_123');
+    expect(await new Response(await publication.stream(abort.signal)).text()).toBe(wire);
+    const request = requests.at(-1)!;
+    expect(request.method).toBe('GET');
+    expect(request.headers.get('Authorization')).toBe('Bearer token');
+    expect(request.url).toBe(publication.data.eventStreamUrl);
+    abort.abort();
+    expect(request.signal.aborted).toBe(true);
+    expect(requests).toHaveLength(2);
+  });
+
   it('follows a queued release to its result without posting another publication', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
