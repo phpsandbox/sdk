@@ -12,7 +12,7 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./publication-stream": {
+    "./stream": {
       "types": "./dist/publication/stream.d.ts",
       "import": "./dist/publication/stream.js",
       "default": "./dist/publication/stream.js"

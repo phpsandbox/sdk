@@ -424,7 +424,7 @@ Shared managed-resource creation currently starts with one app. After creation, 
 Keep service-account credentials on your server. After authorizing project access and checking the requested publishing attempt, open the original SSE bytes with `publication.stream()`. Return the SDK's standard `Response` directly from your framework:
 
 ```ts
-import { createPublicationStreamResponse } from '@phpsandbox/sdk/publication-stream';
+import { createPublicationStreamResponse } from '@phpsandbox/sdk/stream';
 
 // Server: `publication` belongs to the authenticated user's project.
 // `requestSignal` is aborted when the downstream client disconnects.
@@ -437,10 +437,10 @@ return createPublicationStreamResponse(bytes, {
 
 The helper forwards bytes unchanged and supplies SSE headers. It releases resources on completion, upstream failure, or downstream cancellation. Dispose resources yourself if opening the upstream stream fails. Opening this endpoint can start an already queued release; it is not a purely passive log subscription.
 
-In the browser, use the lightweight `publication-stream` entry point without constructing a client or exposing a PHPSandbox token. For example, if your backend exposes the proxy at `/api/publishing/stream`:
+In the browser, use the lightweight `stream` entry point without constructing a client or exposing a PHPSandbox token. For example, if your backend exposes the proxy at `/api/publishing/stream`:
 
 ```ts
-import { readPublicationStream } from '@phpsandbox/sdk/publication-stream';
+import { readPublicationStream } from '@phpsandbox/sdk/stream';
 
 const controller = new AbortController();
 const response = await fetch('/api/publishing/stream', {
