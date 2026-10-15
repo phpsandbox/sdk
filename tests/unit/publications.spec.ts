@@ -129,7 +129,7 @@ describe('Publications', () => {
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch: fetch });
     const notebook = openNotebook(client, 'nb_123');
     try {
-      const run = await notebook.publication.publish();
+      const run = (await client.publications.get('pub_123')).follow();
       const events = run.events()[Symbol.asyncIterator]();
       const pending = events.next();
       run.dispose();
@@ -143,87 +143,34 @@ describe('Publications', () => {
     }
   });
 
-  it('publishes through the notebook-scoped API and exposes an AsyncIterable run', async () => {
+  it('confirms only a reviewed reference through the notebook-scoped API and starts selected streams', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init);
       requests.push(request);
-      return request.headers.get('Accept') === 'text/event-stream' ? publishStream() : jsonResponse(publicationData(), 201);
+      return request.headers.get('Accept') === 'text/event-stream' ? publishStream() : jsonResponse({ id: 'project', status: 'publishing', selectedAppIds: ['stable-app'], apps: [{ appId: 'stable-app', publication: publicationData({ status: 'queued' }) }] }, 201);
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-
-    const run = await openNotebook(client, 'nb_123').publication.publish({
-      slug: 'my-app',
-      provider: {
-        name: 'cloudflare-containers',
-        accountId: '0123456789abcdef0123456789abcdef',
-        size: 'medium',
-        placement: { regions: ['WEUR'] },
-      },
-      protection: { mode: 'password', password: 'publication-password' },
-    });
-    const events = [];
-    for await (const event of run.events()) {
-      events.push(event);
-    }
-
-    expect(events.map((event) => event.type)).toEqual(['phase', 'log', 'result']);
-    await expect(run.result()).resolves.toMatchObject({
-      publicationId: 'pub_123',
-      status: 'healthy',
-      url: 'https://canonical.example.test',
-    });
+    const application = await openNotebook(client, 'nb_123').publication.publish({ reviewId: 'review-one' });
+    expect(application.id).toBe('project');
     expect(requests[0].url).toBe('https://api.phpsandbox.io/v1/notebook/nb_123/publication');
-    await expect(requests[0].json()).resolves.toMatchObject({
-      provider: {
-        name: 'cloudflare-containers',
-        accountId: '0123456789abcdef0123456789abcdef',
-        size: 'medium',
-      },
-      protection: { mode: 'password' },
-    });
+    await expect(requests[0].json()).resolves.toEqual({ reviewId: 'review-one' });
     expect(requests[1].url).toBe('https://runtime.phpsandbox.io/publish/pub_123');
     expect(requests).toHaveLength(2);
   });
 
-  it('publishes to Laravel Cloud through the sandbox integration', async () => {
+  it('publishes a reviewed Laravel Cloud app through the sandbox integration', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init);
       requests.push(request);
-      if (request.headers.get('Accept') === 'text/event-stream') {
-        return publishStream();
-      }
-      return jsonResponse(
-        publicationData({
-          provider: {
-            name: 'laravel-cloud',
-            region: 'eu-central-1',
-            repository: 'phpsandbox/app',
-            branch: 'main',
-          },
-        }),
-        201
-      );
+      return jsonResponse({ id: 'project', status: 'healthy', selectedAppIds: ['native'], apps: [{ appId: 'native', publication: publicationData({ provider: { name: 'laravel-cloud', region: 'eu-central-1', repository: 'phpsandbox/app', branch: 'main' } }) }] }, 201);
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-
-    const run = await openNotebook(client, 'nb_123').publication.publish({
-      slug: 'my-app',
-      provider: {
-        name: 'laravel-cloud',
-        region: 'eu-central-1',
-      },
-    });
-
-    expect(run.initial.data.provider).toMatchObject({
-      name: 'laravel-cloud',
-      region: 'eu-central-1',
-    });
-    expect(run.initial.data.provider).not.toHaveProperty('integration');
-    await expect(requests[0].json()).resolves.toMatchObject({
-      provider: { name: 'laravel-cloud', region: 'eu-central-1' },
-    });
+    const application = await openNotebook(client, 'nb_123').publication.publish({ reviewId: 'native-review' });
+    expect(application.apps[0].publication.provider).toMatchObject({ name: 'laravel-cloud', region: 'eu-central-1' });
+    expect(application.apps[0].publication.provider).not.toHaveProperty('integration');
+    await expect(requests[0].json()).resolves.toEqual({ reviewId: 'native-review' });
   });
 
   it('gets the current publication or null', async () => {
@@ -239,23 +186,16 @@ describe('Publications', () => {
     await expect(openNotebook(client, 'nb_456').publication.current()).resolves.toBeNull();
   });
 
-  it('republishes an existing notebook publication without setup input', async () => {
+  it('an existing publication instance cannot bypass a fresh saved-app review', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const request = new Request(input, init);
-      requests.push(request);
-      if (request.headers.get('Accept') === 'text/event-stream') {
-        return publishStream();
-      }
-      return jsonResponse(publicationData(), request.method === 'POST' ? 202 : 200);
+      const request = new Request(input, init); requests.push(request);
+      return jsonResponse(publicationData());
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-
     const publication = await openNotebook(client, 'nb_123').publication.current();
-    await (await publication!.publish()).result();
-
-    expect(requests.map((request) => request.method)).toEqual(['GET', 'POST', 'GET']);
-    await expect(requests[1].text()).resolves.toBe('');
+    expect(publication).not.toHaveProperty('publish');
+    expect(requests.map(request => request.method)).toEqual(['GET']);
   });
 
   it('uses destroy for destructive publication removal', async () => {

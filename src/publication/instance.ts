@@ -70,20 +70,6 @@ export class PublicationInstance<TProvider extends PublicationProviderName = Pub
     return new PublicationRun(this, this.client).start();
   }
 
-  public async publish(): Promise<PublicationRun<TProvider>> {
-    if (!this.notebookId) {
-      throw new PHPSandboxError('Publishing requires a notebook-scoped publication instance.');
-    }
-
-    const response = await this.client.post<PublicationData<TProvider>>(
-      `/notebook/${encodeURIComponent(this.notebookId)}/publication`
-    );
-    const run = new PublicationRun(new PublicationInstance(response.data, this.client, this.notebookId), this.client);
-    run.start();
-
-    return run;
-  }
-
   public async destroy(options: PublicationDestroyOptions = {}): Promise<void> {
     const query = options.deleteResources ? '?deleteResources=1' : '';
     await this.client.delete<{ message?: string }>(`/publications/${encodeURIComponent(this.data.id)}${query}`);

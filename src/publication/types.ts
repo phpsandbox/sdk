@@ -88,19 +88,6 @@ export interface PublicationResourceSelection {
   config?: Record<string, string | number | boolean | null>;
 }
 
-export type PublicationPlanProviderInput<TName extends PublicationProviderName = PublicationProviderName> = {
-  [Name in TName]: { name: Name } & Partial<PublicationProviderInputs[Name]>;
-}[TName];
-
-export interface PublicationPlanInput<TName extends PublicationProviderName = PublicationProviderName> {
-  slug?: string;
-  provider: PublicationPlanProviderInput<TName>;
-  requirements?: PublicationRequirement[];
-  resources?: Partial<Record<PublicationResourceKind, PublicationResourceSelection>>;
-}
-
-export type PlannedPublishInput = PublishInput & Pick<PublicationPlanInput, 'requirements' | 'resources'>;
-
 export interface PublicationAccessCapabilities {
   routing: 'platform' | 'provider';
   protection: boolean;
@@ -110,8 +97,8 @@ export interface PublicationAccessCapabilities {
 export interface PublicationCapabilities {
   source: 'git' | 'workspace';
   sourceProviders?: string[];
-  buildModes?: Array<PublicationComponentBuild['mode']>;
-  componentKinds?: PublicationComponentKind[];
+  buildModes?: Array<PublicationAppBuild['mode']>;
+  appKinds?: Array<'http'>;
   resourceCleanup?: boolean;
   resources: Record<PublicationResourceKind, PublicationResourceMode[]>;
   access: { managed: PublicationAccessCapabilities; custom: PublicationAccessCapabilities };
@@ -141,6 +128,7 @@ export interface PublicationCatalogResourceType {
 }
 
 export interface PublicationResourceCatalog {
+  accounts?: { id: string; name: string }[];
   provider: PublicationProviderName;
   scope: string | null;
   capabilities: PublicationCapabilities;
@@ -158,100 +146,142 @@ export interface PublicationResourceCatalog {
   pricingUrl: string | null;
 }
 
-export interface PublicationPlan<TName extends PublicationProviderName = PublicationProviderName> {
-  provider: TName;
-  capabilities: PublicationCapabilities;
-  readiness: PublicationReadiness;
-  source: {
-    type: 'git' | 'workspace';
-    repository: string | null;
-    branch: string | null;
-    commitAndPush: boolean;
-    providerAccess: 'verified' | 'confirmed' | 'confirmation_required' | 'not_required';
-  };
-  resources: Array<{
-    kind: PublicationResourceKind;
-    mode: PublicationResourceMode | 'unconfigured';
-    engine: string | null;
-    required: boolean;
-    recommended: boolean;
-    supported: boolean;
-    selection: PublicationResourceSelection | boolean | null;
-  }>;
-  blockers: Array<{ code: string; message: string }>;
-  ready: boolean;
-  input: PublicationPlanInput<TName>;
-  cost: { status: 'unknown'; message: string };
-}
-
-export type PublicationComponentKind = 'frontend' | 'http-service' | 'static-site' | 'worker' | 'scheduler';
 export type PublicationDockerfile =
-  | { source: 'generated'; content: string; digest?: string }
-  | { source: 'project'; path: string; digest?: string };
-export type PublicationComponentBuild =
-  | { mode: 'provider-native'; workingDirectory?: string; context?: string; installCommand?: string; buildCommand?: string; deployCommand?: string; outputDirectory?: string }
-  | { mode: 'dockerfile'; workingDirectory?: string; context?: string; dockerfile: PublicationDockerfile; target?: string; arguments?: Record<string, string>; secrets?: string[] }
-  | { mode: 'image'; reference: string };
-export interface PublicationComponentRuntime {
-  kind?: 'http' | 'static' | 'process';
-  command?: string[];
-  port?: number;
-  healthCheck?: { path: string };
-}
-export type PublicationComponentPlacement<TName extends PublicationProviderName = PublicationProviderName> = {
-  [Name in TName]: { provider: Name } & Partial<PublicationProviderInputs[Name]>;
-}[TName];
-export interface PublicationApplicationComponentInput<TName extends PublicationProviderName = PublicationProviderName> {
-  id: string;
-  kind: PublicationComponentKind;
+  | { source: 'generated'; content: string }
+  | { source: 'project'; path: string };
+export type PublicationContainerBuild = {
+  mode: 'dockerfile';
+  workingDirectory?: string;
+  context?: string;
+  dockerfile: PublicationDockerfile;
+  target?: string;
+  arguments?: Record<string, string>;
+  secrets?: string[];
+};
+export type PublicationNativeBuild = {
+  mode: 'provider-native';
+  installCommand?: string;
+  buildCommand?: string;
+  deployCommand?: string;
+};
+export type PublicationAppBuild = PublicationContainerBuild | PublicationNativeBuild;
+export type PublicationRoutingDraft =
+  | { mode: 'managed'; routes?: never }
+  | { mode: 'custom'; routes: [{ hostname: string }, ...Array<{ hostname: string }>] };
+export interface PublicationManagedAddress { slug: string; url: string }
+export type PublicationRouting = PublicationRoutingDraft & { managedAddress: PublicationManagedAddress };
+export type PublicationContainerRuntime = {
+  mode: 'container'; port: number; healthCheck: { path: string }; command?: string[];
+};
+export type PublicationNativeRuntime = { mode: 'provider-native'; port?: never; command?: never; healthCheck?: never };
+interface PublicationAppDraftBase {
+  name: string;
+  kind: 'http';
   root: string;
-  build: PublicationComponentBuild;
-  sourceDependencies?: string[];
-  runtime?: PublicationComponentRuntime;
-  resources?: string[];
-  placement: PublicationComponentPlacement<TName>;
-}
-export interface PublicationApplicationResourceInput {
-  id: string;
-  kind: PublicationResourceKind;
-  mode: PublicationResourceMode;
-  engine?: string;
-  provider?: PublicationProviderName;
-  selection?: Omit<PublicationResourceSelection, 'mode'>;
-}
-export interface PublicationApplicationRouteInput { hostname: string; component: string }
-export interface PublicationApplicationPlanInput {
-  schemaVersion: 1;
   slug?: string;
-  source?: { repository?: string; revision?: string; root?: string };
-  components: PublicationApplicationComponentInput[];
-  resources?: PublicationApplicationResourceInput[];
-  routes?: PublicationApplicationRouteInput[];
+  routing: PublicationRoutingDraft;
+  resourceIds?: string[];
 }
-/** A draft becomes executable only through its server-owned review reference. */
-export interface PublicationApplicationPlan extends PublicationApplicationPlanInput {
- review: {
-  id: string;
-  ready: boolean;
-  blockers: Array<{code: string; message: string}>;
-  action: 'create' | 'update' | 'retry';
-  publicationId: string | null;
-  destinations: Record<string, string | null>;
-  productionVariables: string[];
-  configuration: PublicationConfigurationField[];
-  source: {type: 'workspace' | 'git'; repository: string | null; branch: string | null};
-  digest: string;
- };
+/** Only executable HTTP workloads are accepted. Runtime and build follow the destination. */
+export type PublicationAppDraft = PublicationAppDraftBase & (
+  | {
+      destination: { provider: 'ssh-server'; serverId?: string };
+      build: PublicationContainerBuild;
+      runtime: PublicationContainerRuntime;
+    }
+  | {
+      destination: { provider: 'cloudflare-containers' } & Partial<Omit<CloudflareContainersProviderOptions, 'resources'>>;
+      build: Omit<PublicationContainerBuild, 'target' | 'arguments' | 'secrets'>;
+      runtime: PublicationContainerRuntime;
+    }
+  | {
+      destination: {
+        provider: 'laravel-cloud'; region?: LaravelCloudProviderInput['region'];
+        setup?: Pick<NonNullable<LaravelCloudProviderInput['setup']>, 'repositoryAccessConfirmed' | 'workerPlacement' | 'workerSize'>;
+      };
+      build: PublicationNativeBuild;
+      runtime: PublicationNativeRuntime;
+    }
+);
+/** Server-issued ID and managed address remain stable through names and app-count changes. */
+export type PublicationApp = PublicationAppDraft extends infer Draft
+  ? Draft extends PublicationAppDraft
+    ? Omit<Draft, 'slug' | 'routing' | 'resourceIds'> & { id: string; routing: PublicationRouting; resourceIds: string[] }
+    : never
+  : never;
+export type PublicationApplicationResourceInput = {
+  id: string; kind: PublicationResourceKind; engine?: string; provider?: PublicationProviderName;
+} & (
+  | { mode: 'none' | 'external' | 'enable'; selection?: never }
+  | { mode: 'reuse'; selection: { id: string } }
+  | { mode: 'create'; provider: 'laravel-cloud'; kind: 'storage'; selection?: never }
+  | { mode: 'create'; selection: { type: string; version?: string; size?: string; config?: Record<string, string | number | boolean | null> } }
+);
+export type PublicationConfigurationOperation =
+  | { op: 'add-app'; app: PublicationAppDraft; adoptPublicationId?: string }
+  | { op: 'update-app'; appId: string; app: PublicationAppDraft }
+  | { op: 'remove-app'; appId: string }
+  | { op: 'add-resource'; resource: PublicationApplicationResourceInput }
+  | { op: 'update-resource'; resourceId: string; resource: PublicationApplicationResourceInput }
+  | { op: 'remove-resource'; resourceId: string };
+export interface PublicationConfigurationUpdate {
+  expectedRevision: number;
+  operations: PublicationConfigurationOperation[];
 }
-export interface PublicationApplicationPublishInput { reviewId: string }
-export interface PublicationApplicationComponentData {
-  componentId: string;
+export interface PublicationProjectConfiguration {
+  schemaVersion: 1;
+  proposal: { id: string; token: string } | null;
+  id: string | null;
+  revision: number;
+  apps: PublicationApp[];
+  resources: PublicationApplicationResourceInput[];
+  deployments: Array<{ appId: string | null; configured: boolean; publication: PublicationData }>;
+}
+export interface PublicationApplicationPlanInput { expectedRevision: number; appIds?: string[] }
+export interface PublicationApplicationPlan {
+  schemaVersion: 1;
+  configurationId: string;
+  configurationRevision: number;
+  apps: Array<PublicationApp & {
+    action: 'create' | 'update' | 'retry'; publicationId: string | null;
+    routeAttachment: 'pending_after_deployment' | 'not_required';
+    /** Digest fingerprints the reviewed workspace; revision is the last synced Git commit, before native commit-and-push preparation. */
+    source: { type: 'workspace' | 'git'; repository: string | null; branch: string | null; revision: string | null; digest: string | null };
+  }>;
+  resources: PublicationApplicationResourceInput[];
+  review: {
+    id: string; ready: boolean; blockers: Array<{ code: string; message: string }>;
+    destinations: Record<string, string | null>;
+    productionVariables: string[]; configuration: PublicationConfigurationField[];
+    source: { type: 'workspace' | 'git' | 'mixed'; repository: string | null; branch: string | null; revision: string | null; digest: string | null };
+    digest: string; proposal: string;
+  };
+}
+export interface PublicationApplicationPublishInput { reviewId: string; proposal: string; appIds?: string[] }
+export interface PublicationApplicationConfirmationRequired {
+  confirmationRequired: true;
+  plan: PublicationApplicationPlan;
+  changes: string[];
+}
+export type PublicationApplicationPublishResult = PublicationApplicationData | PublicationApplicationConfirmationRequired;
+export interface PublicationApplicationAppData {
+  appId: string;
+  configurationRevision: number | null;
   publication: PublicationData;
+  runtime: { status: 'healthy' | 'unknown' | 'stopped'; state: Record<string, unknown> };
+  routing: {
+    managedAddress: PublicationManagedAddress;
+    status: 'connected' | 'pending' | 'failed';
+    routes: Array<{ hostname: string; status: string; error: string | null }>;
+    errors: Record<string, string>;
+  };
 }
 export interface PublicationApplicationData {
   id: string;
-  status: 'publishing' | 'healthy' | 'failed' | 'deleted';
-  components: PublicationApplicationComponentData[];
+  status: 'publishing' | 'healthy' | 'partial' | 'failed' | 'deleted';
+  apps: PublicationApplicationAppData[];
+  reviewId?: string;
+  selectedAppIds?: string[];
 }
 export interface PublicationDnsInstructions {
   stage: 'ownership' | 'traffic' | 'connected';
@@ -279,15 +309,12 @@ export type PublicationProvider<TName extends PublicationProviderName = Publicat
   [Name in TName]: { name: Name } & PublicationProviderData[Name];
 }[TName];
 
-export interface PublishInput<TName extends PublicationProviderName = PublicationProviderName> {
-  slug: string;
-  provider: PublicationProviderInput<TName>;
-  protection?: PublicationProtectionInput;
-  metadata?: Record<string, unknown>;
-}
-
 export interface PublicationBuildData<TProvider extends PublicationProviderName = PublicationProviderName> {
   id: string;
+  appId?: string | null;
+  configurationRevision?: number | null;
+  reviewId?: string | null;
+  sourceRevision?: string | null;
   status: PublicationBuildStatus;
   strategy: string;
   provider: PublicationProvider<TProvider>;

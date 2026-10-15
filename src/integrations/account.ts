@@ -24,6 +24,7 @@ export interface IntegrationData {
   provider: IntegrationProvider;
   label: string | null;
   createdAt: string | null;
+  unlinkedAt?: string | null;
 }
 
 export type IntegrationReference = string | Integration;

@@ -3,7 +3,7 @@ import {
   laravelCloudSetupForRepublish,
   PHPSandbox,
   type LaravelCloudSetupInput,
-  type PublicationPlanInput,
+  type PublicationApplicationPlanInput,
 } from '../../src/index.js';
 
 async function notebook() {
@@ -30,22 +30,55 @@ describe('publication planning', () => {
         return Response.json({
           data: request.url.endsWith('/notebook/nb')
             ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
-            : { schemaVersion: 1, components: [] },
+            : { schemaVersion: 1, apps: [] },
         });
       }),
     });
     const nb = await client.notebook.get('nb');
-    await nb.publication.prepareApplication({
-      schemaVersion: 1,
-      components: [{
-        id: 'api', kind: 'http-service', root: 'apps/api',
-        build: { mode: 'provider-native', workingDirectory: 'apps/api' },
-        placement: { provider: 'laravel-cloud', region: 'eu-central-1' },
-      }],
-    });
-    expect(requests[1]?.url).toBe('https://api.example/v1/notebook/nb/publication/application-plan');
+    await nb.publication.prepare({ expectedRevision: 3, appIds: ['stable-api-id'] });
+    expect(requests[1]?.url).toBe('https://api.example/v1/notebook/nb/publication/plan');
     expect(requests[1]?.method).toBe('POST');
-    expect(JSON.parse(await requests[1]!.text())).toMatchObject({ schemaVersion: 1 });
+    expect(JSON.parse(await requests[1]!.text())).toEqual({ expectedRevision: 3, appIds: ['stable-api-id'] });
+    nb.dispose();
+  });
+  it('inspects inventory and submits explicit revision-checked edits without publishing', async () => {
+    const requests: Request[] = [];
+    const client = PHPSandbox.rest('token', 'https://api.example/v1', {
+      fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        return Response.json({ data: request.url.endsWith('/notebook/nb')
+          ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
+          : { schemaVersion: 1, id: 'project', revision: 4, apps: [], resources: [], deployments: [{ appId: 'removed', configured: false, publication: { id: 'still-running', status: 'healthy' } }] } });
+      }),
+    });
+    const nb = await client.notebook.get('nb');
+    const config = await nb.publication.configuration();
+    expect(config.deployments[0]?.publication.id).toBe('still-running');
+    await nb.publication.updateConfiguration({ expectedRevision: 4, operations: [{ op: 'remove-app', appId: 'removed' }] });
+    expect(requests.slice(1).map(request => [request.method, request.url])).toEqual([
+      ['GET', 'https://api.example/v1/notebook/nb/publication/configuration'],
+      ['PATCH', 'https://api.example/v1/notebook/nb/publication/configuration'],
+    ]);
+    expect(await requests[2]!.json()).toEqual({ expectedRevision: 4, operations: [{ op: 'remove-app', appId: 'removed' }] });
+    nb.dispose();
+  });
+  it('returns a changed proposal without starting any runtime execution', async () => {
+    const requests: Request[] = [];
+    const pending = { confirmationRequired: true, plan: { review: { id: 'updated', proposal: 'updated-signed' } }, changes: ['Frontend: hosting destination changed.'] };
+    const client = PHPSandbox.rest('token', 'https://api.example/v1', {
+      fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        return Response.json({ data: request.url.endsWith('/notebook/nb')
+          ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
+          : pending });
+      }),
+    });
+    const nb = await client.notebook.get('nb');
+    expect(await nb.publication.publish({ reviewId: 'shown', proposal: 'signed', appIds: ['frontend'] })).toEqual(pending);
+    expect(requests).toHaveLength(2);
+    expect(await requests[1].clone().json()).toEqual({ reviewId: 'shown', proposal: 'signed', appIds: ['frontend'] });
     nb.dispose();
   });
   it('publishes, reads and cleans up every component in an application plan', async () => {
@@ -62,28 +95,50 @@ describe('publication planning', () => {
         return Response.json({ data: request.url.endsWith('/notebook/nb')
           ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
           : request.method === 'POST'
-            ? { id: 'app-1', status: 'publishing', components: [{ componentId: 'api', publication: {
+            ? { id: 'app-1', selectedAppIds: ['api'], status: 'publishing', apps: [{ appId: 'api', publication: {
                 id: 'component-1', slug: 'api', url: 'https://component.example', status: 'queued', strategy: 'custom',
                 provider: { name: 'cloudflare-containers' }, capabilities: {}, protection: { mode: 'none', supported: true, enabled: false },
                 eventStreamUrl: 'https://runtime.example/publish/component-1', originUrl: null, setupState: null, domains: [],
                 currentRelease: null, latestBuild: null, deployedAt: null, createdAt: null, updatedAt: null,
               } }] }
-            : { id: 'app-1', status: 'publishing', components: [] } });
+            : { id: 'app-1', selectedAppIds: ['api'], status: 'publishing', apps: [] } });
       }),
     });
     const nb = await client.notebook.get('nb');
-    expect((await nb.publication.publishApplication({ reviewId: 'review-1' })).id).toBe('app-1');
-    expect(await requests.find((request) => request.url.endsWith('/publication/application'))!.clone().json()).toEqual({reviewId: 'review-1'});
+    expect(await nb.publication.publish({ reviewId: 'review-1', proposal: 'signed-proposal' })).toMatchObject({ id: 'app-1' });
+    expect(await requests.find((request) => request.url.endsWith('/publication'))!.clone().json()).toEqual({reviewId: 'review-1', proposal: 'signed-proposal'});
     await nb.publication.application('app-1');
     await nb.publication.retryApplication('app-1');
     await nb.publication.destroyApplication('app-1', { deleteResources: true });
     expect(requests.slice(1).map((request) => [request.method, request.url])).toEqual([
-      ['POST', 'https://api.example/v1/notebook/nb/publication/application'],
+      ['POST', 'https://api.example/v1/notebook/nb/publication'],
       ['GET', 'https://runtime.example/publish/component-1'],
       ['GET', 'https://api.example/v1/notebook/nb/publication/application/app-1'],
       ['POST', 'https://api.example/v1/notebook/nb/publication/application/app-1/retry'],
       ['GET', 'https://runtime.example/publish/component-1'],
       ['DELETE', 'https://api.example/v1/notebook/nb/publication/application/app-1?deleteResources=1'],
+    ]);
+    nb.dispose();
+  });
+  it('publishing a selected healthy frontend never starts a queued unselected backend', async () => {
+    const requests: Request[] = [];
+    const client = PHPSandbox.rest('token', 'https://api.example/v1', {
+      fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        return Response.json({ data: request.url.endsWith('/notebook/nb')
+          ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
+          : { id: 'project', status: 'publishing', selectedAppIds: ['frontend'], apps: [
+              { appId: 'frontend', publication: { status: 'healthy' } },
+              { appId: 'backend', publication: { id: 'backend-publication', status: 'queued', eventStreamUrl: 'https://runtime.example/publish/backend-publication' } },
+            ] } });
+      }),
+    });
+    const nb = await client.notebook.get('nb');
+    await nb.publication.publish({ reviewId: 'frontend-review', proposal: 'signed-proposal' });
+    expect(requests.map(request => request.url)).toEqual([
+      'https://api.example/v1/notebook/nb',
+      'https://api.example/v1/notebook/nb/publication',
     ]);
     nb.dispose();
   });
@@ -153,19 +208,15 @@ describe('publication planning', () => {
                 status: 'running',
                 runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket',
               }
-            : { ready: false, blockers: [{ code: 'source.connect' }] },
+            : { review: { ready: false, blockers: [{ code: 'source.connect' }] } },
         });
       }),
     });
     const nb = await client.notebook.get('nb');
     await nb.publication.readiness();
-    const input: PublicationPlanInput = {
-      provider: { name: 'ssh-server' },
-      requirements: [{ kind: 'database', required: true, engine: 'mysql' }],
-      resources: { database: { mode: 'external' } },
-    };
+    const input: PublicationApplicationPlanInput = { expectedRevision: 4, appIds: ['backend'] };
     const plan = await nb.publication.prepare(input);
-    expect(plan.ready).toBe(false);
+    expect(plan.review.ready).toBe(false);
     expect(requests.slice(1)).toEqual([
       { url: 'https://api.example/v1/notebook/nb/publication/readiness', method: 'GET', body: '' },
       {
