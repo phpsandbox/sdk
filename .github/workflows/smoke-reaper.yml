@@ -2,7 +2,7 @@ name: Production smoke resource reaper
 
 on:
   schedule:
-    - cron: '47 4 * * *'
+    - cron: "47 4 * * *"
   workflow_dispatch:
     inputs:
       provider:

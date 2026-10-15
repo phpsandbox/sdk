@@ -146,12 +146,9 @@ const [hasMore, matches] = await notebook.files.search(
 ```ts
 const task = await notebook.terminals.create({ command: 'composer', args: ['--version'] });
 
-task.output
-  .getReader()
-  .read()
-  .then(({ value }) => {
-    console.log(value);
-  });
+task.output.getReader().read().then(({ value }) => {
+  console.log(value);
+});
 
 const exitCode = await task.wait();
 console.log(exitCode);
@@ -382,35 +379,24 @@ const notebook = await client.notebook.get('SANDBOX_ID');
 try {
   const configuration = await notebook.publication.updateConfiguration({
     expectedRevision: 0,
-    operations: [
-      {
-        op: 'add-app',
-        app: {
-          name: 'Backend',
-          kind: 'http',
-          root: '.',
-          build: { mode: 'dockerfile', context: '.', dockerfile: { source: 'project', path: 'Dockerfile' } },
-          runtime: { mode: 'container', port: 3333, healthCheck: { path: '/' } },
-          destination: { provider: 'ssh-server', serverId: 'OWNED_SERVER_ID' },
-          routing: { mode: 'managed' },
-          resourceIds: [],
-        },
-      },
-    ],
+    operations: [{ op: 'add-app', app: {
+      name: 'Backend', kind: 'http', root: '.',
+      build: { mode: 'dockerfile', context: '.', dockerfile: { source: 'project', path: 'Dockerfile' } },
+      runtime: { mode: 'container', port: 3333, healthCheck: { path: '/' } },
+      destination: { provider: 'ssh-server', serverId: 'OWNED_SERVER_ID' },
+      routing: { mode: 'managed' }, resourceIds: [],
+    } }],
   });
   const appIds = [configuration.apps[0].id];
   const plan = await notebook.publication.prepare({
-    expectedRevision: configuration.revision,
-    appIds,
+    expectedRevision: configuration.revision, appIds,
   });
   if (!plan.review.ready) {
     console.log(plan.review.blockers);
   } else {
     // Show this proposal to the user and wait for their confirmation.
     const result = await notebook.publication.publish({
-      reviewId: plan.review.id,
-      proposal: plan.review.proposal,
-      appIds,
+      reviewId: plan.review.id, proposal: plan.review.proposal, appIds,
     });
     if ('confirmationRequired' in result) {
       // Show the changes and updated proposal; obtain a new confirmation.
