@@ -151,10 +151,11 @@ describe('Publications', () => {
       return request.headers.get('Accept') === 'text/event-stream' ? publishStream() : jsonResponse({ id: 'project', status: 'publishing', selectedAppIds: ['stable-app'], apps: [{ appId: 'stable-app', publication: publicationData({ status: 'queued' }) }] }, 201);
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-    const application = await openNotebook(client, 'nb_123').publication.publish({ reviewId: 'review-one' });
+    const application = await openNotebook(client, 'nb_123').publication.publish({ reviewId: 'review-one', proposal: 'signed-proposal' });
+      if ('confirmationRequired' in application) throw new Error('Expected an accepted publishing proposal');
     expect(application.id).toBe('project');
     expect(requests[0].url).toBe('https://api.phpsandbox.io/v1/notebook/nb_123/publication');
-    await expect(requests[0].json()).resolves.toEqual({ reviewId: 'review-one' });
+    await expect(requests[0].json()).resolves.toEqual({ reviewId: 'review-one', proposal: 'signed-proposal' });
     expect(requests[1].url).toBe('https://runtime.phpsandbox.io/publish/pub_123');
     expect(requests).toHaveLength(2);
   });
@@ -167,10 +168,11 @@ describe('Publications', () => {
       return jsonResponse({ id: 'project', status: 'healthy', selectedAppIds: ['native'], apps: [{ appId: 'native', publication: publicationData({ provider: { name: 'laravel-cloud', region: 'eu-central-1', repository: 'phpsandbox/app', branch: 'main' } }) }] }, 201);
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-    const application = await openNotebook(client, 'nb_123').publication.publish({ reviewId: 'native-review' });
+    const application = await openNotebook(client, 'nb_123').publication.publish({ reviewId: 'native-review', proposal: 'signed-proposal' });
+      if ('confirmationRequired' in application) throw new Error('Expected an accepted publishing proposal');
     expect(application.apps[0].publication.provider).toMatchObject({ name: 'laravel-cloud', region: 'eu-central-1' });
     expect(application.apps[0].publication.provider).not.toHaveProperty('integration');
-    await expect(requests[0].json()).resolves.toEqual({ reviewId: 'native-review' });
+    await expect(requests[0].json()).resolves.toEqual({ reviewId: 'native-review', proposal: 'signed-proposal' });
   });
 
   it('gets the current publication or null', async () => {

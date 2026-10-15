@@ -39,13 +39,13 @@ describe('publication HTTP contract', () => {
           const plan: PublicationApplicationPlan = {
             schemaVersion: 1, configurationId: 'project', configurationRevision: 2, apps: [], resources: [],
             review: { id: 'review-http', ready, blockers: ready ? [] : [{ code: 'source.provider_access', message: 'Connect repository access' }], destinations: {}, productionVariables: [], configuration: [],
-              source: { type: 'git', repository: 'owner/app', branch: 'main', revision: null, digest: 'workspace-digest' }, digest: 'review-digest', expiresAt: '2026-10-14T12:00:00Z' },
+              source: { type: 'git', repository: 'owner/app', branch: 'main', revision: null, digest: 'workspace-digest' }, digest: 'review-digest', proposal: 'signed-proposal' },
           };
           data = plan;
           break;
         }
         case '/v1/notebook/nb/publication':
-          if (request.method === 'POST') z.strictObject({ reviewId: z.string() }).parse(body);
+          if (request.method === 'POST') z.strictObject({ reviewId: z.string(), proposal: z.string(), appIds: z.array(z.string()).optional() }).parse(body);
           if (request.method === 'GET') {
             response.statusCode = 404;
             response.end(
@@ -98,11 +98,12 @@ describe('publication HTTP contract', () => {
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   });
 
-  it('submits generic selections to Core and consumes the terminal stream without coordinating Git', async () => {
+  it('submits generic selections to the publishing API and consumes the terminal stream without coordinating Git', async () => {
     const notebook = await PHPSandbox.rest('test-token', `${origin}/v1`).notebook.get('nb');
     try {
-      const input = { reviewId: 'review-http' };
+      const input = { reviewId: 'review-http', proposal: 'signed-proposal' };
       const application = await notebook.publication.publish(input);
+      if ('confirmationRequired' in application) throw new Error('Expected an accepted publishing proposal');
       expect(application.id).toBe('project');
       await streamReceived;
       expect(requests.map((request) => request.path)).toEqual(['/v1/notebook/nb', '/v1/notebook/nb/publication', '/events']);
@@ -128,7 +129,7 @@ describe('publication HTTP contract', () => {
     ready = false;
     const notebook = await PHPSandbox.rest('test-token', `${origin}/v1`).notebook.get('nb');
     try {
-      const promise = notebook.publication.publish({ reviewId: 'blocked-review' });
+      const promise = notebook.publication.publish({ reviewId: 'blocked-review', proposal: 'signed-proposal' });
       await expect(promise).rejects.toBeInstanceOf(RemoteError);
       expect(requests.some((request) => request.path.includes('/git/'))).toBe(false);
       expect(requests.some((request) => request.path.endsWith('/plan'))).toBe(false);
@@ -140,10 +141,11 @@ describe('publication HTTP contract', () => {
   it('publishing again uses the same backend endpoint with no separate preparation calls', async () => {
     const notebook = await PHPSandbox.rest('test-token', `${origin}/v1`).notebook.get('nb');
     try {
-      const application = await notebook.publication.publish({ reviewId: 'fresh-review' });
+      const application = await notebook.publication.publish({ reviewId: 'fresh-review', proposal: 'signed-proposal' });
+      if ('confirmationRequired' in application) throw new Error('Expected an accepted publishing proposal');
       expect(application.selectedAppIds).toEqual(['backend']);
       expect(requests[1]).toMatchObject({ method: 'POST', path: '/v1/notebook/nb/publication' });
-      expect(requests[1].body).toEqual({ reviewId: 'fresh-review' });
+      expect(requests[1].body).toEqual({ reviewId: 'fresh-review', proposal: 'signed-proposal' });
     } finally {
       notebook.dispose();
     }
