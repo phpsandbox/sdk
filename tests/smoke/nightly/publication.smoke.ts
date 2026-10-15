@@ -191,7 +191,8 @@ describe.sequential('production publication provider contract', () => {
       const configuration = await operation('save smoke app', () => activeFixture.sandbox.publication.updateConfiguration({ expectedRevision: 0, operations: [{ op: 'add-app', app }] }));
       const review = await operation('review saved smoke app', () => activeFixture.sandbox.publication.prepare({ expectedRevision: configuration.revision }));
       if (!review.review.ready) throw new Error(review.review.blockers.map(blocker => blocker.message).join('; '));
-      const application = await operation('confirm publication review', () => activeFixture.sandbox.publication.publish({ reviewId: review.review.id }));
+      const application = await operation('confirm publication review', () => activeFixture.sandbox.publication.publish({ reviewId: review.review.id, proposal: review.review.proposal }));
+      if ('confirmationRequired' in application) throw new Error('Publishing setup changed; a new confirmation is required.');
       const appPublication = requireStageValue(application.apps[0], 'confirmed app publication');
       publication = await operation('read smoke app publication', () => activeFixture.client.publications.get(appPublication.publication.id));
       publicationCleanup = activeFixture.resources.register(`publication ${publication.data.id}`, () => publication!.destroy());
