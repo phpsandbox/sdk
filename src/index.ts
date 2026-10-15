@@ -1,3 +1,5 @@
+import { PlatformApi } from './platform.js';
+export type { PlatformAccess } from './platform.js';
 import { NotebookPublication } from './publication/index.js';
 import { Filesystem, FilesystemActions, FilesystemEvents } from './filesystem.js';
 import Terminals, { TerminalEvents, TerminalActions, type SpawnOptions } from './terminal.js';
@@ -534,6 +536,7 @@ class ClientImplementation {
   public readonly notebook: NotebookApi;
   public readonly publications: PublicationApi;
   public readonly servers: ServerApi;
+  public readonly platform: PlatformApi;
   public readonly integrations: IntegrationApi;
   public readonly options: PHPSandboxClientOptions;
   private readonly runtimeTransportValue: RuntimeTransport;
@@ -557,6 +560,7 @@ class ClientImplementation {
     this.publications = new PublicationApi(this);
     this.notebook = new NotebookApi(this);
     this.servers = new ServerApi(this);
+    this.platform = new PlatformApi(this);
     this.integrations = new IntegrationApi(this);
     this.options = { ...options };
     this.runtimeTransportValue = runtimeTransport;
@@ -730,12 +734,14 @@ export class PHPSandbox {
   public readonly notebook: NotebookApi;
   public readonly publications: PublicationApi;
   public readonly servers: ServerApi;
+  public readonly platform: PlatformApi;
   public readonly integrations: IntegrationApi;
 
   private constructor(private readonly client: ClientImplementation) {
     this.notebook = client.notebook;
     this.publications = client.publications;
     this.servers = client.servers;
+    this.platform = client.platform;
     this.integrations = client.integrations;
   }
 
