@@ -63,6 +63,24 @@ describe('publication planning', () => {
     expect(await requests[2]!.json()).toEqual({ expectedRevision: 4, operations: [{ op: 'remove-app', appId: 'removed' }] });
     nb.dispose();
   });
+  it('returns a changed proposal without starting any runtime execution', async () => {
+    const requests: Request[] = [];
+    const pending = { confirmationRequired: true, plan: { review: { id: 'updated', proposal: 'updated-signed' } }, changes: ['Frontend: hosting destination changed.'] };
+    const client = PHPSandbox.rest('token', 'https://api.example/v1', {
+      fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        return Response.json({ data: request.url.endsWith('/notebook/nb')
+          ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
+          : pending });
+      }),
+    });
+    const nb = await client.notebook.get('nb');
+    expect(await nb.publication.publish({ reviewId: 'shown', proposal: 'signed', appIds: ['frontend'] })).toEqual(pending);
+    expect(requests).toHaveLength(2);
+    expect(await requests[1].clone().json()).toEqual({ reviewId: 'shown', proposal: 'signed', appIds: ['frontend'] });
+    nb.dispose();
+  });
   it('publishes, reads and cleans up every component in an application plan', async () => {
     const requests: Request[] = [];
     const client = PHPSandbox.rest('token', 'https://api.example/v1', {
@@ -87,8 +105,8 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    expect((await nb.publication.publish({ reviewId: 'review-1' })).id).toBe('app-1');
-    expect(await requests.find((request) => request.url.endsWith('/publication'))!.clone().json()).toEqual({reviewId: 'review-1'});
+    expect(await nb.publication.publish({ reviewId: 'review-1', proposal: 'signed-proposal' })).toMatchObject({ id: 'app-1' });
+    expect(await requests.find((request) => request.url.endsWith('/publication'))!.clone().json()).toEqual({reviewId: 'review-1', proposal: 'signed-proposal'});
     await nb.publication.application('app-1');
     await nb.publication.retryApplication('app-1');
     await nb.publication.destroyApplication('app-1', { deleteResources: true });
@@ -117,7 +135,7 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    await nb.publication.publish({ reviewId: 'frontend-review' });
+    await nb.publication.publish({ reviewId: 'frontend-review', proposal: 'signed-proposal' });
     expect(requests.map(request => request.url)).toEqual([
       'https://api.example/v1/notebook/nb',
       'https://api.example/v1/notebook/nb/publication',

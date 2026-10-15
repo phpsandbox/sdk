@@ -128,6 +128,7 @@ export interface PublicationCatalogResourceType {
 }
 
 export interface PublicationResourceCatalog {
+  accounts?: { id: string; name: string }[];
   provider: PublicationProviderName;
   scope: string | null;
   capabilities: PublicationCapabilities;
@@ -229,6 +230,7 @@ export interface PublicationConfigurationUpdate {
 }
 export interface PublicationProjectConfiguration {
   schemaVersion: 1;
+  proposal: { id: string; token: string } | null;
   id: string | null;
   revision: number;
   apps: PublicationApp[];
@@ -252,10 +254,16 @@ export interface PublicationApplicationPlan {
     destinations: Record<string, string | null>;
     productionVariables: string[]; configuration: PublicationConfigurationField[];
     source: { type: 'workspace' | 'git' | 'mixed'; repository: string | null; branch: string | null; revision: string | null; digest: string | null };
-    digest: string; expiresAt: string;
+    digest: string; proposal: string;
   };
 }
-export interface PublicationApplicationPublishInput { reviewId: string }
+export interface PublicationApplicationPublishInput { reviewId: string; proposal: string; appIds?: string[] }
+export interface PublicationApplicationConfirmationRequired {
+  confirmationRequired: true;
+  plan: PublicationApplicationPlan;
+  changes: string[];
+}
+export type PublicationApplicationPublishResult = PublicationApplicationData | PublicationApplicationConfirmationRequired;
 export interface PublicationApplicationAppData {
   appId: string;
   configurationRevision: number | null;

@@ -9,6 +9,7 @@ import type {
   PublicationApplicationPlan,
   PublicationApplicationPlanInput,
   PublicationApplicationPublishInput,
+  PublicationApplicationPublishResult,
   PublicationApplicationData,
   PublicationData,
   PublicationProviderName,
@@ -61,9 +62,9 @@ export class NotebookPublication {
   }
 
   /** Publish the exact app selection in a server-owned review. */
-  public async publish(input: PublicationApplicationPublishInput): Promise<PublicationApplicationData> {
-    const application = (await this.client.post<PublicationApplicationData>(`${this.path}/publication`, input)).data;
-    this.startApplicationRuns(application);
+  public async publish(input: PublicationApplicationPublishInput): Promise<PublicationApplicationPublishResult> {
+    const application = (await this.client.post<PublicationApplicationPublishResult>(`${this.path}/publication`, input)).data;
+    if (!('confirmationRequired' in application)) this.startApplicationRuns(application);
     return application;
   }
 
