@@ -1,6 +1,6 @@
 import type { PublicationProviderName } from './types.js';
 import type { Client } from '../index.js';
-import { PublishStreamSseEventNameSchema, PublishStreamSseEventSchema } from '../schemas/publications.js';
+import { readPublicationStream } from './stream.js';
 import type { PublishStreamEvent, PublishStreamResult } from '../schemas/publications.js';
 
 import { PHPSandboxError } from '../errors/index.js';
@@ -108,7 +108,7 @@ export class PublicationRun<TProvider extends PublicationProviderName = Publicat
     try {
       const stream = await this.client.sse(eventStreamUrl, this.streamAbort.signal);
 
-      for await (const event of readPublishStreamEvents(stream)) {
+      for await (const event of readPublicationStream(stream)) {
         this.publish(event);
 
         if (event.type === 'result') {
@@ -227,94 +227,5 @@ class AsyncPublishEventQueue implements AsyncIterable<PublishStreamEvent> {
     return new Promise((resolve, reject) => {
       this.pending.push({ resolve, reject });
     });
-  }
-}
-
-async function* readPublishStreamEvents(stream: ReadableStream<Uint8Array>): AsyncIterable<PublishStreamEvent> {
-  const reader = parseSSEStream(stream).getReader();
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        return;
-      }
-
-      const event = parsePublishStreamEvent(value);
-      if (event) {
-        yield event;
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-function parsePublishStreamEvent(event: SSEEvent): PublishStreamEvent | null {
-  if (!PublishStreamSseEventNameSchema.safeParse(event.event).success) {
-    return null;
-  }
-
-  return PublishStreamSseEventSchema.parse(event);
-}
-
-interface SSEEvent {
-  event: string;
-  data: unknown;
-}
-
-function parseSSEStream(input: ReadableStream<Uint8Array>): ReadableStream<SSEEvent> {
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  return input.pipeThrough(
-    new TransformStream<Uint8Array, SSEEvent>({
-      transform(chunk, controller) {
-        buffer += decoder.decode(chunk, { stream: true });
-        const blocks = buffer.split('\n\n');
-        buffer = blocks.pop() ?? '';
-
-        for (const block of blocks) {
-          const event = parseSSEBlock(block);
-          if (event) {
-            controller.enqueue(event);
-          }
-        }
-      },
-      flush(controller) {
-        buffer += decoder.decode();
-        if (buffer.trim() !== '') {
-          const event = parseSSEBlock(buffer);
-          if (event) {
-            controller.enqueue(event);
-          }
-        }
-      },
-    })
-  );
-}
-
-function parseSSEBlock(block: string): SSEEvent | null {
-  let eventType = 'message';
-  let data = '';
-
-  for (const line of block.split('\n')) {
-    if (line.startsWith('event: ')) {
-      eventType = line.slice(7).trim();
-    } else if (line.startsWith('data: ')) {
-      data += line.slice(6);
-    } else if (line.startsWith('data:')) {
-      data += line.slice(5);
-    }
-  }
-
-  if (data === '') {
-    return null;
-  }
-
-  try {
-    return { event: eventType, data: JSON.parse(data) };
-  } catch {
-    return { event: eventType, data };
   }
 }

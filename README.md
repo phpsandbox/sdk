@@ -418,3 +418,41 @@ Preparing or viewing a proposal does not start publishing. Confirmation sends th
 Inspect deployment, runtime and routing outcomes for each selected app; a partial outcome is not full success. `retryApplication(id)` retries failed apps after revalidation. If an outcome is uncertain, inspect status and logs before retrying. `destroyApplication(id)` unpublishes; deleting managed resources additionally requires `deleteResources: true`.
 
 Shared managed-resource creation currently starts with one app. After creation, update the resource definition to `reuse` with the catalog resource ID before attaching other apps. Simultaneous first-time shared-resource creation is unsupported.
+
+#### Browser publishing streams through your backend
+
+Keep service-account credentials on your server. After authorizing project access and checking the requested publishing attempt, open the original SSE bytes with `publication.stream()`. Return the SDK's standard `Response` directly from your framework:
+
+```ts
+import { createPublicationStreamResponse } from '@phpsandbox/sdk/publication-stream';
+
+// Server: `publication` belongs to the authenticated user's project.
+// `requestSignal` is aborted when the downstream client disconnects.
+const bytes = await publication.stream(requestSignal);
+return createPublicationStreamResponse(bytes, {
+  signal: requestSignal,
+  onDispose: () => notebook.dispose(),
+});
+```
+
+The helper forwards bytes unchanged and supplies SSE headers. It releases resources on completion, upstream failure, or downstream cancellation. Dispose resources yourself if opening the upstream stream fails. Opening this endpoint can start an already queued release; it is not a purely passive log subscription.
+
+In the browser, use the lightweight `publication-stream` entry point without constructing a client or exposing a PHPSandbox token:
+
+```ts
+import { readPublicationStream } from '@phpsandbox/sdk/publication-stream';
+
+const controller = new AbortController();
+const response = await fetch('/api/project/PROJECT_ID/publication/logs/stream?publicationId=PUBLICATION_ID&buildId=BUILD_ID', {
+  credentials: 'same-origin',
+  headers: { Accept: 'text/event-stream' },
+  signal: controller.signal,
+});
+for await (const event of readPublicationStream(response)) {
+  // Discriminated union: phase, log, or result. `done` is normalized to result.
+  if (event.type === 'log') console.log(event.content);
+}
+// Call controller.abort() when the view closes, including while waiting for an event.
+```
+
+`readPublicationStream` also accepts a `ReadableStream<Uint8Array>`. By default, it rejects EOF without a final result (including empty streams). Use `{ requireResult: false }` only when deliberately consuming a stream fragment. It validates recognized event payloads, throws for server error events, and ignores unknown event names and heartbeat comments. Ending iteration early cancels the stream; aborting the fetch interrupts a pending read. Disconnecting observation does not cancel the server-side deployment. `PublicationRun.events()` uses this same parser.
