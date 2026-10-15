@@ -105,7 +105,7 @@ export type {
   ValidationErrorDetails,
 } from './errors/index.js';
 export * from './publication/index.js';
-export type { CreateServerInput, ServerData, ServerInstance, ServerListOptions, ServerSshOptions } from './servers.js';
+export type { CreateServerInput, ServerData, ServerInstance, ServerListOptions, ServerMemberData, ServerSshOptions } from './servers.js';
 export type {
   ConfigureFeedbackInput,
   FeedbackData,

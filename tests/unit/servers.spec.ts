@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PHPSandbox } from '../../src/index.js';
+import { PHPSandbox, type ServerData } from '../../src/index.js';
 
-function serverData(status: string = 'pending') {
+function serverData(status: string = 'pending'): ServerData {
   return {
     id: 'server-1',
     name: 'Production server',
     host: 'server.example.test',
     provider: 'ssh',
     status,
+    access: 'owner',
     connectedAt: null,
     createdAt: null,
     updatedAt: null,
@@ -15,26 +16,35 @@ function serverData(status: string = 'pending') {
 }
 
 describe('Server API', () => {
+  it('shares one server with an existing account, lists members, and revokes access', async () => {
+    const member = { id: 42, name: 'Teammate', email: 'teammate@example.test', access: 'deployer' };
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ data: serverData() }))
+      .mockResolvedValueOnce(Response.json({ data: member }))
+      .mockResolvedValueOnce(Response.json({ data: [member], meta: { currentPage: 2 } }))
+      .mockResolvedValueOnce(Response.json({ data: { deleted: true } }));
+    const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
+    const server = await client.servers.get('server-1');
+    expect(server.data.access).toBe('owner');
+    await expect(server.share(member.email)).resolves.toEqual(member);
+    await expect(server.members({ page: 2 })).resolves.toMatchObject({ data: [member], meta: { currentPage: 2 } });
+    await server.revokeAccess(member.id);
+    const requests = fetch.mock.calls.map(([request]) => request as Request);
+    expect(requests.map(request => [request.method, request.url])).toEqual([
+      ['GET', 'https://api.phpsandbox.io/v1/servers/server-1'],
+      ['POST', 'https://api.phpsandbox.io/v1/servers/server-1/members'],
+      ['GET', 'https://api.phpsandbox.io/v1/servers/server-1/members?page=2'],
+      ['DELETE', 'https://api.phpsandbox.io/v1/servers/server-1/members/42'],
+    ]);
+    expect(await requests[1].json()).toEqual({ email: member.email });
+  });
+
   it('lists, creates, refreshes, and deletes server resources', async () => {
-    const requests: Array<{ method: string; url: string; body: unknown }> = [];
-    const fetch = vi.fn(async (request: Request) => {
-      const text = await request.text();
-      requests.push({
-        method: request.method,
-        url: request.url,
-        body: text === '' ? undefined : JSON.parse(text),
-      });
-
-      if (request.method === 'DELETE') {
-        return Response.json({ data: { deleted: true } });
-      }
-
-      if (request.method === 'GET' && request.url.includes('?page=')) {
-        return Response.json({ data: [serverData()], meta: { currentPage: 2 } });
-      }
-
-      return Response.json({ data: serverData() });
-    }) as unknown as typeof globalThis.fetch;
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ data: [serverData()], meta: { currentPage: 2 } }))
+      .mockResolvedValueOnce(Response.json({ data: serverData() }))
+      .mockResolvedValueOnce(Response.json({ data: serverData() }))
+      .mockResolvedValueOnce(Response.json({ data: { deleted: true } }));
     const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
 
     await expect(client.servers.list({ page: 2 })).resolves.toMatchObject({
@@ -49,39 +59,27 @@ describe('Server API', () => {
     await created.refresh();
     await created.delete();
 
-    expect(requests).toEqual([
-      {
-        method: 'GET',
-        url: 'https://api.phpsandbox.io/v1/servers?page=2',
-        body: undefined,
-      },
-      {
-        method: 'POST',
-        url: 'https://api.phpsandbox.io/v1/servers',
-        body: {
-          name: 'Production server',
-          host: 'server.example.test',
-          ssh: { user: 'deploy', port: 2222 },
-        },
-      },
-      {
-        method: 'GET',
-        url: 'https://api.phpsandbox.io/v1/servers/server-1',
-        body: undefined,
-      },
-      {
-        method: 'DELETE',
-        url: 'https://api.phpsandbox.io/v1/servers/server-1',
-        body: undefined,
-      },
+    const requests = fetch.mock.calls.map(([request]) => request as Request);
+    expect(requests.map(request => [request.method, request.url])).toEqual([
+      ['GET', 'https://api.phpsandbox.io/v1/servers?page=2'],
+      ['POST', 'https://api.phpsandbox.io/v1/servers'],
+      ['GET', 'https://api.phpsandbox.io/v1/servers/server-1'],
+      ['DELETE', 'https://api.phpsandbox.io/v1/servers/server-1'],
     ]);
+    expect(await requests[1].json()).toEqual({
+      name: 'Production server',
+      host: 'server.example.test',
+      ssh: { user: 'deploy', port: 2222 },
+    });
   });
 
   it('waits for a pending server and rejects a failed server', async () => {
-    const statuses = ['pending', 'connected', 'failed'];
-    const fetch = vi.fn(async () => Response.json({ data: serverData(statuses.shift()) }));
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ data: serverData('pending') }))
+      .mockResolvedValueOnce(Response.json({ data: serverData('connected') }))
+      .mockResolvedValueOnce(Response.json({ data: serverData('failed') }));
     const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', {
-      fetch: fetch as unknown as typeof globalThis.fetch,
+      fetch,
     });
     const pending = await client.servers.get('server-1');
 
