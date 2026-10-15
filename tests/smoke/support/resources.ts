@@ -1,10 +1,4 @@
-import {
-  PHPSandbox,
-  type CreateNotebookInput,
-  type NotebookData,
-  type NotebookInstance,
-  type PHPSandboxClientOptions,
-} from '@phpsandbox/sdk';
+import { PHPSandbox, type CreateNotebookInput, type NotebookInstance, type PHPSandboxClientOptions } from '@phpsandbox/sdk';
 import { readSmokeEnvironment, type SmokeEnvironment } from './environment.js';
 
 const OPERATION_TIMEOUT_MS = 120_000;
@@ -31,7 +25,7 @@ interface ProcessResult {
 export class SmokeOperationError extends Error {
   public constructor(
     public readonly operation: string,
-    detail: string,
+    detail: string
   ) {
     super(`${operation}: ${detail}`);
     this.name = 'SmokeOperationError';
@@ -83,7 +77,7 @@ export interface SandboxFixture {
 
 export async function createSandboxFixture(
   label: string,
-  input: Pick<CreateNotebookInput, 'import'> = {},
+  input: Pick<CreateNotebookInput, 'import'> = {}
 ): Promise<SandboxFixture> {
   const environment = readSmokeEnvironment();
   const resources = new ResourceRegistry();
@@ -91,11 +85,13 @@ export async function createSandboxFixture(
   let sandbox: NotebookInstance | undefined;
 
   try {
-    const createdSandbox = await operation('create sandbox', () => client.notebook.create('standard', {
-      ...input,
-      title: smokeTitle(environment, label),
-      visibility: 'private',
-    }));
+    const createdSandbox = await operation('create sandbox', () =>
+      client.notebook.create('standard', {
+        ...input,
+        title: smokeTitle(environment, label),
+        visibility: 'private',
+      })
+    );
     sandbox = createdSandbox;
     trackNotebook(resources, createdSandbox);
 
@@ -125,8 +121,8 @@ async function initializeRuntime(client: PHPSandbox, initialSandbox: NotebookIns
       }
 
       console.warn(
-        `Runtime placement is temporarily exhausted; retrying in ${PLACEMENT_RETRY_DELAY_MS / 1_000}s `
-        + `(${attempt + 1}/${PLACEMENT_ATTEMPTS}).`,
+        `Runtime placement is temporarily exhausted; retrying in ${PLACEMENT_RETRY_DELAY_MS / 1_000}s ` +
+          `(${attempt + 1}/${PLACEMENT_ATTEMPTS}).`
       );
       await delay(PLACEMENT_RETRY_DELAY_MS);
       sandbox.dispose();
@@ -157,7 +153,7 @@ export function trackNotebook(resources: ResourceRegistry, notebook: NotebookIns
 
 export async function createTrackedNotebook(
   fixture: SandboxFixture,
-  create: () => Promise<NotebookInstance>,
+  create: () => Promise<NotebookInstance>
 ): Promise<{ cleanup: CleanupHandle; notebook: NotebookInstance }> {
   const notebook = await operation('create tracked sandbox', create);
   const cleanup = trackNotebook(fixture.resources, notebook);
@@ -165,11 +161,7 @@ export async function createTrackedNotebook(
   return { cleanup, notebook };
 }
 
-export async function operation<T>(
-  name: string,
-  callback: () => Promise<T>,
-  timeoutMs = OPERATION_TIMEOUT_MS,
-): Promise<T> {
+export async function operation<T>(name: string, callback: () => Promise<T>, timeoutMs = OPERATION_TIMEOUT_MS): Promise<T> {
   let timeout: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<never>((_resolve, reject) => {
     timeout = setTimeout(() => {
@@ -187,11 +179,13 @@ export async function operation<T>(
 }
 
 export function processResultDiagnostics(result: ProcessResult): string {
-  return sanitize([
-    `Process exited with code ${result.exitCode}.`,
-    `stdout:\n${result.stdout || '[empty]'}`,
-    `stderr:\n${result.stderr || '[empty]'}`,
-  ].join('\n'));
+  return sanitize(
+    [
+      `Process exited with code ${result.exitCode}.`,
+      `stdout:\n${result.stdout || '[empty]'}`,
+      `stderr:\n${result.stderr || '[empty]'}`,
+    ].join('\n')
+  );
 }
 
 function createClient(environment: SmokeEnvironment): PHPSandbox {

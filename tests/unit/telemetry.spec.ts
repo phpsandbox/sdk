@@ -97,9 +97,7 @@ describe('Runtime observability', () => {
     const ports = new Ports(notebook as any, telemetry);
 
     await expect(metrics.current()).resolves.toMatchObject({ cpu: { usage: 5 } });
-    await expect(ports.list()).resolves.toEqual([
-      { port: 8000, subdomain: 'app', url: 'https://app.test', default: true },
-    ]);
+    await expect(ports.list()).resolves.toEqual([{ port: 8000, subdomain: 'app', url: 'https://app.test', default: true }]);
     await expect(ports.resolve(4848)).resolves.toEqual({
       port: 4848,
       subdomain: 'app-4848',

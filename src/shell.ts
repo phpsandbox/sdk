@@ -149,17 +149,16 @@ export class ShellProcess {
       stderr.fail(error);
     };
     const { abortSignal, ...payloadOpts } = opts;
-    this.completion = this.okra.invoke(
-      'shell.exec',
-      { command, opts: { ...payloadOpts, id: this.id } },
-      { abortSignal }
-    ).then((result) => {
-      finish();
-      return result;
-    }).catch((error) => {
-      fail(error);
-      throw error;
-    });
+    this.completion = this.okra
+      .invoke('shell.exec', { command, opts: { ...payloadOpts, id: this.id } }, { abortSignal })
+      .then((result) => {
+        finish();
+        return result;
+      })
+      .catch((error) => {
+        fail(error);
+        throw error;
+      });
   }
 
   public wait(): Promise<ProcessResult> {

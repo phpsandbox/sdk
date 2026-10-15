@@ -30,7 +30,7 @@ export interface IntegrationData {
 export type IntegrationReference = string | Integration;
 
 export class IntegrationApi {
-  public constructor(private readonly client: Client) { }
+  public constructor(private readonly client: Client) {}
 
   public async link(input: LinkIntegrationInput): Promise<Integration> {
     const response = await this.client.post<IntegrationData>('/integrations', input);
@@ -49,14 +49,13 @@ export class IntegrationApi {
 
     return new Integration(response.data, this.client);
   }
-
 }
 
 export class Integration {
   public constructor(
     public readonly data: IntegrationData,
     private readonly client: Client
-  ) { }
+  ) {}
 
   public get id(): string {
     return this.data.id;
@@ -71,10 +70,7 @@ export class Integration {
   }
 
   public async update(input: UpdateIntegrationInput): Promise<Integration> {
-    const response = await this.client.patch<IntegrationData>(
-      `/integrations/${encodeURIComponent(this.id)}`,
-      input
-    );
+    const response = await this.client.patch<IntegrationData>(`/integrations/${encodeURIComponent(this.id)}`, input);
 
     return new Integration(response.data, this.client);
   }

@@ -20,6 +20,5 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
-      - run: npm run build
-      - run: npm pack --dry-run
+      - name: Check lint, formatting, types, tests, build, and package
+        run: npm run check

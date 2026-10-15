@@ -489,11 +489,7 @@ export class Filesystem {
     });
   }
 
-  public async write(
-    path: string,
-    contents: FileContents,
-    options: Partial<FileWriteOptions> = {}
-  ): Promise<void> {
+  public async write(path: string, contents: FileContents, options: Partial<FileWriteOptions> = {}): Promise<void> {
     const resolvedOptions: FileWriteOptions = {
       overwrite: true,
       create: true,
@@ -504,11 +500,13 @@ export class Filesystem {
     const source = typeof contents === 'string' ? new TextEncoder().encode(contents) : contents;
     if (this.okra.runtimeTransport === 'rest') {
       const bytes = source instanceof Uint8Array ? source : await collectBytes(source);
-      await this.okra.invoke('fs.writeFile', {
-        path,
-        contents: bytes,
-        options: resolvedOptions,
-      }).catch((error) => this.handleError(error));
+      await this.okra
+        .invoke('fs.writeFile', {
+          path,
+          contents: bytes,
+          options: resolvedOptions,
+        })
+        .catch((error) => this.handleError(error));
       return;
     }
 
@@ -598,19 +596,22 @@ export class Filesystem {
           controller.enqueue(event.data);
         });
 
-        void this.okra.invoke('fs.readStream', { id, path }).then(() => {
-          if (!closed) {
-            closed = true;
-            disposable?.dispose();
-            controller.close();
-          }
-        }).catch((error) => {
-          if (!closed) {
-            closed = true;
-            disposable?.dispose();
-            controller.error(error);
-          }
-        });
+        void this.okra
+          .invoke('fs.readStream', { id, path })
+          .then(() => {
+            if (!closed) {
+              closed = true;
+              disposable?.dispose();
+              controller.close();
+            }
+          })
+          .catch((error) => {
+            if (!closed) {
+              closed = true;
+              disposable?.dispose();
+              controller.error(error);
+            }
+          });
       },
       cancel: async () => {
         if (!closed) {
@@ -674,27 +675,30 @@ export class Filesystem {
         }
 
         started = true;
-        void this.okra.invoke('fs.follow', { id, path, lines: options.lines ?? 10 }).then(() => {
-          if (!closed) {
-            closed = true;
-            disposable?.dispose();
-            if (abort && options.signal) {
-              options.signal.removeEventListener('abort', abort);
+        void this.okra
+          .invoke('fs.follow', { id, path, lines: options.lines ?? 10 })
+          .then(() => {
+            if (!closed) {
+              closed = true;
+              disposable?.dispose();
+              if (abort && options.signal) {
+                options.signal.removeEventListener('abort', abort);
+              }
+              abort = null;
+              controller.close();
             }
-            abort = null;
-            controller.close();
-          }
-        }).catch((error) => {
-          if (!closed) {
-            closed = true;
-            disposable?.dispose();
-            if (abort && options.signal) {
-              options.signal.removeEventListener('abort', abort);
+          })
+          .catch((error) => {
+            if (!closed) {
+              closed = true;
+              disposable?.dispose();
+              if (abort && options.signal) {
+                options.signal.removeEventListener('abort', abort);
+              }
+              abort = null;
+              controller.error(error);
             }
-            abort = null;
-            controller.error(error);
-          }
-        });
+          });
       },
       cancel: stop,
     });
@@ -794,7 +798,8 @@ export class Filesystem {
   }
 
   public tail(path: string, options: FileTailOptions = {}): Promise<string> {
-    return this.okra.invoke('fs.tail', { path, lines: options.lines ?? 10 })
+    return this.okra
+      .invoke('fs.tail', { path, lines: options.lines ?? 10 })
       .then(({ content }) => content)
       .catch((e) => this.handleError(e));
   }
@@ -803,46 +808,43 @@ export class Filesystem {
     return this.okra.invoke('fs.stat', { path }).catch((e) => this.handleError(e));
   }
 
-  public move(
-    from: string,
-    to: string,
-    options: Partial<FileOverwriteOptions> = {}
-  ): Promise<void> {
-    return this.okra.invoke('fs.rename', {
-      from,
-      to,
-      options: { overwrite: false, ...options },
-    }).catch((e) => this.handleError(e));
+  public move(from: string, to: string, options: Partial<FileOverwriteOptions> = {}): Promise<void> {
+    return this.okra
+      .invoke('fs.rename', {
+        from,
+        to,
+        options: { overwrite: false, ...options },
+      })
+      .catch((e) => this.handleError(e));
   }
 
-  public remove(
-    path: string,
-    options: Partial<FileDeleteOptions> = {}
-  ): Promise<void> {
-    return this.okra.invoke('fs.delete', {
-      path,
-      options: { recursive: false, useTrash: false, atomic: false, ...options },
-    }).catch((e) => this.handleError(e));
+  public remove(path: string, options: Partial<FileDeleteOptions> = {}): Promise<void> {
+    return this.okra
+      .invoke('fs.delete', {
+        path,
+        options: { recursive: false, useTrash: false, atomic: false, ...options },
+      })
+      .catch((e) => this.handleError(e));
   }
 
-  public copy(
-    source: string,
-    destination: string,
-    options: Partial<FileOverwriteOptions> = {}
-  ): Promise<void> {
-    return this.okra.invoke('fs.copy', {
-      source,
-      destination,
-      options: { overwrite: false, ...options },
-    }).catch((e) => this.handleError(e));
+  public copy(source: string, destination: string, options: Partial<FileOverwriteOptions> = {}): Promise<void> {
+    return this.okra
+      .invoke('fs.copy', {
+        source,
+        destination,
+        options: { overwrite: false, ...options },
+      })
+      .catch((e) => this.handleError(e));
   }
 
   public list(path: string, options: FileListOptions = {}): Promise<[string, FileType, number | null][]> {
-    return this.okra.invoke('fs.readDirectory', {
-      path,
-      include: options.include ?? [],
-      exclude: options.exclude ?? [],
-    }).catch((e) => this.handleError(e));
+    return this.okra
+      .invoke('fs.readDirectory', {
+        path,
+        include: options.include ?? [],
+        exclude: options.exclude ?? [],
+      })
+      .catch((e) => this.handleError(e));
   }
 
   public createDirectory(path: string): Promise<void> {

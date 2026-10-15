@@ -21,7 +21,9 @@ describe('notebook restore progress', () => {
 
     expect(received).toEqual([payload]);
     const progress = received[0];
-    if (progress.phase !== 'downloading') throw new Error('Expected download phase');
+    if (progress.phase !== 'downloading') {
+      throw new Error('Expected download phase');
+    }
     expect(progress.download.downloadedBytes / progress.download.totalBytes).toBe(0.4);
   });
 
@@ -37,7 +39,8 @@ describe('notebook restore progress', () => {
   });
 
   it.each(['waiting', 'preparing', 'extracting', 'provisioning', 'starting'] as const)(
-    'represents %s without download fields', (phase) => {
+    'represents %s without download fields',
+    (phase) => {
       const payload: NotebookInitProgress = { message: phase, phase };
       const decoded = decode(encode(payload));
       expect(decoded).toEqual(payload);

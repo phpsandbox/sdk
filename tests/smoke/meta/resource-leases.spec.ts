@@ -12,14 +12,16 @@ const registryEnvironment = { branch: 'smoke-resource-registry', repository: 'ph
 
 describe('publication resource leases', () => {
   test('uses immutable workflow identity and an exact optional server name', () => {
-    expect(createPublicationResourceLease({
-      notebookId: 'notebook-1',
-      provider: 'ssh-server',
-      runAttempt: '2',
-      runId: '12345',
-      serverName: 'SDK Rook 12345.2',
-      timestamp: new Date('2026-08-30T00:00:00.000Z'),
-    })).toEqual({
+    expect(
+      createPublicationResourceLease({
+        notebookId: 'notebook-1',
+        provider: 'ssh-server',
+        runAttempt: '2',
+        runId: '12345',
+        serverName: 'SDK Rook 12345.2',
+        timestamp: new Date('2026-08-30T00:00:00.000Z'),
+      })
+    ).toEqual({
       createdAt: '2026-08-30T00:00:00.000Z',
       notebookId: 'notebook-1',
       provider: 'ssh-server',
@@ -44,9 +46,14 @@ describe('publication resource leases', () => {
   });
 
   test('writes leases to the provider directory without disclosing the token', async () => {
-    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      content: { sha: 'lease-sha' },
-    }), { status: 201 }));
+    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: { sha: 'lease-sha' },
+        }),
+        { status: 201 }
+      )
+    );
     const registry = new PublicationResourceLeaseRegistry(github, registryEnvironment, fetchImplementation);
     const lease = createPublicationResourceLease({
       notebookId: 'notebook-1',
@@ -63,9 +70,10 @@ describe('publication resource leases', () => {
       sha: 'lease-sha',
     });
     const [url, request] = fetchImplementation.mock.calls[0]!;
-    expect(String(url)).toContain('/cloudflare-containers/12345.1.json');
+    const createRequest = new Request(url, request);
+    expect(createRequest.url).toContain('/cloudflare-containers/12345.1.json');
     expect(request?.headers).toMatchObject({ Authorization: 'Bearer secret-token' });
-    expect(JSON.parse(String(request?.body))).toMatchObject({ branch: 'smoke-resource-registry' });
+    expect(await createRequest.json()).toMatchObject({ branch: 'smoke-resource-registry' });
     expect(request?.body).not.toContain('secret-token');
   });
 
@@ -82,13 +90,14 @@ describe('publication resource leases', () => {
         get: vi.fn().mockRejectedValue(missingRemoteError('Notebook not found.')),
       },
     } as unknown as PHPSandbox;
+    const deleteLease = vi.fn().mockResolvedValue(undefined);
     const registry = {
-      delete: vi.fn().mockResolvedValue(undefined),
+      delete: deleteLease,
     } as unknown as PublicationResourceLeaseRegistry;
 
     await expect(reapPublicationResources(client, registry, stored)).resolves.toBeUndefined();
 
-    expect(registry.delete).toHaveBeenCalledWith(stored);
+    expect(deleteLease).toHaveBeenCalledWith(stored);
   });
 
   test('continues cleanup when resources disappear during reaping', async () => {
@@ -115,15 +124,16 @@ describe('publication resource leases', () => {
       notebook: { get: vi.fn().mockResolvedValue(notebook) },
       servers: { get: vi.fn().mockResolvedValue(server) },
     } as unknown as PHPSandbox;
+    const deleteLease = vi.fn().mockResolvedValue(undefined);
     const registry = {
-      delete: vi.fn().mockResolvedValue(undefined),
+      delete: deleteLease,
     } as unknown as PublicationResourceLeaseRegistry;
 
     await expect(reapPublicationResources(client, registry, stored)).resolves.toBeUndefined();
 
     expect(server.delete).toHaveBeenCalledOnce();
     expect(notebook.destroy).toHaveBeenCalledOnce();
-    expect(registry.delete).toHaveBeenCalledWith(stored);
+    expect(deleteLease).toHaveBeenCalledWith(stored);
   });
 });
 

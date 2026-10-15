@@ -150,32 +150,32 @@ export type GitMergeInput = GitRemoteSource & {
 
 export type GitMergeResult =
   | {
-    status: 'merged';
-    message: string;
-    baseRef: string;
-    targetRef: string;
-    ref: string;
-  }
+      status: 'merged';
+      message: string;
+      baseRef: string;
+      targetRef: string;
+      ref: string;
+    }
   | {
-    status: 'conflict';
-    message: string;
-    baseRef: string;
-    targetRef: string;
-    conflicts: GitConflict[];
-  }
+      status: 'conflict';
+      message: string;
+      baseRef: string;
+      targetRef: string;
+      conflicts: GitConflict[];
+    }
   | {
-    status: 'base_changed';
-    message: string;
-    expectedBaseRef: string;
-    baseRef: string;
-  }
+      status: 'base_changed';
+      message: string;
+      expectedBaseRef: string;
+      baseRef: string;
+    }
   | {
-    status: 'up_to_date' | 'unrelated';
-    message: string;
-    baseRef: string;
-    targetRef: string;
-    ref?: string;
-  };
+      status: 'up_to_date' | 'unrelated';
+      message: string;
+      baseRef: string;
+      targetRef: string;
+      ref?: string;
+    };
 
 export interface GitConflictsResult {
   hasConflicts: boolean;
@@ -319,14 +319,13 @@ export default class Git {
 
     return url.toString();
   }
-
 }
 
 export class GitTargetApi {
   public constructor(
     private readonly notebookId: string,
     private readonly client: Client
-  ) { }
+  ) {}
 
   public async create(input: GitTargetConfiguration): Promise<GitTarget> {
     const response = await this.client.post<GitTargetData>(
@@ -350,7 +349,6 @@ export class GitTargetApi {
 
     return new GitTarget(response.data, this.notebookId, this.client);
   }
-
 }
 
 export class GitTarget {
@@ -358,7 +356,7 @@ export class GitTarget {
     public readonly data: GitTargetData,
     private readonly notebookId: string,
     private readonly client: Client
-  ) { }
+  ) {}
 
   public get id(): string {
     return this.data.id;

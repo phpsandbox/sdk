@@ -26,10 +26,7 @@ const getRetryDelay = (attempt: number, options: Required<Omit<RetryOptions, 'on
   return Math.round(Math.min(randomized * exponentialDelay, options.maxTimeout));
 };
 
-export async function retry<T>(
-  fn: (bail: RetryBail, attempt: number) => T | Promise<T>,
-  options: RetryOptions = {}
-): Promise<T> {
+export async function retry<T>(fn: (bail: RetryBail, attempt: number) => T | Promise<T>, options: RetryOptions = {}): Promise<T> {
   const resolvedOptions: Required<Omit<RetryOptions, 'onRetry'>> = {
     retries: options.retries ?? 10,
     minTimeout: options.minTimeout ?? 1000,

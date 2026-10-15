@@ -42,9 +42,7 @@ describe('explicit runtime transports', () => {
     }
 
     expect(requests).toHaveLength(1);
-    expect(new URL(requests[0].url).pathname).toBe(
-      operation === 'create' ? '/v1/notebook' : '/v1/notebook/standard/fork'
-    );
+    expect(new URL(requests[0].url).pathname).toBe(operation === 'create' ? '/v1/notebook' : '/v1/notebook/standard/fork');
   });
 
   it.each([
@@ -58,10 +56,13 @@ describe('explicit runtime transports', () => {
       requests.push(request);
       return Response.json({ data: initialized });
     }) as unknown as typeof globalThis.fetch;
-    const notebook = openRestNotebook({
-      ...notebookData,
-      runtimeUrl: notebookData.runtimeUrl.replace('wss:', inputProtocol),
-    }, { fetch });
+    const notebook = openRestNotebook(
+      {
+        ...notebookData,
+        runtimeUrl: notebookData.runtimeUrl.replace('wss:', inputProtocol),
+      },
+      { fetch }
+    );
 
     await notebook.ready();
     expect(new URL(requests[0].url).protocol).toBe(expectedProtocol);
@@ -156,7 +157,10 @@ describe('explicit runtime transports', () => {
     const fetch = vi.fn(async (request: Request) => {
       requests.push(request);
       if (request.headers.get('authorization') === 'Bearer signed-ticket') {
-        return Response.json({ error: { status: 401, code: 'AuthenticationRequired', message: 'Authentication required' } }, { status: 401 });
+        return Response.json(
+          { error: { status: 401, code: 'AuthenticationRequired', message: 'Authentication required' } },
+          { status: 401 }
+        );
       }
 
       return Response.json({ data: initialized });
@@ -178,14 +182,15 @@ describe('explicit runtime transports', () => {
       runtimeUrl: 'wss://okra.phpsandbox.io/n/notebook-1?auth=legacy',
     };
 
-    expect(() => openRestNotebook(legacyData)).toThrow(
-      'The notebook connection does not contain a runtime ticket.'
-    );
+    expect(() => openRestNotebook(legacyData)).toThrow('The notebook connection does not contain a runtime ticket.');
   });
 
   it('does not make an implicit Core request when no runtime URL provider is supplied', async () => {
     const fetch = vi.fn(async () =>
-      Response.json({ error: { status: 401, code: 'AuthenticationRequired', message: 'Authentication required' } }, { status: 401 })
+      Response.json(
+        { error: { status: 401, code: 'AuthenticationRequired', message: 'Authentication required' } },
+        { status: 401 }
+      )
     ) as unknown as typeof globalThis.fetch;
     const notebook = openRestNotebook(notebookData, { fetch });
 
@@ -209,7 +214,7 @@ describe('explicit runtime transports', () => {
   });
 
   it('rejects realtime-only actions locally without falling back', async () => {
-    const fetch = vi.fn(async (request: Request) => {
+    const fetch = vi.fn(async () => {
       return Response.json({ data: initialized });
     }) as unknown as typeof globalThis.fetch;
     const notebook = openRestNotebook(notebookData, { fetch });

@@ -21,36 +21,49 @@ describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential
     const changes: FileChange[] = [];
 
     await operation('create watched directory', () => fixture!.sandbox.files.createDirectory(directory));
-    fixture!.resources.register(`watched directory ${directory}`, () => (
+    fixture!.resources.register(`watched directory ${directory}`, () =>
       fixture!.sandbox.files.remove(directory, { recursive: true })
-    ));
+    );
 
-    const watcher = await operation('start filesystem watcher', () => fixture!.sandbox.files.watch(directory, {
-      recursive: true,
-      excludes: [],
-    }, (change) => changes.push(change)));
+    const watcher = await operation('start filesystem watcher', () =>
+      fixture!.sandbox.files.watch(
+        directory,
+        {
+          recursive: true,
+          excludes: [],
+        },
+        (change) => changes.push(change)
+      )
+    );
     fixture!.resources.register('filesystem watcher', async () => watcher.dispose());
 
     await operation('write watched file', () => fixture!.sandbox.files.write(path, 'watch-event'));
-    await vi.waitFor(() => {
-      expect(changes.some((change) => change.path.endsWith('watched.txt'))).toBe(true);
-    }, { timeout: 30_000, interval: 250 });
+    await vi.waitFor(
+      () => {
+        expect(changes.some((change) => change.path.endsWith('watched.txt'))).toBe(true);
+      },
+      { timeout: 30_000, interval: 250 }
+    );
   });
 
   test('reconnects and emits connection lifecycle events', async () => {
     let connected = 0;
     let disconnected = 0;
-    const connection = fixture!.sandbox.onDidConnect(() => connected += 1);
-    const disconnection = fixture!.sandbox.onDidDisconnect(() => disconnected += 1);
+    const connection = fixture!.sandbox.onDidConnect(() => (connected += 1));
+    const disconnection = fixture!.sandbox.onDidDisconnect(() => (disconnected += 1));
 
     try {
       await operation('reconnect realtime runtime', () => fixture!.sandbox.reconnect());
-      await vi.waitFor(() => {
-        expect(disconnected).toBeGreaterThan(0);
-        expect(connected).toBeGreaterThan(0);
-      }, { timeout: 30_000, interval: 250 });
-      await expect(operation('execute after reconnect', () => fixture!.sandbox.exec(['php', '-r', 'echo "reconnected";'])))
-        .resolves.toMatchObject({ exitCode: 0, stdout: 'reconnected' });
+      await vi.waitFor(
+        () => {
+          expect(disconnected).toBeGreaterThan(0);
+          expect(connected).toBeGreaterThan(0);
+        },
+        { timeout: 30_000, interval: 250 }
+      );
+      await expect(
+        operation('execute after reconnect', () => fixture!.sandbox.exec(['php', '-r', 'echo "reconnected";']))
+      ).resolves.toMatchObject({ exitCode: 0, stdout: 'reconnected' });
     } finally {
       connection.dispose();
       disconnection.dispose();
@@ -58,10 +71,12 @@ describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential
   });
 
   test('streams terminal output and completion', async () => {
-    const terminal = await operation('create terminal', () => fixture!.sandbox.terminals.create({
-      command: 'php',
-      args: ['-r', 'echo "terminal-smoke";'],
-    }));
+    const terminal = await operation('create terminal', () =>
+      fixture!.sandbox.terminals.create({
+        command: 'php',
+        args: ['-r', 'echo "terminal-smoke";'],
+      })
+    );
     const output = readTextStream(terminal.output);
     const exitCode = await operation('wait for terminal', () => terminal.wait());
 
@@ -97,10 +112,12 @@ describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential
   });
 
   test('attaches to a listed active terminal and replays its output', async () => {
-    const terminal = await operation('create attachable terminal', () => fixture!.sandbox.terminals.create({
-      command: 'php',
-      args: ['-r', 'echo "attach-ready\\n"; fgets(STDIN); echo "attach-done\\n";'],
-    }));
+    const terminal = await operation('create attachable terminal', () =>
+      fixture!.sandbox.terminals.create({
+        command: 'php',
+        args: ['-r', 'echo "attach-ready\\n"; fgets(STDIN); echo "attach-done\\n";'],
+      })
+    );
     const cleanup = fixture!.resources.register(`terminal ${terminal.id}`, async () => {
       await terminal.kill();
     });
@@ -108,9 +125,11 @@ describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential
     const tasks = await operation('list active terminals', () => fixture!.sandbox.terminals.list());
     expect(tasks.some((task) => task.id === terminal.id)).toBe(true);
 
-    const attached = await operation('attach active terminal', () => fixture!.sandbox.terminals.attach(terminal.id, {
-      replayHistory: true,
-    }));
+    const attached = await operation('attach active terminal', () =>
+      fixture!.sandbox.terminals.attach(terminal.id, {
+        replayHistory: true,
+      })
+    );
     expect(attached).not.toBe(false);
     if (attached === false) {
       throw new Error('Active terminal attachment returned false.');
@@ -152,9 +171,7 @@ describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential
   });
 
   test('subscribes to runtime logs and cancels while the runtime is quiet', async () => {
-    await operation('check runtime log subscription', () => (
-      checkRuntimeLogSubscription(fixture!.sandbox)
-    ), 35_000);
+    await operation('check runtime log subscription', () => checkRuntimeLogSubscription(fixture!.sandbox), 35_000);
   });
 
   test('evaluates PHP through the REPL', async () => {
@@ -200,52 +217,70 @@ describe.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime').sequential
     try {
       await operation('wait for realtime connection before LSP start', () => connection.whenSocketConnected());
       await operation('start Intelephense', () => fixture!.sandbox.lsp.start(connection.id));
-      await operation('send LSP initialize request', () => connection.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          capabilities: {},
-          processId: null,
-          rootUri: 'file:///var/www',
-          workspaceFolders: [{ name: 'workspace', uri: 'file:///var/www' }],
-        },
-      })));
+      await operation('send LSP initialize request', () =>
+        connection.send(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'initialize',
+            params: {
+              capabilities: {},
+              processId: null,
+              rootUri: 'file:///var/www',
+              workspaceFolders: [{ name: 'workspace', uri: 'file:///var/www' }],
+            },
+          })
+        )
+      );
       const initialized = await waitForJsonRpcResponse(messages, 1);
       expect(initialized.error).toBeUndefined();
       expect(isRecord(initialized.result) && isRecord(initialized.result.capabilities)).toBe(true);
 
       await operation('open PHP document in LSP', async () => {
         await connection.send(JSON.stringify({ jsonrpc: '2.0', method: 'initialized', params: {} }));
-        await connection.send(JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'textDocument/didOpen',
-          params: { textDocument: { languageId: 'php', text: source, uri, version: 1 } },
-        }));
+        await connection.send(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'textDocument/didOpen',
+            params: { textDocument: { languageId: 'php', text: source, uri, version: 1 } },
+          })
+        );
       });
-      await operation('request PHP document symbols', () => connection.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 2,
-        method: 'textDocument/documentSymbol',
-        params: { textDocument: { uri } },
-      })));
+      await operation('request PHP document symbols', () =>
+        connection.send(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'textDocument/documentSymbol',
+            params: { textDocument: { uri } },
+          })
+        )
+      );
       const symbols = await waitForJsonRpcResponse(messages, 2);
       expect(symbols.error).toBeUndefined();
       expect(jsonRpcResultContainsName(symbols.result, 'SdkSmokeSymbol')).toBe(true);
 
-      await operation('request LSP shutdown', () => connection.send(JSON.stringify({
-        jsonrpc: '2.0',
-        id: 3,
-        method: 'shutdown',
-        params: null,
-      })));
+      await operation('request LSP shutdown', () =>
+        connection.send(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: 3,
+            method: 'shutdown',
+            params: null,
+          })
+        )
+      );
       const shutdown = await waitForJsonRpcResponse(messages, 3);
       expect(shutdown.error).toBeUndefined();
-      await operation('send LSP exit notification', () => connection.send(JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'exit',
-        params: null,
-      })));
+      await operation('send LSP exit notification', () =>
+        connection.send(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'exit',
+            params: null,
+          })
+        )
+      );
       await vi.waitFor(() => expect(closes.length).toBeGreaterThan(0), { timeout: 30_000, interval: 250 });
       expect(errors).toEqual([]);
     } finally {
@@ -274,16 +309,16 @@ function parseJsonRpcMessage(message: string): JsonRpcMessage {
   return parsed;
 }
 
-async function waitForJsonRpcResponse(
-  messages: readonly JsonRpcMessage[],
-  id: number,
-): Promise<JsonRpcMessage> {
+async function waitForJsonRpcResponse(messages: readonly JsonRpcMessage[], id: number): Promise<JsonRpcMessage> {
   let response: JsonRpcMessage | undefined;
 
-  await vi.waitFor(() => {
-    response = messages.find((message) => message.id === id);
-    expect(response).toBeDefined();
-  }, { timeout: 60_000, interval: 250 });
+  await vi.waitFor(
+    () => {
+      response = messages.find((message) => message.id === id);
+      expect(response).toBeDefined();
+    },
+    { timeout: 60_000, interval: 250 }
+  );
 
   if (response === undefined) {
     throw new Error(`LSP response ${id} was not received.`);
@@ -293,9 +328,7 @@ async function waitForJsonRpcResponse(
 }
 
 function jsonRpcResultContainsName(result: unknown, expectedName: string): boolean {
-  return Array.isArray(result) && result.some((symbol) => (
-    isRecord(symbol) && symbol.name === expectedName
-  ));
+  return Array.isArray(result) && result.some((symbol) => isRecord(symbol) && symbol.name === expectedName);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

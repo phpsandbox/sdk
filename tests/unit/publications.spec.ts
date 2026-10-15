@@ -57,7 +57,7 @@ function publicationData(overrides: Record<string, unknown> = {}) {
 }
 
 function publishStream(): Response {
-  const events = [
+  const events: [string, unknown][] = [
     ['phase', { name: 'building', status: 'running' }],
     ['log', { stream: 'publish', content: 'Publishing' }],
     [
@@ -139,7 +139,9 @@ describe('Publications', () => {
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init);
       requests.push(request);
-      if (request.headers.get('Accept') !== 'text/event-stream') return jsonResponse(publicationData(), 201);
+      if (request.headers.get('Accept') !== 'text/event-stream') {
+        return jsonResponse(publicationData(), 201);
+      }
       return new Response(
         new ReadableStream<Uint8Array>({
           start(controller) {
@@ -170,11 +172,26 @@ describe('Publications', () => {
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init);
       requests.push(request);
-      return request.headers.get('Accept') === 'text/event-stream' ? publishStream() : jsonResponse({ id: 'project', status: 'publishing', selectedAppIds: ['stable-app'], apps: [{ appId: 'stable-app', publication: publicationData({ status: 'queued' }) }] }, 201);
+      return request.headers.get('Accept') === 'text/event-stream'
+        ? publishStream()
+        : jsonResponse(
+            {
+              id: 'project',
+              status: 'publishing',
+              selectedAppIds: ['stable-app'],
+              apps: [{ appId: 'stable-app', publication: publicationData({ status: 'queued' }) }],
+            },
+            201
+          );
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-    const application = await openNotebook(client, 'nb_123').publication.publish({ reviewId: 'review-one', proposal: 'signed-proposal' });
-      if ('confirmationRequired' in application) throw new Error('Expected an accepted publishing proposal');
+    const application = await openNotebook(client, 'nb_123').publication.publish({
+      reviewId: 'review-one',
+      proposal: 'signed-proposal',
+    });
+    if ('confirmationRequired' in application) {
+      throw new Error('Expected an accepted publishing proposal');
+    }
     expect(application.id).toBe('project');
     expect(requests[0].url).toBe('https://api.phpsandbox.io/v1/notebook/nb_123/publication');
     await expect(requests[0].json()).resolves.toEqual({ reviewId: 'review-one', proposal: 'signed-proposal' });
@@ -187,11 +204,31 @@ describe('Publications', () => {
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const request = new Request(input, init);
       requests.push(request);
-      return jsonResponse({ id: 'project', status: 'healthy', selectedAppIds: ['native'], apps: [{ appId: 'native', publication: publicationData({ provider: { name: 'laravel-cloud', region: 'eu-central-1', repository: 'phpsandbox/app', branch: 'main' } }) }] }, 201);
+      return jsonResponse(
+        {
+          id: 'project',
+          status: 'healthy',
+          selectedAppIds: ['native'],
+          apps: [
+            {
+              appId: 'native',
+              publication: publicationData({
+                provider: { name: 'laravel-cloud', region: 'eu-central-1', repository: 'phpsandbox/app', branch: 'main' },
+              }),
+            },
+          ],
+        },
+        201
+      );
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-    const application = await openNotebook(client, 'nb_123').publication.publish({ reviewId: 'native-review', proposal: 'signed-proposal' });
-      if ('confirmationRequired' in application) throw new Error('Expected an accepted publishing proposal');
+    const application = await openNotebook(client, 'nb_123').publication.publish({
+      reviewId: 'native-review',
+      proposal: 'signed-proposal',
+    });
+    if ('confirmationRequired' in application) {
+      throw new Error('Expected an accepted publishing proposal');
+    }
     expect(application.apps[0].publication.provider).toMatchObject({ name: 'laravel-cloud', region: 'eu-central-1' });
     expect(application.apps[0].publication.provider).not.toHaveProperty('integration');
     await expect(requests[0].json()).resolves.toEqual({ reviewId: 'native-review', proposal: 'signed-proposal' });
@@ -213,13 +250,14 @@ describe('Publications', () => {
   it('an existing publication instance cannot bypass a fresh saved-app review', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const request = new Request(input, init); requests.push(request);
+      const request = new Request(input, init);
+      requests.push(request);
       return jsonResponse(publicationData());
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
     const publication = await openNotebook(client, 'nb_123').publication.current();
     expect(publication).not.toHaveProperty('publish');
-    expect(requests.map(request => request.method)).toEqual(['GET']);
+    expect(requests.map((request) => request.method)).toEqual(['GET']);
   });
 
   it('uses destroy for destructive publication removal', async () => {

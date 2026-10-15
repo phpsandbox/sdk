@@ -12,10 +12,10 @@ import Services, { ServiceActions, ServiceEvents } from './services.js';
 import Config, { ConfigActions } from './config.js';
 import { Transport } from './socket/index.js';
 import EventManager, { EventDispatcher } from './events/index.js';
-import Git, { GitActions, GitCredentials, type GitSyncAuthor } from './git.js';
+import Git, { GitActions, type GitSyncAuthor } from './git.js';
 import { Disposable } from './types.js';
 import { PHPSandboxError, RemoteError, TransportError, remoteError } from './errors/index.js';
-import { PublicationApi, type PublicationData } from './publication/index.js';
+import { PublicationApi } from './publication/index.js';
 import { ServerApi } from './servers.js';
 import { RestRuntimeInvoker } from './runtime/rest.js';
 import { Feedback } from './feedback.js';
@@ -105,7 +105,14 @@ export type {
   ValidationErrorDetails,
 } from './errors/index.js';
 export * from './publication/index.js';
-export type { CreateServerInput, ServerData, ServerInstance, ServerListOptions, ServerMemberData, ServerSshOptions } from './servers.js';
+export type {
+  CreateServerInput,
+  ServerData,
+  ServerInstance,
+  ServerListOptions,
+  ServerMemberData,
+  ServerSshOptions,
+} from './servers.js';
 export type {
   ConfigureFeedbackInput,
   FeedbackData,
@@ -1143,7 +1150,7 @@ export class NotebookInstance {
     await whenConnected;
 
     // Re-initialize the notebook
-    this.#init();
+    this.#initPromise = this.#init();
 
     // Wait for initialization to complete
     return this.ready().then(() => this);
@@ -1166,7 +1173,9 @@ class NotebookSecrets {
 
   public async list(options?: NotebookSecretListOptions): Promise<NotebookSecretData[]> {
     const params = new URLSearchParams();
-    if (options?.environment) params.set('environment', options.environment);
+    if (options?.environment) {
+      params.set('environment', options.environment);
+    }
     const query = params.toString();
     const response = await this.client.get<NotebookSecretData[]>(
       `/notebook/${this.notebookId}/secrets${query ? `?${query}` : ''}`
@@ -1192,7 +1201,9 @@ class NotebookSecrets {
 
   public async delete(name: string, options?: NotebookSecretDeleteOptions): Promise<void> {
     const params = new URLSearchParams();
-    if (options?.environment) params.set('environment', options.environment);
+    if (options?.environment) {
+      params.set('environment', options.environment);
+    }
     const query = params.toString();
     await this.client.delete<void>(`/notebook/${this.notebookId}/secrets/${encodeURIComponent(name)}${query ? `?${query}` : ''}`);
   }

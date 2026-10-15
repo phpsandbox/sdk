@@ -1,12 +1,6 @@
 import { nanoid } from 'nanoid';
 import { encode, decode } from '@msgpack/msgpack';
-import {
-  PromiseTimeoutError,
-  RemoteError,
-  SendTimeoutError,
-  TransportError,
-  remoteError,
-} from '../errors/index.js';
+import { PromiseTimeoutError, RemoteError, SendTimeoutError, TransportError, remoteError } from '../errors/index.js';
 import { retry } from '../utils/retry.js';
 import * as ReconnectingWebSocketModule from 'reconnecting-websocket';
 import type {
@@ -23,14 +17,22 @@ type ReconnectingWebSocketConstructor = typeof import('reconnecting-websocket').
 type ReconnectingWebSocketInstance = InstanceType<ReconnectingWebSocketConstructor>;
 type TransportUrlProvider = string | (() => string) | (() => Promise<string>);
 const SAFE_DEBUG_METADATA_KEYS = new Set([
-  'url', 'action', 'event', 'responseEvent', 'errorEvent', 'hasData',
-  'code', 'attempt', 'maxRetries', 'timeout', 'errorCount', 'byteLength',
+  'url',
+  'action',
+  'event',
+  'responseEvent',
+  'errorEvent',
+  'hasData',
+  'code',
+  'attempt',
+  'maxRetries',
+  'timeout',
+  'errorCount',
+  'byteLength',
 ]);
 
-const ReconnectingWebSocket = (
-  (ReconnectingWebSocketModule as unknown as { default?: ReconnectingWebSocketConstructor }).default
-  ?? ReconnectingWebSocketModule
-) as ReconnectingWebSocketConstructor;
+const ReconnectingWebSocket = ((ReconnectingWebSocketModule as unknown as { default?: ReconnectingWebSocketConstructor })
+  .default ?? ReconnectingWebSocketModule) as ReconnectingWebSocketConstructor;
 
 interface WsOptions {
   debug?: boolean;
@@ -148,9 +150,7 @@ export class Transport {
     this.validateConfiguration(options);
 
     this.url = typeof url === 'string' ? new URL(url) : null;
-    const urlProvider = typeof url === 'string'
-      ? new URL(url).toString()
-      : async () => new URL(await url()).toString();
+    const urlProvider = typeof url === 'string' ? new URL(url).toString() : async () => new URL(await url()).toString();
 
     // Use configurable ping interval
     this.PING_INTERVAL = options.pingInterval ?? 30000;
@@ -345,7 +345,7 @@ export class Transport {
     return this.clientId;
   }
 
-  private async registerWatchers(): Promise<void> {
+  private registerWatchers(): void {
     const onMessage = (ev: MessageEvent) => {
       this.incomingMessageChain = this.incomingMessageChain
         .catch(() => undefined)
@@ -556,7 +556,9 @@ export class Transport {
       return;
     }
 
-    event && this.eventEmitter.emit(as || event, data);
+    if (event) {
+      this.eventEmitter.emit(as || event, data);
+    }
   }
 
   public listen(event: string, listener: (data: unknown) => void, _context?: unknown) {
@@ -676,12 +678,14 @@ export class Transport {
 
       closeHandler = (_ev: WebSocketLikeEvent) => {
         if (_ev.code === 1008 && (_ev.reason || '').includes('rate limit')) {
-          reject(new RemoteError(_ev.reason || 'Rate limit exceeded', {
-            source: 'runtime',
-            status: 429,
-            code: 'RateLimited',
-            cause: _ev,
-          }));
+          reject(
+            new RemoteError(_ev.reason || 'Rate limit exceeded', {
+              source: 'runtime',
+              status: 429,
+              code: 'RateLimited',
+              cause: _ev,
+            })
+          );
           return;
         }
 
@@ -718,16 +722,18 @@ export class Transport {
         return promise;
       }
 
-      return timeout(promise, options.timeout).catch((error: unknown) => {
-        if (error instanceof PromiseTimeoutError) {
-          throw SendTimeoutError.fromPromiseTimeoutError(error);
-        }
+      return timeout(promise, options.timeout)
+        .catch((error: unknown) => {
+          if (error instanceof PromiseTimeoutError) {
+            throw SendTimeoutError.fromPromiseTimeoutError(error);
+          }
 
-        throw error;
-      }).finally(removeListeners);
+          throw error;
+        })
+        .finally(removeListeners);
     };
 
-    const retries = options.retries === false ? 0 : options.retries ?? 0;
+    const retries = options.retries === false ? 0 : (options.retries ?? 0);
 
     return this.sendWithRetry(async () => await send(), retries);
   }

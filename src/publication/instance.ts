@@ -87,6 +87,7 @@ export class PublicationInstance<TProvider extends PublicationProviderName = Pub
     const intervalMs = options.intervalMs ?? 1000;
     const timeoutMs = options.timeoutMs ?? 300000;
     const startedAt = Date.now();
+    // eslint-disable-next-line typescript/no-this-alias -- Polling starts with this instance and replaces it after each refresh.
     let current: PublicationInstance<TProvider> = this;
 
     while (!publicationStatusIsTerminal(current.data.status)) {
@@ -118,9 +119,16 @@ export class PublicationInstance<TProvider extends PublicationProviderName = Pub
       .then((stream) => parseNdjsonStream(stream, PublicationLogChunkDataSchema));
   }
 
-  public async logSnapshot(stream: 'build' | 'runtime', limit = 50): Promise<{ stream: 'build' | 'runtime'; content: string; truncated: boolean }> {
+  public async logSnapshot(
+    stream: 'build' | 'runtime',
+    limit = 50
+  ): Promise<{ stream: 'build' | 'runtime'; content: string; truncated: boolean }> {
     const query = new URLSearchParams({ stream, limit: String(limit) });
-    return (await this.client.get<{ stream: 'build' | 'runtime'; content: string; truncated: boolean }>(`/publications/${encodeURIComponent(this.data.id)}/logs?${query}`)).data;
+    return (
+      await this.client.get<{ stream: 'build' | 'runtime'; content: string; truncated: boolean }>(
+        `/publications/${encodeURIComponent(this.data.id)}/logs?${query}`
+      )
+    ).data;
   }
 
   public async logs(): Promise<ReadableStream<PublicationLogChunkData>> {

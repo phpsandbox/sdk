@@ -243,9 +243,8 @@ function runtimeActionRequestBody(
       throw new TypeError('Runtime file contents must be binary data.');
     }
     headers['Content-Type'] = 'application/octet-stream';
-    return Uint8Array.from(
-      new Uint8Array(payload.contents.buffer, payload.contents.byteOffset, payload.contents.byteLength)
-    ).buffer;
+    return Uint8Array.from(new Uint8Array(payload.contents.buffer, payload.contents.byteOffset, payload.contents.byteLength))
+      .buffer;
   }
   headers['Content-Type'] = 'application/json';
   return JSON.stringify(data);

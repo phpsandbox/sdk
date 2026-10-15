@@ -34,16 +34,19 @@ describe('Composer process handles', () => {
     }
 
     await expect(process.wait()).resolves.toMatchObject({ stdout: 'Installing', stderr: 'Warning', exitCode: 0 });
-    expect(output).toEqual([['stdout', 'Installing'], ['stderr', 'Warning']]);
+    expect(output).toEqual([
+      ['stdout', 'Installing'],
+      ['stderr', 'Warning'],
+    ]);
   });
 
   it('can stop a running Composer command', async () => {
     const notebook = {
       data: { id: 'notebook-1' },
       listen: () => ({ dispose: () => {} }),
-      invoke: vi.fn(async (action: string) => action === 'composer.invoke'
-        ? { output: '', stdout: '', stderr: '', exitCode: 0 }
-        : true),
+      invoke: vi.fn(async (action: string) =>
+        action === 'composer.invoke' ? { output: '', stdout: '', stderr: '', exitCode: 0 } : true
+      ),
     };
     const process = new Composer(notebook as any, {} as any).run('install');
 

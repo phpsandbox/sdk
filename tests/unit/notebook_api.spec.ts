@@ -32,9 +32,7 @@ describe('Notebook API', () => {
       framework: 'laravel' as const,
       template: 'laravel-react',
       reason: null,
-      requiredSecrets: [
-        { name: 'EXTERNAL_API_TOKEN', description: 'Token required by the imported application.' },
-      ],
+      requiredSecrets: [{ name: 'EXTERNAL_API_TOKEN', description: 'Token required by the imported application.' }],
     };
     const fetch = vi.fn(async (request: Request) => {
       requests.push(request);
@@ -42,12 +40,14 @@ describe('Notebook API', () => {
     }) as unknown as typeof globalThis.fetch;
     const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
 
-    await expect(client.notebook.inspectImport({
-      provider: 'github',
-      repo: 'phpsandbox/core',
-      branch: 'main',
-      auth: { accessToken: 'github-token' },
-    })).resolves.toEqual(inspection);
+    await expect(
+      client.notebook.inspectImport({
+        provider: 'github',
+        repo: 'phpsandbox/core',
+        branch: 'main',
+        auth: { accessToken: 'github-token' },
+      })
+    ).resolves.toEqual(inspection);
 
     expect(new URL(requests[0].url).pathname).toBe('/v1/notebook/imports/inspect');
     await expect(requests[0].json()).resolves.toEqual({

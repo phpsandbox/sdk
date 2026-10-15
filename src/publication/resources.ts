@@ -8,7 +8,8 @@ export class PublicationResources {
   ) {}
 
   public async inspect(id: string): Promise<PublicationManagedResource> {
-    return (await this.client.post<PublicationManagedResource>(`/publication-resources/${encodeURIComponent(id)}/inspect`, {})).data;
+    return (await this.client.post<PublicationManagedResource>(`/publication-resources/${encodeURIComponent(id)}/inspect`, {}))
+      .data;
   }
 
   public async list(options: PublicationResourceListOptions = {}): Promise<PaginatedApiResponse<PublicationManagedResource>> {

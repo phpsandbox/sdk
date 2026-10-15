@@ -100,7 +100,7 @@ export interface ScreenshotRequest {
     maxWidth?: number;
     maxHeight?: number;
   };
-  type?: 'image/png' | 'image/jpeg' | 'image/webp' | string;
+  type?: string;
   quality?: number;
   /**
    * Wait budget for page media/resources while rendering the DOM screenshot.

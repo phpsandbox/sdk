@@ -86,10 +86,12 @@ describe('Transport', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const server = createServer((message, socket) => {
       if (message.errorEvent) {
-        socket.send(encode({
-          event: message.errorEvent,
-          data: { status: 403, code: 'PermissionDenied', message: 'private-runtime-error' },
-        }));
+        socket.send(
+          encode({
+            event: message.errorEvent,
+            data: { status: 403, code: 'PermissionDenied', message: 'private-runtime-error' },
+          })
+        );
       }
     });
     const transport = new Transport(server.url, EventManager.createInstance(), { debug: true });
@@ -108,13 +110,9 @@ describe('Transport', () => {
 
   it('redacts connection URL query parameters from debug logs', () => {
     const debug = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
-    const transport = new Transport(
-      'wss://okra.phpsandbox.io/n/notebook-1?ticket=signed-ticket',
-      EventManager.createInstance(),
-      {
-        debug: true,
-      }
-    );
+    const transport = new Transport('wss://okra.phpsandbox.io/n/notebook-1?ticket=signed-ticket', EventManager.createInstance(), {
+      debug: true,
+    });
     transports.add(transport);
 
     const logged = JSON.stringify(debug.mock.calls);
@@ -161,9 +159,7 @@ describe('Transport', () => {
     });
     const transport = createTransport(server.url);
 
-    await expect(transport.call('test.timeout', {}, { timeout: 20, retries: false })).rejects.toBeInstanceOf(
-      SendTimeoutError
-    );
+    await expect(transport.call('test.timeout', {}, { timeout: 20, retries: false })).rejects.toBeInstanceOf(SendTimeoutError);
 
     expect(messages).toBe(1);
   });

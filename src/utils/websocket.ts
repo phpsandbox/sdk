@@ -3,12 +3,14 @@ const getReadyStateLabel = (state: unknown): string | undefined => {
     return undefined;
   }
 
-  return {
-    0: 'CONNECTING',
-    1: 'OPEN',
-    2: 'CLOSING',
-    3: 'CLOSED',
-  }[state] ?? `STATE_${state}`;
+  return (
+    {
+      0: 'CONNECTING',
+      1: 'OPEN',
+      2: 'CLOSING',
+      3: 'CLOSED',
+    }[state] ?? `STATE_${state}`
+  );
 };
 
 const sanitizeWebSocketUrl = (value: string): string => {

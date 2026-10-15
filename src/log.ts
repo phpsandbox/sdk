@@ -18,10 +18,17 @@ export default class Logs {
   ) {}
 
   public follow(options: RuntimeWatchOptions = {}): ReadableStream<RuntimeLogEntry> {
-    return watchRuntimeTelemetry(this.okra, this.telemetry, 'logs', 'notebook.log', (message: string) => ({
-      timestamp: new Date().toISOString(),
-      source: 'runtime',
-      message,
-    }), options);
+    return watchRuntimeTelemetry(
+      this.okra,
+      this.telemetry,
+      'logs',
+      'notebook.log',
+      (message: string) => ({
+        timestamp: new Date().toISOString(),
+        source: 'runtime',
+        message,
+      }),
+      options
+    );
   }
 }

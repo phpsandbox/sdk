@@ -2,11 +2,11 @@ version: 2
 
 updates:
   - package-ecosystem: npm
-    directory: "/"
+    directory: '/'
     schedule:
       interval: weekly
       day: monday
-      time: "06:00"
+      time: '06:00'
       timezone: Etc/UTC
     # Routine version bumps are off, so the queue stays limited to advisories.
     # Security update PRs are exempt from this limit and are still opened.
@@ -16,7 +16,7 @@ updates:
       npm-security:
         applies-to: security-updates
         patterns:
-          - "*"
+          - '*'
     commit-message:
-      prefix: "fix(deps)"
-      prefix-development: "chore(deps)"
+      prefix: 'fix(deps)'
+      prefix-development: 'chore(deps)'

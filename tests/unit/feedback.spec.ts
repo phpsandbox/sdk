@@ -13,11 +13,13 @@ describe('sandbox.feedback', () => {
       });
 
       if (request.method === 'GET' && request.url.endsWith('/notebook/sandbox-1')) {
-        return Response.json({ data: {
-          id: 'sandbox-1',
-          runtimeUrl: 'https://runtime.example.test/actions?ticket=test-ticket',
-          gitUrl: 'https://git.example.test/sandbox-1.git',
-        } });
+        return Response.json({
+          data: {
+            id: 'sandbox-1',
+            runtimeUrl: 'https://runtime.example.test/actions?ticket=test-ticket',
+            gitUrl: 'https://git.example.test/sandbox-1.git',
+          },
+        });
       }
 
       if (request.url.includes('?')) {

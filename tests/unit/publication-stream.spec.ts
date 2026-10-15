@@ -4,16 +4,27 @@ import { createPublicationStreamResponse, readPublicationStream } from '../../sr
 const encoder = new TextEncoder();
 const log = { stream: 'build', content: 'Hello 🌍' };
 const frame = `event: log\ndata: ${JSON.stringify(log)}\n\n`;
-const result = { success: true, publicationId: 'pub', url: 'https://app.test', buildId: 'build', releaseId: 'release', status: 'healthy' };
+const result = {
+  success: true,
+  publicationId: 'pub',
+  url: 'https://app.test',
+  buildId: 'build',
+  releaseId: 'release',
+  status: 'healthy',
+};
 async function collect(input: Response | ReadableStream<Uint8Array>, requireResult = false) {
   const events = [];
-  for await (const event of readPublicationStream(input, { requireResult })) events.push(event);
+  for await (const event of readPublicationStream(input, { requireResult })) {
+    events.push(event);
+  }
   return events;
 }
 function bytes(chunks: Uint8Array[], cancel = vi.fn()) {
   return new ReadableStream<Uint8Array>({
     start(controller) {
-      for (const chunk of chunks) controller.enqueue(chunk);
+      for (const chunk of chunks) {
+        controller.enqueue(chunk);
+      }
       controller.close();
     },
     cancel,
@@ -40,8 +51,10 @@ describe('publishing stream consumer', () => {
   it('rejects EOF without a result, including an empty active stream', async () => {
     await expect(collect(new Response(frame), true)).rejects.toThrow('Publish stream ended without result');
     await expect(collect(new Response(''), true)).rejects.toThrow('Publish stream ended without result');
-    expect(await collect(new Response(frame + `event: done\ndata: ${JSON.stringify(result)}\n\n`), true))
-      .toEqual([{ type: 'log', ...log }, { type: 'result', ...result }]);
+    expect(await collect(new Response(frame + `event: done\ndata: ${JSON.stringify(result)}\n\n`), true)).toEqual([
+      { type: 'log', ...log },
+      { type: 'result', ...result },
+    ]);
   });
 
   it('rejects invalid payloads and server error events', async () => {
@@ -57,15 +70,28 @@ describe('publishing stream consumer', () => {
 
   it('cancels and unlocks an open source when the caller stops observing', async () => {
     const cancel = vi.fn();
-    const source = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(encoder.encode(frame)); }, cancel });
-    for await (const event of readPublicationStream(source)) { expect(event.type).toBe('log'); break; }
+    const source = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(encoder.encode(frame));
+      },
+      cancel,
+    });
+    for await (const event of readPublicationStream(source)) {
+      expect(event.type).toBe('log');
+      break;
+    }
     expect(cancel).toHaveBeenCalledOnce();
     expect(source.locked).toBe(false);
   });
 
   it('cancels and unlocks on validation failure', async () => {
     const cancel = vi.fn();
-    const source = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(encoder.encode('event:log\ndata:{}\n\n')); }, cancel });
+    const source = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(encoder.encode('event:log\ndata:{}\n\n'));
+      },
+      cancel,
+    });
     await expect(collect(source)).rejects.toThrow();
     expect(cancel).toHaveBeenCalledOnce();
     expect(source.locked).toBe(false);
@@ -115,13 +141,17 @@ describe('transparent publishing stream response', () => {
       const cancel = vi.fn();
       const onDispose = vi.fn();
       const source = new ReadableStream<Uint8Array>({ cancel });
-      if (timing === 'before creation') abort.abort();
+      if (timing === 'before creation') {
+        abort.abort();
+      }
       const response = createPublicationStreamResponse(source, { signal: abort.signal, onDispose });
       const reading = timing === 'during reading' ? response.text() : undefined;
-      if (!abort.signal.aborted) abort.abort();
+      if (!abort.signal.aborted) {
+        abort.abort();
+      }
       await expect(reading ?? response.text()).rejects.toThrow();
       // Cancellation disposes after the underlying reader cancellation settles.
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
       expect(cancel).toHaveBeenCalledOnce();
       expect(onDispose).toHaveBeenCalledOnce();
       expect(source.locked).toBe(false);
@@ -130,7 +160,11 @@ describe('transparent publishing stream response', () => {
 
   it('fails the body and disposes on upstream transport failure', async () => {
     const onDispose = vi.fn();
-    const source = new ReadableStream<Uint8Array>({ start(c) { c.error(new Error('connection lost')); } });
+    const source = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.error(new Error('connection lost'));
+      },
+    });
     await expect(createPublicationStreamResponse(source, { onDispose }).text()).rejects.toThrow('connection lost');
     expect(onDispose).toHaveBeenCalledOnce();
     expect(source.locked).toBe(false);
@@ -138,7 +172,9 @@ describe('transparent publishing stream response', () => {
 
   it('fails the body if EOF cleanup fails instead of leaving a pending read', async () => {
     const response = createPublicationStreamResponse(bytes([]), {
-      onDispose: () => { throw new Error('cleanup failed'); },
+      onDispose: () => {
+        throw new Error('cleanup failed');
+      },
     });
     await expect(response.text()).rejects.toThrow('cleanup failed');
   });
@@ -146,7 +182,12 @@ describe('transparent publishing stream response', () => {
   it('cancels the whole proxy pipeline when the browser consumer stops', async () => {
     const cancel = vi.fn();
     const onDispose = vi.fn();
-    const source = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(encoder.encode(frame)); }, cancel });
+    const source = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(encoder.encode(frame));
+      },
+      cancel,
+    });
     for await (const event of readPublicationStream(createPublicationStreamResponse(source, { onDispose }))) {
       expect(event).toEqual({ type: 'log', ...log });
       break;

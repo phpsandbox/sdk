@@ -52,14 +52,16 @@ export class RuntimeTelemetry {
   }
 
   private synchronize(): Promise<void> {
-    this.synchronization = this.synchronization.catch(() => {}).then(async () => {
-      const features = Array.from(this.references.keys());
-      if (features.length === 0) {
-        await this.okra.invoke('container.stop-telemetry');
-      } else {
-        await this.okra.invoke('container.stream-telemetry', { features });
-      }
-    });
+    this.synchronization = this.synchronization
+      .catch(() => {})
+      .then(async () => {
+        const features = Array.from(this.references.keys());
+        if (features.length === 0) {
+          await this.okra.invoke('container.stop-telemetry');
+        } else {
+          await this.okra.invoke('container.stream-telemetry', { features });
+        }
+      });
 
     return this.synchronization;
   }
@@ -113,23 +115,26 @@ export function watchRuntimeTelemetry<T>(
         options.signal.addEventListener('abort', abort, { once: true });
       }
 
-      void telemetry.acquire(feature).then(async (releaseTelemetry) => {
-        if (closed) {
-          await releaseTelemetry();
-          return;
-        }
-        release = releaseTelemetry;
-      }).catch((error) => {
-        if (!closed) {
-          closed = true;
-          subscription?.dispose();
-          if (abort && options.signal) {
-            options.signal.removeEventListener('abort', abort);
+      void telemetry
+        .acquire(feature)
+        .then(async (releaseTelemetry) => {
+          if (closed) {
+            await releaseTelemetry();
+            return;
           }
-          abort = null;
-          controller.error(error);
-        }
-      });
+          release = releaseTelemetry;
+        })
+        .catch((error) => {
+          if (!closed) {
+            closed = true;
+            subscription?.dispose();
+            if (abort && options.signal) {
+              options.signal.removeEventListener('abort', abort);
+            }
+            abort = null;
+            controller.error(error);
+          }
+        });
     },
     cancel: stop,
   });

@@ -558,7 +558,9 @@ export class Beacon implements BeaconActions {
      * Let's wait for 2 seconds for page to finish rendering.
      * Errors, that might occur during this time will be captured.
      */
-    waitSeconds && (await this.wait(waitSeconds));
+    if (waitSeconds) {
+      await this.wait(waitSeconds);
+    }
 
     // Now request debug capture from the beacon (without navigation)
     const timeoutMs = (request.options?.timeout || 30000) + 5000; // Add 5s buffer
@@ -599,7 +601,7 @@ export class Beacon implements BeaconActions {
       if (this.isStarted) {
         this.readyPromise = this.waitForBeaconReady();
       }
-    } catch (error) {
+    } catch {
       throw new BeaconConnectionError(`Invalid URL: ${url}`);
     }
   }
@@ -642,10 +644,7 @@ export class Beacon implements BeaconActions {
   }
 }
 
-export async function connectBeacon(
-  iframe: HTMLIFrameElement,
-  options?: BeaconOptions
-): Promise<Beacon> {
+export async function connectBeacon(iframe: HTMLIFrameElement, options?: BeaconOptions): Promise<Beacon> {
   const beacon = new Beacon(iframe, options);
   try {
     await beacon.start();

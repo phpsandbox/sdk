@@ -71,7 +71,7 @@ export class Feedback {
   public constructor(
     private readonly client: Client,
     private readonly notebookId: string
-  ) { }
+  ) {}
 
   public async configure(input: ConfigureFeedbackInput): Promise<ConfigureFeedbackInput> {
     const response = await this.client.put<ConfigureFeedbackInput>(this.path('/configuration'), input);
@@ -94,11 +94,11 @@ export class Feedback {
   public async list(options: FeedbackListOptions = {}): Promise<PaginatedApiResponse<FeedbackData>> {
     const query = new URLSearchParams();
     for (const [name, value] of Object.entries(options)) {
-      if (value !== undefined) query.set(name, String(value));
+      if (value !== undefined) {
+        query.set(name, String(value));
+      }
     }
-    return this.client.get<FeedbackData[]>(
-      `${this.path()}${query.size === 0 ? '' : `?${query.toString()}`}`
-    );
+    return this.client.get<FeedbackData[]>(`${this.path()}${query.size === 0 ? '' : `?${query.toString()}`}`);
   }
 
   public async get(id: string): Promise<FeedbackData> {
