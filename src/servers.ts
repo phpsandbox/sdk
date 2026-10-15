@@ -6,7 +6,7 @@ export interface ServerData {
   host: string;
   provider: string;
   status: string;
-  access?: 'owner' | 'deployer';
+  access: 'owner' | 'deployer';
   token?: string;
   sshPublicKey?: string;
   installCommand?: string;
