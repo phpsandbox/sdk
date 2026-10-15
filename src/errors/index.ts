@@ -33,13 +33,9 @@ const remoteErrorCodes = [
   'WorkspaceUnavailable',
 ] as const;
 
-export type RemoteErrorCode = typeof remoteErrorCodes[number];
+export type RemoteErrorCode = (typeof remoteErrorCodes)[number];
 
-export type TransportErrorCode =
-  | 'ConnectionFailed'
-  | 'ConnectionTimeout'
-  | 'InvalidResponse'
-  | 'SendTimeout';
+export type TransportErrorCode = 'ConnectionFailed' | 'ConnectionTimeout' | 'InvalidResponse' | 'SendTimeout';
 
 export interface ValidationErrorDetails {
   errors: Record<string, string[]>;
@@ -63,10 +59,7 @@ export class PHPSandboxError extends Error {
   }
 }
 
-export class RemoteError<
-  TCode extends RemoteErrorCode = RemoteErrorCode,
-  TDetails = unknown,
-> extends PHPSandboxError {
+export class RemoteError<TCode extends RemoteErrorCode = RemoteErrorCode, TDetails = unknown> extends PHPSandboxError {
   public readonly source: RemoteErrorSource;
   public readonly status: number;
   public readonly code: TCode;
@@ -92,9 +85,7 @@ export class RemoteError<
     return RemoteError.is(error, 'ValidationFailed') && validationDetails(error.details) !== undefined;
   }
 
-  public is<TExpectedCode extends RemoteErrorCode>(
-    code: TExpectedCode
-  ): this is this & RemoteError<TExpectedCode> {
+  public is<TExpectedCode extends RemoteErrorCode>(code: TExpectedCode): this is this & RemoteError<TExpectedCode> {
     return (this.code as RemoteErrorCode) === code;
   }
 }
@@ -121,18 +112,12 @@ export class TransportError<TCode extends TransportErrorCode = TransportErrorCod
     return error instanceof TransportError && (code === undefined || error.code === code);
   }
 
-  public is<TExpectedCode extends TransportErrorCode>(
-    code: TExpectedCode
-  ): this is this & TransportError<TExpectedCode> {
+  public is<TExpectedCode extends TransportErrorCode>(code: TExpectedCode): this is this & TransportError<TExpectedCode> {
     return (this.code as TransportErrorCode) === code;
   }
 }
 
-export function remoteError(
-  source: RemoteErrorSource,
-  payload: unknown,
-  cause?: unknown
-): RemoteError {
+export function remoteError(source: RemoteErrorSource, payload: unknown, cause?: unknown): RemoteError {
   const error = record(payload);
   const status = positiveInteger(error?.status);
   const code = nonEmptyString(error?.code);
@@ -164,9 +149,7 @@ function nonEmptyString(value: unknown): string | undefined {
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : undefined;
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
 }
 
 function stringArrayRecord(value: unknown): Record<string, string[]> | undefined {

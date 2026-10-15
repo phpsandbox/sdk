@@ -6,18 +6,21 @@ function createJsonFetch() {
   const fetch = vi.fn(async (request: Request) => {
     urls.push(request.url);
 
-    return new Response(JSON.stringify({
-      data: {
-        id: 'abc',
-        runtimeUrl: 'https://runtime.example.test',
-        gitUrl: 'https://git.example.test',
-      },
-    }), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    return new Response(
+      JSON.stringify({
+        data: {
+          id: 'abc',
+          runtimeUrl: 'https://runtime.example.test',
+          gitUrl: 'https://git.example.test',
+        },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
   }) as unknown as typeof globalThis.fetch;
 
   return { fetch, urls };
@@ -87,9 +90,14 @@ describe('PHPSandbox', () => {
   });
 
   it('preserves canonical API errors', async () => {
-    const fetch = vi.fn(async () => Response.json({
-      error: { status: 429, code: 'RateLimited', message: 'Too many requests.', details: { retryAfter: 60 } },
-    }, { status: 429 })) as unknown as typeof globalThis.fetch;
+    const fetch = vi.fn(async () =>
+      Response.json(
+        {
+          error: { status: 429, code: 'RateLimited', message: 'Too many requests.', details: { retryAfter: 60 } },
+        },
+        { status: 429 }
+      )
+    ) as unknown as typeof globalThis.fetch;
     const client = PHPSandbox.realtime('token', undefined, { fetch });
 
     await expect(client.notebook.get('abc')).rejects.toMatchObject({
@@ -101,7 +109,6 @@ describe('PHPSandbox', () => {
       details: { retryAfter: 60 },
     });
   });
-
 });
 
 describe('sandbox Git identity', () => {
@@ -110,9 +117,15 @@ describe('sandbox Git identity', () => {
     const author = { name: 'Jane', email: 'jane@example.com' };
     const bot = { name: 'helfer-dev[bot]', email: '220600418+helfer-dev[bot]@users.noreply.github.com' };
     const fetch = vi.fn(async (request: Request) => {
-      const body = await request.json() as { git: { author: typeof author | null } };
+      const body = (await request.json()) as { git: { author: typeof author | null } };
       requests.push({ method: request.method, path: new URL(request.url).pathname, body });
-      return Response.json({ data: { id: 'abc', runtimeUrl: 'https://runtime.example.test?ticket=test-ticket', git: { author: body.git.author ?? bot } } });
+      return Response.json({
+        data: {
+          id: 'abc',
+          runtimeUrl: 'https://runtime.example.test?ticket=test-ticket',
+          git: { author: body.git.author ?? bot },
+        },
+      });
     }) as unknown as typeof globalThis.fetch;
     const client = PHPSandbox.rest('token', undefined, { fetch });
     const sandbox = await client.notebook.create('laravel', { git: { author } });

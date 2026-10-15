@@ -15,12 +15,17 @@ function createIntegrationClient() {
       return new Response(null, { status: 204 });
     }
 
-    return Response.json({ data: request.method === 'GET' && request.url.endsWith('/integrations') ? [] : {
-      id: 'int_123',
-      provider: 'github',
-      label: 'Helfer GitHub',
-      createdAt: null,
-    } });
+    return Response.json({
+      data:
+        request.method === 'GET' && request.url.endsWith('/integrations')
+          ? []
+          : {
+              id: 'int_123',
+              provider: 'github',
+              label: 'Helfer GitHub',
+              createdAt: null,
+            },
+    });
   }) as unknown as typeof globalThis.fetch;
 
   return {

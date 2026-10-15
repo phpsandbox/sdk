@@ -55,8 +55,7 @@ describe('Notebook preview API', () => {
     expect(requests).toEqual([
       {
         method: 'GET',
-        url:
-          'https://api.phpsandbox.io/v1/notebook/notebook-123/preview?url=https%3A%2F%2Fnotebook-123.ciroue.test%2Fsettings%2Fprofile%3Ftab%3Dsecurity',
+        url: 'https://api.phpsandbox.io/v1/notebook/notebook-123/preview?url=https%3A%2F%2Fnotebook-123.ciroue.test%2Fsettings%2Fprofile%3Ftab%3Dsecurity',
         body: undefined,
       },
     ]);

@@ -54,7 +54,6 @@ export class ServerApi {
     const response = await this.client.get<ServerData>(`/servers/${id}`);
     return new ServerInstance(response.data, this.client);
   }
-
 }
 
 export class ServerInstance {
@@ -77,7 +76,9 @@ export class ServerInstance {
   }
 
   public async revokeAccess(memberId: number): Promise<void> {
-    await this.client.delete<{ deleted: boolean }>(`/servers/${encodeURIComponent(this.data.id)}/members/${encodeURIComponent(String(memberId))}`);
+    await this.client.delete<{ deleted: boolean }>(
+      `/servers/${encodeURIComponent(this.data.id)}/members/${encodeURIComponent(String(memberId))}`
+    );
   }
 
   public refresh(): Promise<ServerInstance> {
@@ -101,7 +102,7 @@ export class ServerInstance {
       if (server.data.status === 'failed') {
         throw new Error(`Server provisioning failed: ${server.data.id}`);
       }
-      await new Promise(resolve => setTimeout(resolve, interval));
+      await new Promise((resolve) => setTimeout(resolve, interval));
     }
 
     throw new Error(`Server did not become ready within ${timeout}ms`);

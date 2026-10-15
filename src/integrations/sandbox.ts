@@ -1,10 +1,5 @@
 import type { Client } from '../index.js';
-import {
-  Integration,
-  integrationId,
-  type IntegrationData,
-  type IntegrationReference,
-} from './account.js';
+import { Integration, integrationId, type IntegrationData, type IntegrationReference } from './account.js';
 
 export type SandboxIntegrationEffect = 'network';
 
@@ -29,7 +24,7 @@ export class SandboxIntegrationApi {
   public constructor(
     private readonly notebookId: string,
     private readonly client: Client
-  ) { }
+  ) {}
 
   public async attach(input: AttachSandboxIntegrationInput): Promise<SandboxIntegration> {
     const response = await this.client.post<SandboxIntegrationData>(this.path(), {
@@ -66,7 +61,7 @@ export class SandboxIntegration {
     public readonly data: SandboxIntegrationData,
     private readonly notebookId: string,
     private readonly client: Client
-  ) { }
+  ) {}
 
   public get id(): string {
     return this.data.id;

@@ -56,9 +56,9 @@ describe.sequential('production SDK canary', () => {
   });
 
   test('executes PHP with exact output', async () => {
-    const result = await operation('execute PHP', () => (
+    const result = await operation('execute PHP', () =>
       fixture!.sandbox.exec(['php', '-r', 'echo "phpsandbox-sdk-smoke-ok\\n";'])
-    ));
+    );
 
     expect(result).toMatchObject({
       exitCode: 0,

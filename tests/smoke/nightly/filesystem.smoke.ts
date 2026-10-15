@@ -40,8 +40,9 @@ describe.sequential('production filesystem contract', () => {
     await operation('copy source file', () => fixture!.sandbox.files.copy(source, copy));
     await operation('move copied file', () => fixture!.sandbox.files.move(copy, moved));
 
-    await expect(operation('read moved file', () => fixture!.sandbox.files.readText(moved)))
-      .resolves.toBe('alpha\nbeta\ngamma\n');
+    await expect(operation('read moved file', () => fixture!.sandbox.files.readText(moved))).resolves.toBe(
+      'alpha\nbeta\ngamma\n'
+    );
     await expect(operation('check copied path', () => fixture!.sandbox.files.exists(copy))).resolves.toBe(false);
 
     await operation('remove moved file', () => fixture!.sandbox.files.remove(moved));
@@ -51,13 +52,18 @@ describe.sequential('production filesystem contract', () => {
   test('tails, finds, searches, and renders a tree', async () => {
     const tail = await operation('tail source file', () => fixture!.sandbox.files.tail(source, { lines: 1 }));
     const files = await operation('find source file', () => fixture!.sandbox.files.find('source.txt', { maxResults: 10 }));
-    const [_hasMore, matches] = await operation('search source file', () => fixture!.sandbox.files.search({
-      pattern: 'beta',
-      isRegExp: false,
-      isCaseSensitive: true,
-    }, {
-      includes: [`${directory}/**`],
-    }));
+    const [_hasMore, matches] = await operation('search source file', () =>
+      fixture!.sandbox.files.search(
+        {
+          pattern: 'beta',
+          isRegExp: false,
+          isCaseSensitive: true,
+        },
+        {
+          includes: [`${directory}/**`],
+        }
+      )
+    );
     const tree = await operation('render smoke directory tree', () => fixture!.sandbox.files.tree(directory));
 
     expect(tail).toContain('gamma');
@@ -94,16 +100,21 @@ describe.sequential('production filesystem contract', () => {
     await expect(operation('read binary file', () => fixture!.sandbox.files.read(path))).resolves.toEqual(expected);
   });
 
-  test.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime')('downloads the selected smoke directory as an archive', async () => {
-    const chunks: Uint8Array[] = [];
+  test.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime')(
+    'downloads the selected smoke directory as an archive',
+    async () => {
+      const chunks: Uint8Array[] = [];
 
-    await operation('download smoke directory', () => fixture!.sandbox.files.download({
-      include: [`${directory}/**`],
-      onChunk: (chunk) => chunks.push(chunk),
-    }));
+      await operation('download smoke directory', () =>
+        fixture!.sandbox.files.download({
+          include: [`${directory}/**`],
+          onChunk: (chunk) => chunks.push(chunk),
+        })
+      );
 
-    expect(chunks.reduce((size, chunk) => size + chunk.byteLength, 0)).toBeGreaterThan(0);
-  });
+      expect(chunks.reduce((size, chunk) => size + chunk.byteLength, 0)).toBeGreaterThan(0);
+    }
+  );
 
   test.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime')('follows appended file content', async () => {
     const path = `${directory}/follow.log`;
@@ -114,11 +125,9 @@ describe.sequential('production filesystem contract', () => {
     const reader = fixture!.sandbox.files.follow(path, { lines: 1, signal: controller.signal }).getReader();
     const initial = await operation('start following file', () => reader.read());
     expect(new TextDecoder().decode(initial.value)).toContain('follow-ready');
-    await operation('append followed file', () => fixture!.sandbox.exec([
-      'php',
-      '-r',
-      `file_put_contents(${JSON.stringify(path)}, ${JSON.stringify(marker)}, FILE_APPEND);`,
-    ]));
+    await operation('append followed file', () =>
+      fixture!.sandbox.exec(['php', '-r', `file_put_contents(${JSON.stringify(path)}, ${JSON.stringify(marker)}, FILE_APPEND);`])
+    );
 
     const chunk = await operation('read appended content', () => reader.read());
     expect(chunk.done).toBe(false);

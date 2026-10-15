@@ -73,9 +73,7 @@ describe.sequential('production Beacon browser contract', () => {
   });
 
   test('executes code and captures console and error events', async () => {
-    const result = await page!.evaluate((marker) => (
-      window.phpsandboxBeaconSmoke.emitAndReadEvents(marker)
-    ), eventMarker);
+    const result = await page!.evaluate((marker) => window.phpsandboxBeaconSmoke.emitAndReadEvents(marker), eventMarker);
 
     expect(result.execution).toMatchObject({ result: eventMarker, success: true });
     expect(result.console.some((event) => event.args.includes(eventMarker))).toBe(true);
@@ -83,9 +81,10 @@ describe.sequential('production Beacon browser contract', () => {
   });
 
   test('fetches a deterministic endpoint inside the preview', async () => {
-    const result = await page!.evaluate((url) => window.phpsandboxBeaconSmoke.fetch(url), (
+    const result = await page!.evaluate(
+      (url) => window.phpsandboxBeaconSmoke.fetch(url),
       withPath(previewUrl!, '/sdk-beacon-api.php')
-    ));
+    );
 
     expect(result).toEqual({
       body: { marker: apiMarker },

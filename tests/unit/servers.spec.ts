@@ -18,7 +18,8 @@ function serverData(status: string = 'pending'): ServerData {
 describe('Server API', () => {
   it('shares one server with an existing account, lists members, and revokes access', async () => {
     const member = { id: 42, name: 'Teammate', email: 'teammate@example.test', access: 'deployer' };
-    const fetch = vi.fn<typeof globalThis.fetch>()
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(Response.json({ data: serverData() }))
       .mockResolvedValueOnce(Response.json({ data: member }))
       .mockResolvedValueOnce(Response.json({ data: [member], meta: { currentPage: 2 } }))
@@ -30,7 +31,7 @@ describe('Server API', () => {
     await expect(server.members({ page: 2 })).resolves.toMatchObject({ data: [member], meta: { currentPage: 2 } });
     await server.revokeAccess(member.id);
     const requests = fetch.mock.calls.map(([request]) => request as Request);
-    expect(requests.map(request => [request.method, request.url])).toEqual([
+    expect(requests.map((request) => [request.method, request.url])).toEqual([
       ['GET', 'https://api.phpsandbox.io/v1/servers/server-1'],
       ['POST', 'https://api.phpsandbox.io/v1/servers/server-1/members'],
       ['GET', 'https://api.phpsandbox.io/v1/servers/server-1/members?page=2'],
@@ -40,7 +41,8 @@ describe('Server API', () => {
   });
 
   it('lists, creates, refreshes, and deletes server resources', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>()
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(Response.json({ data: [serverData()], meta: { currentPage: 2 } }))
       .mockResolvedValueOnce(Response.json({ data: serverData() }))
       .mockResolvedValueOnce(Response.json({ data: serverData() }))
@@ -60,7 +62,7 @@ describe('Server API', () => {
     await created.delete();
 
     const requests = fetch.mock.calls.map(([request]) => request as Request);
-    expect(requests.map(request => [request.method, request.url])).toEqual([
+    expect(requests.map((request) => [request.method, request.url])).toEqual([
       ['GET', 'https://api.phpsandbox.io/v1/servers?page=2'],
       ['POST', 'https://api.phpsandbox.io/v1/servers'],
       ['GET', 'https://api.phpsandbox.io/v1/servers/server-1'],
@@ -74,7 +76,8 @@ describe('Server API', () => {
   });
 
   it('waits for a pending server and rejects a failed server', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>()
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(Response.json({ data: serverData('pending') }))
       .mockResolvedValueOnce(Response.json({ data: serverData('connected') }))
       .mockResolvedValueOnce(Response.json({ data: serverData('failed') }));
@@ -86,8 +89,6 @@ describe('Server API', () => {
     await expect(pending.waitReady({ interval: 0 })).resolves.toMatchObject({
       data: { status: 'connected' },
     });
-    await expect(pending.waitReady({ interval: 0 })).rejects.toThrow(
-      'Server provisioning failed: server-1',
-    );
+    await expect(pending.waitReady({ interval: 0 })).rejects.toThrow('Server provisioning failed: server-1');
   });
 });

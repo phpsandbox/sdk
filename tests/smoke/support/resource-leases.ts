@@ -1,10 +1,6 @@
 import { RemoteError, type NotebookInstance, type PHPSandbox } from '@phpsandbox/sdk';
 import { z } from 'zod';
-import type {
-  GitHubSmokeEnvironment,
-  PublicationSmokeProvider,
-  SmokeResourceRegistryEnvironment,
-} from './environment.js';
+import type { GitHubSmokeEnvironment, PublicationSmokeProvider, SmokeResourceRegistryEnvironment } from './environment.js';
 import { operation } from './resources.js';
 
 const leaseDirectory = '.sdk-smoke/resource-leases';
@@ -15,10 +11,12 @@ const PublicationResourceLeaseSchema = z.object({
   provider: z.enum(['cloudflare-containers', 'laravel-cloud', 'ssh-server']),
   runAttempt: z.string().regex(/^\d+$/),
   runId: z.string().regex(/^[A-Za-z0-9_-]+$/),
-  server: z.object({
-    id: z.string().min(1).optional(),
-    name: z.string().min(1),
-  }).optional(),
+  server: z
+    .object({
+      id: z.string().min(1).optional(),
+      name: z.string().min(1),
+    })
+    .optional(),
   version: z.literal(1),
 });
 
@@ -50,7 +48,7 @@ export class PublicationResourceLeaseRegistry {
   public constructor(
     private readonly github: GitHubSmokeEnvironment,
     private readonly registry: SmokeResourceRegistryEnvironment,
-    private readonly fetchImplementation: typeof globalThis.fetch = globalThis.fetch,
+    private readonly fetchImplementation: typeof globalThis.fetch = globalThis.fetch
   ) {
     this.#apiBaseUrl = new URL(`https://api.github.com/repos/${registry.repository}/contents/`);
   }
@@ -63,7 +61,7 @@ export class PublicationResourceLeaseRegistry {
 
   public async update(
     stored: StoredPublicationResourceLease,
-    lease: PublicationResourceLease,
+    lease: PublicationResourceLease
   ): Promise<StoredPublicationResourceLease> {
     const sha = await this.#write(stored.path, lease, stored.sha);
     return { lease, path: stored.path, sha };
@@ -86,12 +84,12 @@ export class PublicationResourceLeaseRegistry {
       return [];
     }
 
-    const summaries = await response.json() as GitHubContentSummary[];
+    const summaries = (await response.json()) as GitHubContentSummary[];
     const files = summaries.filter((item) => item.type === 'file' && item.path.endsWith('.json'));
     const leases: StoredPublicationResourceLease[] = [];
     for (const file of files) {
       const contentResponse = await this.#request(file.path, { method: 'GET' });
-      const content = await contentResponse.json() as GitHubContent;
+      const content = (await contentResponse.json()) as GitHubContent;
       const decoded = Buffer.from(content.content.replaceAll('\n', ''), content.encoding).toString('utf8');
       leases.push({
         lease: PublicationResourceLeaseSchema.parse(JSON.parse(decoded)),
@@ -113,7 +111,7 @@ export class PublicationResourceLeaseRegistry {
       }),
       method: 'PUT',
     });
-    const payload = await response.json() as { readonly content: { readonly sha: string } };
+    const payload = (await response.json()) as { readonly content: { readonly sha: string } };
     return payload.content.sha;
   }
 
@@ -137,7 +135,9 @@ export class PublicationResourceLeaseRegistry {
       return null;
     }
     if (!response.ok) {
-      throw new Error(`GitHub resource registry ${init.method} ${path} returned ${response.status}: ${(await response.text()).slice(0, 500)}`);
+      throw new Error(
+        `GitHub resource registry ${init.method} ${path} returned ${response.status}: ${(await response.text()).slice(0, 500)}`
+      );
     }
 
     return response;
@@ -163,36 +163,31 @@ export function createPublicationResourceLease(input: {
   };
 }
 
-export function isExpiredResourceLease(
-  lease: PublicationResourceLease,
-  maxAgeHours: number,
-  now = new Date(),
-): boolean {
+export function isExpiredResourceLease(lease: PublicationResourceLease, maxAgeHours: number, now = new Date()): boolean {
   return Date.parse(lease.createdAt) <= now.getTime() - maxAgeHours * 60 * 60 * 1_000;
 }
 
 export async function reapPublicationResources(
   client: PHPSandbox,
   registry: PublicationResourceLeaseRegistry,
-  stored: StoredPublicationResourceLease,
+  stored: StoredPublicationResourceLease
 ): Promise<void> {
   const { lease } = stored;
   console.log(`Reaping ${lease.provider} resources for workflow ${lease.runId}.${lease.runAttempt}.`);
 
-  const notebook = await operationAllowingMissing(
-    'read abandoned publication sandbox',
-    () => client.notebook.get(lease.notebookId),
+  const notebook = await operationAllowingMissing('read abandoned publication sandbox', () =>
+    client.notebook.get(lease.notebookId)
   );
   if (notebook !== undefined) {
     await reapNotebookPublication(notebook, lease.provider);
   }
 
   if (lease.provider === 'ssh-server' && lease.server !== undefined) {
-    const serverId = lease.server.id ?? await findServerIdByExactName(client, lease.server.name);
+    const serverId = lease.server.id ?? (await findServerIdByExactName(client, lease.server.name));
     if (serverId !== undefined) {
-      await operationAllowingMissing('delete abandoned Rook server registration', () => (
+      await operationAllowingMissing('delete abandoned Rook server registration', () =>
         client.servers.get(serverId).then((server) => server.delete())
-      ));
+      );
     }
   }
 
@@ -202,29 +197,19 @@ export async function reapPublicationResources(
   await operation('release reaped resource lease', () => registry.delete(stored));
 }
 
-async function reapNotebookPublication(
-  notebook: NotebookInstance,
-  expectedProvider: PublicationSmokeProvider,
-): Promise<void> {
-  const publication = await operationAllowingMissing(
-    'read abandoned publication',
-    () => notebook.publication.current(),
-  );
+async function reapNotebookPublication(notebook: NotebookInstance, expectedProvider: PublicationSmokeProvider): Promise<void> {
+  const publication = await operationAllowingMissing('read abandoned publication', () => notebook.publication.current());
   if (publication === undefined || publication === null) {
     return;
   }
 
   if (publication.data.provider.name !== expectedProvider) {
     throw new Error(
-      `Refusing to delete publication ${publication.data.id}: expected provider ${expectedProvider}, `
-      + `received ${publication.data.provider.name}.`,
+      `Refusing to delete publication ${publication.data.id}: expected provider ${expectedProvider}, ` +
+        `received ${publication.data.provider.name}.`
     );
   }
-  await operationAllowingMissing(
-    `destroy abandoned ${expectedProvider} publication`,
-    () => publication.destroy(),
-    300_000,
-  );
+  await operationAllowingMissing(`destroy abandoned ${expectedProvider} publication`, () => publication.destroy(), 300_000);
 }
 
 async function findServerIdByExactName(client: PHPSandbox, name: string): Promise<string | undefined> {
@@ -249,21 +234,21 @@ function paginationLastPage(meta: Record<string, unknown> | undefined): number {
   return typeof lastPage === 'number' && Number.isInteger(lastPage) && lastPage > 0 ? lastPage : 1;
 }
 
-async function operationAllowingMissing<T>(
-  name: string,
-  callback: () => Promise<T>,
-  timeoutMs?: number,
-): Promise<T | undefined> {
-  return operation(name, async () => {
-    try {
-      return await callback();
-    } catch (error) {
-      if (RemoteError.is(error) && error.status === 404) {
-        return undefined;
+async function operationAllowingMissing<T>(name: string, callback: () => Promise<T>, timeoutMs?: number): Promise<T | undefined> {
+  return operation(
+    name,
+    async () => {
+      try {
+        return await callback();
+      } catch (error) {
+        if (RemoteError.is(error) && error.status === 404) {
+          return undefined;
+        }
+        throw error;
       }
-      throw error;
-    }
-  }, timeoutMs);
+    },
+    timeoutMs
+  );
 }
 
 function resourceLeasePath(lease: PublicationResourceLease): string {

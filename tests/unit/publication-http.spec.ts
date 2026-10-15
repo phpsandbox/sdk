@@ -13,7 +13,9 @@ describe('publication HTTP contract', () => {
 
   beforeEach(async () => {
     ready = true;
-    streamReceived = new Promise(resolve => { receiveStream = resolve; });
+    streamReceived = new Promise((resolve) => {
+      receiveStream = resolve;
+    });
     requests = [];
     server = createServer(async (request, response) => {
       const chunks: Buffer[] = [];
@@ -37,15 +39,30 @@ describe('publication HTTP contract', () => {
         case '/v1/notebook/nb/publication/plan': {
           z.strictObject({ expectedRevision: z.number().int(), appIds: z.array(z.string()).optional() }).parse(body);
           const plan: PublicationApplicationPlan = {
-            schemaVersion: 1, configurationId: 'project', configurationRevision: 2, apps: [], resources: [],
-            review: { id: 'review-http', ready, blockers: ready ? [] : [{ code: 'source.provider_access', message: 'Connect repository access' }], destinations: {}, productionVariables: [], configuration: [],
-              source: { type: 'git', repository: 'owner/app', branch: 'main', revision: null, digest: 'workspace-digest' }, digest: 'review-digest', proposal: 'signed-proposal' },
+            schemaVersion: 1,
+            configurationId: 'project',
+            configurationRevision: 2,
+            apps: [],
+            resources: [],
+            review: {
+              id: 'review-http',
+              ready,
+              blockers: ready ? [] : [{ code: 'source.provider_access', message: 'Connect repository access' }],
+              destinations: {},
+              productionVariables: [],
+              configuration: [],
+              source: { type: 'git', repository: 'owner/app', branch: 'main', revision: null, digest: 'workspace-digest' },
+              digest: 'review-digest',
+              proposal: 'signed-proposal',
+            },
           };
           data = plan;
           break;
         }
         case '/v1/notebook/nb/publication':
-          if (request.method === 'POST') z.strictObject({ reviewId: z.string(), proposal: z.string(), appIds: z.array(z.string()).optional() }).parse(body);
+          if (request.method === 'POST') {
+            z.strictObject({ reviewId: z.string(), proposal: z.string(), appIds: z.array(z.string()).optional() }).parse(body);
+          }
           if (request.method === 'GET') {
             response.statusCode = 404;
             response.end(
@@ -69,7 +86,22 @@ describe('publication HTTP contract', () => {
             );
             return;
           }
-          data = { id: 'project', status: 'publishing', selectedAppIds: ['backend'], apps: [{ appId: 'backend', publication: { id: 'publication', eventStreamUrl: `${origin}/events`, provider: { name: 'laravel-cloud' }, status: 'queued' } }] };
+          data = {
+            id: 'project',
+            status: 'publishing',
+            selectedAppIds: ['backend'],
+            apps: [
+              {
+                appId: 'backend',
+                publication: {
+                  id: 'publication',
+                  eventStreamUrl: `${origin}/events`,
+                  provider: { name: 'laravel-cloud' },
+                  status: 'queued',
+                },
+              },
+            ],
+          };
           break;
         case '/events':
           receiveStream();
@@ -103,7 +135,9 @@ describe('publication HTTP contract', () => {
     try {
       const input = { reviewId: 'review-http', proposal: 'signed-proposal' };
       const application = await notebook.publication.publish(input);
-      if ('confirmationRequired' in application) throw new Error('Expected an accepted publishing proposal');
+      if ('confirmationRequired' in application) {
+        throw new Error('Expected an accepted publishing proposal');
+      }
       expect(application.id).toBe('project');
       await streamReceived;
       expect(requests.map((request) => request.path)).toEqual(['/v1/notebook/nb', '/v1/notebook/nb/publication', '/events']);
@@ -142,7 +176,9 @@ describe('publication HTTP contract', () => {
     const notebook = await PHPSandbox.rest('test-token', `${origin}/v1`).notebook.get('nb');
     try {
       const application = await notebook.publication.publish({ reviewId: 'fresh-review', proposal: 'signed-proposal' });
-      if ('confirmationRequired' in application) throw new Error('Expected an accepted publishing proposal');
+      if ('confirmationRequired' in application) {
+        throw new Error('Expected an accepted publishing proposal');
+      }
       expect(application.selectedAppIds).toEqual(['backend']);
       expect(requests[1]).toMatchObject({ method: 'POST', path: '/v1/notebook/nb/publication' });
       expect(requests[1].body).toEqual({ reviewId: 'fresh-review', proposal: 'signed-proposal' });

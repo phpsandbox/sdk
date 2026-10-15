@@ -64,20 +64,28 @@ export class NotebookPublication {
   /** Publish the exact app selection in a server-owned review. */
   public async publish(input: PublicationApplicationPublishInput): Promise<PublicationApplicationPublishResult> {
     const application = (await this.client.post<PublicationApplicationPublishResult>(`${this.path}/publication`, input)).data;
-    if (!('confirmationRequired' in application)) this.startApplicationRuns(application);
+    if (!('confirmationRequired' in application)) {
+      this.startApplicationRuns(application);
+    }
     return application;
   }
 
   public async application(applicationId: string): Promise<PublicationApplicationData> {
-    return (await this.client.get<PublicationApplicationData>(`${this.path}/publication/application/${encodeURIComponent(applicationId)}`)).data;
+    return (
+      await this.client.get<PublicationApplicationData>(
+        `${this.path}/publication/application/${encodeURIComponent(applicationId)}`
+      )
+    ).data;
   }
 
   /** Retry failed apps and pending route attachments while preserving running releases. */
   public async retryApplication(applicationId: string): Promise<PublicationApplicationData> {
-    const application = (await this.client.post<PublicationApplicationData>(
-      `${this.path}/publication/application/${encodeURIComponent(applicationId)}/retry`,
-      {}
-    )).data;
+    const application = (
+      await this.client.post<PublicationApplicationData>(
+        `${this.path}/publication/application/${encodeURIComponent(applicationId)}/retry`,
+        {}
+      )
+    ).data;
     this.startApplicationRuns(application);
     return application;
   }
@@ -89,27 +97,23 @@ export class NotebookPublication {
 
   private startApplicationRuns(application: PublicationApplicationData): void {
     for (const app of application.apps) {
-      if (!(application.selectedAppIds ?? []).includes(app.appId)) continue;
-      if (!['pending', 'queued', 'building', 'deploying'].includes(app.publication.status)) continue;
-      new PublicationRun(
-        new PublicationInstance(app.publication, this.client, this.notebookId),
-        this.client
-      ).start();
+      if (!(application.selectedAppIds ?? []).includes(app.appId)) {
+        continue;
+      }
+      if (!['pending', 'queued', 'building', 'deploying'].includes(app.publication.status)) {
+        continue;
+      }
+      new PublicationRun(new PublicationInstance(app.publication, this.client, this.notebookId), this.client).start();
     }
   }
 
   public catalog(provider: 'laravel-cloud' | 'cloudflare-containers'): Promise<PublicationResourceCatalog>;
   public catalog(provider: 'ssh-server', serverId: string): Promise<PublicationResourceCatalog>;
-  public async catalog(
-    provider: PublicationProviderName,
-    serverId?: string
-  ): Promise<PublicationResourceCatalog> {
+  public async catalog(provider: PublicationProviderName, serverId?: string): Promise<PublicationResourceCatalog> {
     const query = new URLSearchParams({ provider });
     if (serverId !== undefined) {
       query.set('serverId', serverId);
     }
-    return (await this.client.get<PublicationResourceCatalog>(`${this.path}/publication/catalog?${query}`))
-      .data;
+    return (await this.client.get<PublicationResourceCatalog>(`${this.path}/publication/catalog?${query}`)).data;
   }
-
 }

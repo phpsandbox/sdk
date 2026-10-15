@@ -16,14 +16,20 @@ describe('Beacon origin restrictions', () => {
   it('rejects messages after an iframe navigates to a different origin', () => {
     let onMessage!: (event: Partial<MessageEvent>) => void;
     vi.stubGlobal('window', {
-      addEventListener: (_event: string, handler: typeof onMessage) => { onMessage = handler; },
+      addEventListener: (_event: string, handler: typeof onMessage) => {
+        onMessage = handler;
+      },
       removeEventListener: vi.fn(),
     });
     const iframe = { src: 'https://preview.example', contentWindow: {} } as HTMLIFrameElement;
     const beacon = new Beacon(iframe, { targetOrigin: 'https://preview.example' });
     beacons.add(beacon);
 
-    onMessage({ source: iframe.contentWindow, origin: 'https://untrusted.example', data: { type: 'beacon:channel-established' } });
+    onMessage({
+      source: iframe.contentWindow,
+      origin: 'https://untrusted.example',
+      data: { type: 'beacon:channel-established' },
+    });
     expect(beacon.isReady).toBe(false);
     onMessage({ source: {} as Window, origin: 'https://preview.example', data: { type: 'beacon:channel-established' } });
     expect(beacon.isReady).toBe(false);
@@ -35,14 +41,19 @@ describe('Beacon origin restrictions', () => {
     vi.useFakeTimers();
     let onMessage!: (event: Partial<MessageEvent>) => void;
     vi.stubGlobal('window', {
-      addEventListener: (_event: string, handler: typeof onMessage) => { onMessage = handler; },
+      addEventListener: (_event: string, handler: typeof onMessage) => {
+        onMessage = handler;
+      },
       removeEventListener: vi.fn(),
     });
     const port = { start: vi.fn(), close: vi.fn() };
-    vi.stubGlobal('MessageChannel', class {
-      port1 = port;
-      port2 = port;
-    });
+    vi.stubGlobal(
+      'MessageChannel',
+      class {
+        port1 = port;
+        port2 = port;
+      }
+    );
     const postMessage = vi.fn();
     const iframe = { src: 'https://preview.example', contentWindow: { postMessage } } as unknown as HTMLIFrameElement;
     const beacon = new Beacon(iframe, { targetOrigin: 'https://preview.example' });

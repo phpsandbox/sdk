@@ -181,20 +181,57 @@ describe.sequential('production publication provider contract', () => {
       const slug = publicationSlug(activeFixture, activeEnvironment);
       publicationPassword = `sdk-publication-${activeFixture.environment.runId}`;
       const { name } = provider;
-      const base = { name: 'Smoke app', kind: 'http' as const, root: '.', slug, routing: { mode: 'managed' as const }, resourceIds: [] };
-      const container = { ...base, build: { mode: 'dockerfile' as const, dockerfile: { source: 'project' as const, path: 'Dockerfile' } }, runtime: { mode: 'container' as const, port: 8080, healthCheck: { path: '/' } } };
-      const app: PublicationAppDraft = name === 'laravel-cloud'
-        ? { ...base, destination: { provider: name, region: 'eu-central-1', setup: { repositoryAccessConfirmed: true } }, build: { mode: 'provider-native' }, runtime: { mode: 'provider-native' } }
-        : name === 'ssh-server'
-          ? { ...container, destination: { provider: name, serverId: server!.data.id } }
-          : { ...container, destination: { provider: name, accountId: activeEnvironment.cloudflareAccountId!, size: 'nano', sleepAfter: '10m' } };
-      const configuration = await operation('save smoke app', () => activeFixture.sandbox.publication.updateConfiguration({ expectedRevision: 0, operations: [{ op: 'add-app', app }] }));
-      const review = await operation('review saved smoke app', () => activeFixture.sandbox.publication.prepare({ expectedRevision: configuration.revision }));
-      if (!review.review.ready) throw new Error(review.review.blockers.map(blocker => blocker.message).join('; '));
-      const application = await operation('confirm publication review', () => activeFixture.sandbox.publication.publish({ reviewId: review.review.id, proposal: review.review.proposal }));
-      if ('confirmationRequired' in application) throw new Error('Publishing setup changed; a new confirmation is required.');
+      const base = {
+        name: 'Smoke app',
+        kind: 'http' as const,
+        root: '.',
+        slug,
+        routing: { mode: 'managed' as const },
+        resourceIds: [],
+      };
+      const container = {
+        ...base,
+        build: { mode: 'dockerfile' as const, dockerfile: { source: 'project' as const, path: 'Dockerfile' } },
+        runtime: { mode: 'container' as const, port: 8080, healthCheck: { path: '/' } },
+      };
+      const app: PublicationAppDraft =
+        name === 'laravel-cloud'
+          ? {
+              ...base,
+              destination: { provider: name, region: 'eu-central-1', setup: { repositoryAccessConfirmed: true } },
+              build: { mode: 'provider-native' },
+              runtime: { mode: 'provider-native' },
+            }
+          : name === 'ssh-server'
+            ? { ...container, destination: { provider: name, serverId: server!.data.id } }
+            : {
+                ...container,
+                destination: {
+                  provider: name,
+                  accountId: activeEnvironment.cloudflareAccountId!,
+                  size: 'nano',
+                  sleepAfter: '10m',
+                },
+              };
+      const configuration = await operation('save smoke app', () =>
+        activeFixture.sandbox.publication.updateConfiguration({ expectedRevision: 0, operations: [{ op: 'add-app', app }] })
+      );
+      const review = await operation('review saved smoke app', () =>
+        activeFixture.sandbox.publication.prepare({ expectedRevision: configuration.revision })
+      );
+      if (!review.review.ready) {
+        throw new Error(review.review.blockers.map((blocker) => blocker.message).join('; '));
+      }
+      const application = await operation('confirm publication review', () =>
+        activeFixture.sandbox.publication.publish({ reviewId: review.review.id, proposal: review.review.proposal })
+      );
+      if ('confirmationRequired' in application) {
+        throw new Error('Publishing setup changed; a new confirmation is required.');
+      }
       const appPublication = requireStageValue(application.apps[0], 'confirmed app publication');
-      publication = await operation('read smoke app publication', () => activeFixture.client.publications.get(appPublication.publication.id));
+      publication = await operation('read smoke app publication', () =>
+        activeFixture.client.publications.get(appPublication.publication.id)
+      );
       publicationCleanup = activeFixture.resources.register(`publication ${publication.data.id}`, () => publication!.destroy());
       const run = publication.follow();
       const eventsPromise = collectEvents(run.events());

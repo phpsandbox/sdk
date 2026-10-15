@@ -12,14 +12,19 @@ describe('Notebook secrets', () => {
         body: text === '' ? undefined : JSON.parse(text),
       });
 
-      return Response.json({ data: request.method === 'GET' || text.startsWith('{"secrets"') ? [] : {
-        uuid: 'secret-1',
-        name: 'API_KEY',
-        type: 'environment_variable',
-        environment: 'production',
-        createdAt: null,
-        updatedAt: null,
-      } });
+      return Response.json({
+        data:
+          request.method === 'GET' || text.startsWith('{"secrets"')
+            ? []
+            : {
+                uuid: 'secret-1',
+                name: 'API_KEY',
+                type: 'environment_variable',
+                environment: 'production',
+                createdAt: null,
+                updatedAt: null,
+              },
+      });
     }) as unknown as typeof globalThis.fetch;
     const notebook = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch }).notebook.open({
       id: 'notebook-1',

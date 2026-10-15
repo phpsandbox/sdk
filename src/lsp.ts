@@ -84,11 +84,11 @@ export class LspConnection {
   }
 
   public dispose() {
-    this.lsp.close(this.id);
+    return this.lsp.close(this.id);
   }
 
   public start() {
-    this.lsp.start(this.id);
+    return this.lsp.start(this.id);
   }
 
   public onClientDisconnect(cb: (code: number, message: string) => void): Disposable {

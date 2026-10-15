@@ -6,20 +6,6 @@ import {
   type PublicationApplicationPlanInput,
 } from '../../src/index.js';
 
-async function notebook() {
-  return PHPSandbox.rest('token', 'https://api.example/v1', {
-    fetch: vi.fn(async () =>
-      Response.json({
-        data: {
-          id: 'nb',
-          status: 'running',
-          runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket',
-        },
-      })
-    ),
-  }).notebook.get('nb');
-}
-
 describe('publication planning', () => {
   it('prepares a multi-component application plan without publishing', async () => {
     const requests: Request[] = [];
@@ -47,16 +33,25 @@ describe('publication planning', () => {
       fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const request = new Request(input, init);
         requests.push(request);
-        return Response.json({ data: request.url.endsWith('/notebook/nb')
-          ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
-          : { schemaVersion: 1, id: 'project', revision: 4, apps: [], resources: [], deployments: [{ appId: 'removed', configured: false, publication: { id: 'still-running', status: 'healthy' } }] } });
+        return Response.json({
+          data: request.url.endsWith('/notebook/nb')
+            ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
+            : {
+                schemaVersion: 1,
+                id: 'project',
+                revision: 4,
+                apps: [],
+                resources: [],
+                deployments: [{ appId: 'removed', configured: false, publication: { id: 'still-running', status: 'healthy' } }],
+              },
+        });
       }),
     });
     const nb = await client.notebook.get('nb');
     const config = await nb.publication.configuration();
     expect(config.deployments[0]?.publication.id).toBe('still-running');
     await nb.publication.updateConfiguration({ expectedRevision: 4, operations: [{ op: 'remove-app', appId: 'removed' }] });
-    expect(requests.slice(1).map(request => [request.method, request.url])).toEqual([
+    expect(requests.slice(1).map((request) => [request.method, request.url])).toEqual([
       ['GET', 'https://api.example/v1/notebook/nb/publication/configuration'],
       ['PATCH', 'https://api.example/v1/notebook/nb/publication/configuration'],
     ]);
@@ -65,14 +60,20 @@ describe('publication planning', () => {
   });
   it('returns a changed proposal without starting any runtime execution', async () => {
     const requests: Request[] = [];
-    const pending = { confirmationRequired: true, plan: { review: { id: 'updated', proposal: 'updated-signed' } }, changes: ['Frontend: hosting destination changed.'] };
+    const pending = {
+      confirmationRequired: true,
+      plan: { review: { id: 'updated', proposal: 'updated-signed' } },
+      changes: ['Frontend: hosting destination changed.'],
+    };
     const client = PHPSandbox.rest('token', 'https://api.example/v1', {
       fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const request = new Request(input, init);
         requests.push(request);
-        return Response.json({ data: request.url.endsWith('/notebook/nb')
-          ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
-          : pending });
+        return Response.json({
+          data: request.url.endsWith('/notebook/nb')
+            ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
+            : pending,
+        });
       }),
     });
     const nb = await client.notebook.get('nb');
@@ -92,21 +93,51 @@ describe('publication planning', () => {
             headers: { 'content-type': 'text/event-stream' },
           });
         }
-        return Response.json({ data: request.url.endsWith('/notebook/nb')
-          ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
-          : request.method === 'POST'
-            ? { id: 'app-1', selectedAppIds: ['api'], status: 'publishing', apps: [{ appId: 'api', publication: {
-                id: 'component-1', slug: 'api', url: 'https://component.example', status: 'queued', strategy: 'custom',
-                provider: { name: 'cloudflare-containers' }, capabilities: {}, protection: { mode: 'none', supported: true, enabled: false },
-                eventStreamUrl: 'https://runtime.example/publish/component-1', originUrl: null, setupState: null, domains: [],
-                currentRelease: null, latestBuild: null, deployedAt: null, createdAt: null, updatedAt: null,
-              } }] }
-            : { id: 'app-1', selectedAppIds: ['api'], status: 'publishing', apps: [] } });
+        return Response.json({
+          data: request.url.endsWith('/notebook/nb')
+            ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
+            : request.method === 'POST'
+              ? {
+                  id: 'app-1',
+                  selectedAppIds: ['api'],
+                  status: 'publishing',
+                  apps: [
+                    {
+                      appId: 'api',
+                      publication: {
+                        id: 'component-1',
+                        slug: 'api',
+                        url: 'https://component.example',
+                        status: 'queued',
+                        strategy: 'custom',
+                        provider: { name: 'cloudflare-containers' },
+                        capabilities: {},
+                        protection: { mode: 'none', supported: true, enabled: false },
+                        eventStreamUrl: 'https://runtime.example/publish/component-1',
+                        originUrl: null,
+                        setupState: null,
+                        domains: [],
+                        currentRelease: null,
+                        latestBuild: null,
+                        deployedAt: null,
+                        createdAt: null,
+                        updatedAt: null,
+                      },
+                    },
+                  ],
+                }
+              : { id: 'app-1', selectedAppIds: ['api'], status: 'publishing', apps: [] },
+        });
       }),
     });
     const nb = await client.notebook.get('nb');
     expect(await nb.publication.publish({ reviewId: 'review-1', proposal: 'signed-proposal' })).toMatchObject({ id: 'app-1' });
-    expect(await requests.find((request) => request.url.endsWith('/publication'))!.clone().json()).toEqual({reviewId: 'review-1', proposal: 'signed-proposal'});
+    expect(
+      await requests
+        .find((request) => request.url.endsWith('/publication'))!
+        .clone()
+        .json()
+    ).toEqual({ reviewId: 'review-1', proposal: 'signed-proposal' });
     await nb.publication.application('app-1');
     await nb.publication.retryApplication('app-1');
     await nb.publication.destroyApplication('app-1', { deleteResources: true });
@@ -126,17 +157,31 @@ describe('publication planning', () => {
       fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const request = new Request(input, init);
         requests.push(request);
-        return Response.json({ data: request.url.endsWith('/notebook/nb')
-          ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
-          : { id: 'project', status: 'publishing', selectedAppIds: ['frontend'], apps: [
-              { appId: 'frontend', publication: { status: 'healthy' } },
-              { appId: 'backend', publication: { id: 'backend-publication', status: 'queued', eventStreamUrl: 'https://runtime.example/publish/backend-publication' } },
-            ] } });
+        return Response.json({
+          data: request.url.endsWith('/notebook/nb')
+            ? { id: 'nb', status: 'running', runtimeUrl: 'https://runtime.example/actions?ticket=test-ticket' }
+            : {
+                id: 'project',
+                status: 'publishing',
+                selectedAppIds: ['frontend'],
+                apps: [
+                  { appId: 'frontend', publication: { status: 'healthy' } },
+                  {
+                    appId: 'backend',
+                    publication: {
+                      id: 'backend-publication',
+                      status: 'queued',
+                      eventStreamUrl: 'https://runtime.example/publish/backend-publication',
+                    },
+                  },
+                ],
+              },
+        });
       }),
     });
     const nb = await client.notebook.get('nb');
     await nb.publication.publish({ reviewId: 'frontend-review', proposal: 'signed-proposal' });
-    expect(requests.map(request => request.url)).toEqual([
+    expect(requests.map((request) => request.url)).toEqual([
       'https://api.example/v1/notebook/nb',
       'https://api.example/v1/notebook/nb/publication',
     ]);

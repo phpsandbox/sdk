@@ -6,7 +6,7 @@
  * @param exception
  */
 
-import { PromiseTimeoutError } from "../errors/index.js";
+import { PromiseTimeoutError } from '../errors/index.js';
 
 export const timeout = <T>(prom: Promise<T>, time: number): Promise<T> => {
   let timer: ReturnType<typeof setTimeout>;
@@ -19,9 +19,9 @@ export const timeout = <T>(prom: Promise<T>, time: number): Promise<T> => {
 };
 
 /**
- * Wraps an async function to ensure it only executes once. 
+ * Wraps an async function to ensure it only executes once.
  * Subsequent calls return the memoized promise result.
- * 
+ *
  * @param fn The async function to execute once
  * @returns A wrapped function that memoizes the first execution
  */

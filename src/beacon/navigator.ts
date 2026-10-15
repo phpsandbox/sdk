@@ -67,7 +67,6 @@ export class Navigator implements NavigatorActions {
     private onceEvent: <K extends keyof NavigatorEvents>(event: K, handler: (payload: NavigatorEvents[K]) => void) => Disposable,
     private readonly beacon: Beacon
   ) {
-    this.beacon = beacon;
     this.setupUrlChangeListener();
     this.urlHistory.push(beacon.iframe.src);
     this.updateNavigationState();

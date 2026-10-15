@@ -114,20 +114,24 @@ window.phpsandboxBeaconSmoke = {
 
     return {
       success: result.success,
-      ...(result.response === undefined ? {} : {
-        body: result.response.body,
-        status: result.response.status,
-      }),
+      ...(result.response === undefined
+        ? {}
+        : {
+            body: result.response.body,
+            status: result.response.status,
+          }),
     };
   },
 
   async inspect(selector: string): Promise<BeaconBrowserInspection> {
     const result = await activeBeacon().inspectElement(selector);
-    const element = result.element as {
-      readonly id?: string;
-      readonly tagName?: string;
-      readonly textContent?: string;
-    } | undefined;
+    const element = result.element as
+      | {
+          readonly id?: string;
+          readonly tagName?: string;
+          readonly textContent?: string;
+        }
+      | undefined;
 
     return {
       success: result.success,

@@ -32,13 +32,16 @@ describe('Shell process handles', () => {
       { command: 'php artisan test', opts: { id: 'process-1', tty: false } },
       { abortSignal: undefined }
     );
-    expect(output).toEqual([['stdout', 'out'], ['stderr', 'err']]);
+    expect(output).toEqual([
+      ['stdout', 'out'],
+      ['stderr', 'err'],
+    ]);
   });
 
   it('provides native stdin and kill operations', async () => {
-    const invoke = vi.fn(async (action: string) => action === 'shell.exec'
-      ? { output: '', stdout: '', stderr: '', exitCode: 0 }
-      : true);
+    const invoke = vi.fn(async (action: string) =>
+      action === 'shell.exec' ? { output: '', stdout: '', stderr: '', exitCode: 0 } : true
+    );
     const notebook = {
       listen: () => ({ dispose: () => {} }),
       invoke,

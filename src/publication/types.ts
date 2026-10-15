@@ -146,9 +146,7 @@ export interface PublicationResourceCatalog {
   pricingUrl: string | null;
 }
 
-export type PublicationDockerfile =
-  | { source: 'generated'; content: string }
-  | { source: 'project'; path: string };
+export type PublicationDockerfile = { source: 'generated'; content: string } | { source: 'project'; path: string };
 export type PublicationContainerBuild = {
   mode: 'dockerfile';
   workingDirectory?: string;
@@ -168,10 +166,16 @@ export type PublicationAppBuild = PublicationContainerBuild | PublicationNativeB
 export type PublicationRoutingDraft =
   | { mode: 'managed'; routes?: never }
   | { mode: 'custom'; routes: [{ hostname: string }, ...Array<{ hostname: string }>] };
-export interface PublicationManagedAddress { slug: string; url: string }
+export interface PublicationManagedAddress {
+  slug: string;
+  url: string;
+}
 export type PublicationRouting = PublicationRoutingDraft & { managedAddress: PublicationManagedAddress };
 export type PublicationContainerRuntime = {
-  mode: 'container'; port: number; healthCheck: { path: string }; command?: string[];
+  mode: 'container';
+  port: number;
+  healthCheck: { path: string };
+  command?: string[];
 };
 export type PublicationNativeRuntime = { mode: 'provider-native'; port?: never; command?: never; healthCheck?: never };
 interface PublicationAppDraftBase {
@@ -183,26 +187,31 @@ interface PublicationAppDraftBase {
   resourceIds?: string[];
 }
 /** Only executable HTTP workloads are accepted. Runtime and build follow the destination. */
-export type PublicationAppDraft = PublicationAppDraftBase & (
-  | {
-      destination: { provider: 'ssh-server'; serverId?: string };
-      build: PublicationContainerBuild;
-      runtime: PublicationContainerRuntime;
-    }
-  | {
-      destination: { provider: 'cloudflare-containers' } & Partial<Omit<CloudflareContainersProviderOptions, 'resources'>>;
-      build: Omit<PublicationContainerBuild, 'target' | 'arguments' | 'secrets'>;
-      runtime: PublicationContainerRuntime;
-    }
-  | {
-      destination: {
-        provider: 'laravel-cloud'; region?: LaravelCloudProviderInput['region'];
-        setup?: Pick<NonNullable<LaravelCloudProviderInput['setup']>, 'repositoryAccessConfirmed' | 'workerPlacement' | 'workerSize'>;
-      };
-      build: PublicationNativeBuild;
-      runtime: PublicationNativeRuntime;
-    }
-);
+export type PublicationAppDraft = PublicationAppDraftBase &
+  (
+    | {
+        destination: { provider: 'ssh-server'; serverId?: string };
+        build: PublicationContainerBuild;
+        runtime: PublicationContainerRuntime;
+      }
+    | {
+        destination: { provider: 'cloudflare-containers' } & Partial<Omit<CloudflareContainersProviderOptions, 'resources'>>;
+        build: Omit<PublicationContainerBuild, 'target' | 'arguments' | 'secrets'>;
+        runtime: PublicationContainerRuntime;
+      }
+    | {
+        destination: {
+          provider: 'laravel-cloud';
+          region?: LaravelCloudProviderInput['region'];
+          setup?: Pick<
+            NonNullable<LaravelCloudProviderInput['setup']>,
+            'repositoryAccessConfirmed' | 'workerPlacement' | 'workerSize'
+          >;
+        };
+        build: PublicationNativeBuild;
+        runtime: PublicationNativeRuntime;
+      }
+  );
 /** Server-issued ID and managed address remain stable through names and app-count changes. */
 export type PublicationApp = PublicationAppDraft extends infer Draft
   ? Draft extends PublicationAppDraft
@@ -210,12 +219,18 @@ export type PublicationApp = PublicationAppDraft extends infer Draft
     : never
   : never;
 export type PublicationApplicationResourceInput = {
-  id: string; kind: PublicationResourceKind; engine?: string; provider?: PublicationProviderName;
+  id: string;
+  kind: PublicationResourceKind;
+  engine?: string;
+  provider?: PublicationProviderName;
 } & (
   | { mode: 'none' | 'external' | 'enable'; selection?: never }
   | { mode: 'reuse'; selection: { id: string } }
   | { mode: 'create'; provider: 'laravel-cloud'; kind: 'storage'; selection?: never }
-  | { mode: 'create'; selection: { type: string; version?: string; size?: string; config?: Record<string, string | number | boolean | null> } }
+  | {
+      mode: 'create';
+      selection: { type: string; version?: string; size?: string; config?: Record<string, string | number | boolean | null> };
+    }
 );
 export type PublicationConfigurationOperation =
   | { op: 'add-app'; app: PublicationAppDraft; adoptPublicationId?: string }
@@ -237,27 +252,53 @@ export interface PublicationProjectConfiguration {
   resources: PublicationApplicationResourceInput[];
   deployments: Array<{ appId: string | null; configured: boolean; publication: PublicationData }>;
 }
-export interface PublicationApplicationPlanInput { expectedRevision: number; appIds?: string[] }
+export interface PublicationApplicationPlanInput {
+  expectedRevision: number;
+  appIds?: string[];
+}
 export interface PublicationApplicationPlan {
   schemaVersion: 1;
   configurationId: string;
   configurationRevision: number;
-  apps: Array<PublicationApp & {
-    action: 'create' | 'update' | 'retry'; publicationId: string | null;
-    routeAttachment: 'pending_after_deployment' | 'not_required';
-    /** Digest fingerprints the reviewed workspace; revision is the last synced Git commit, before native commit-and-push preparation. */
-    source: { type: 'workspace' | 'git'; repository: string | null; branch: string | null; revision: string | null; digest: string | null };
-  }>;
+  apps: Array<
+    PublicationApp & {
+      action: 'create' | 'update' | 'retry';
+      publicationId: string | null;
+      routeAttachment: 'pending_after_deployment' | 'not_required';
+      /** Digest fingerprints the reviewed workspace; revision is the last synced Git commit, before native commit-and-push preparation. */
+      source: {
+        type: 'workspace' | 'git';
+        repository: string | null;
+        branch: string | null;
+        revision: string | null;
+        digest: string | null;
+      };
+    }
+  >;
   resources: PublicationApplicationResourceInput[];
   review: {
-    id: string; ready: boolean; blockers: Array<{ code: string; message: string }>;
+    id: string;
+    ready: boolean;
+    blockers: Array<{ code: string; message: string }>;
     destinations: Record<string, string | null>;
-    productionVariables: string[]; configuration: PublicationConfigurationField[];
-    source: { type: 'workspace' | 'git' | 'mixed'; repository: string | null; branch: string | null; revision: string | null; digest: string | null };
-    digest: string; proposal: string;
+    productionVariables: string[];
+    configuration: PublicationConfigurationField[];
+    source: {
+      type: 'workspace' | 'git' | 'mixed';
+      repository: string | null;
+      branch: string | null;
+      revision: string | null;
+      digest: string | null;
+    };
+    digest: string;
+    proposal: string;
   };
 }
-export interface PublicationApplicationPublishInput { reviewId: string; proposal: string; appIds?: string[] }
+export interface PublicationApplicationPublishInput {
+  reviewId: string;
+  proposal: string;
+  appIds?: string[];
+}
 export interface PublicationApplicationConfirmationRequired {
   confirmationRequired: true;
   plan: PublicationApplicationPlan;

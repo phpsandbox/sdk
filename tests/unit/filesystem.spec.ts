@@ -114,12 +114,25 @@ describe('Filesystem', () => {
   it('exposes one method per filesystem concept', () => {
     const methods = Object.getOwnPropertyNames(Filesystem.prototype);
 
-    expect(methods).toEqual(expect.arrayContaining([
-      'read', 'readText', 'readLines', 'readStream', 'follow', 'write', 'stat', 'list', 'createDirectory', 'move', 'copy', 'remove',
-    ]));
-    expect(methods).not.toEqual(expect.arrayContaining([
-      'info', 'readFile', 'writeFile', 'mkdir', 'readDirectory', 'rename', 'delete',
-    ]));
+    expect(methods).toEqual(
+      expect.arrayContaining([
+        'read',
+        'readText',
+        'readLines',
+        'readStream',
+        'follow',
+        'write',
+        'stat',
+        'list',
+        'createDirectory',
+        'move',
+        'copy',
+        'remove',
+      ])
+    );
+    expect(methods).not.toEqual(
+      expect.arrayContaining(['info', 'readFile', 'writeFile', 'mkdir', 'readDirectory', 'rename', 'delete'])
+    );
   });
 
   it('re-registers active watches through the injected reconnect capability', async () => {
@@ -189,7 +202,10 @@ describe('Filesystem', () => {
       chunks.push(Array.from(chunk));
     }
 
-    expect(chunks).toEqual([[1, 2], [3, 4]]);
+    expect(chunks).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
     expect(notebook.calls.some((call) => call.action === 'fs.readFile')).toBe(false);
   });
 
@@ -248,8 +264,12 @@ describe('Filesystem', () => {
 
     const actions = notebook.calls.map((call) => call.action);
     expect(actions).toEqual(['fs.writeStream', 'fs.writeChunk', 'fs.writeChunk', 'fs.endWrite']);
-    expect(notebook.calls.filter((call) => call.action === 'fs.writeChunk').map((call) => Array.from(call.data.contents)))
-      .toEqual([[1, 2], [3, 4]]);
+    expect(
+      notebook.calls.filter((call) => call.action === 'fs.writeChunk').map((call) => Array.from(call.data.contents))
+    ).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
   });
 
   it('provides explicit eager byte and text reads', async () => {
@@ -296,7 +316,8 @@ describe('Filesystem', () => {
 
     await filesystem.write('iterable.bin', contents());
 
-    expect(notebook.calls.filter((call) => call.action === 'fs.writeChunk').map((call) => Array.from(call.data.contents)))
-      .toEqual([[1], [2]]);
+    expect(
+      notebook.calls.filter((call) => call.action === 'fs.writeChunk').map((call) => Array.from(call.data.contents))
+    ).toEqual([[1], [2]]);
   });
 });

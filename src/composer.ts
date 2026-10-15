@@ -7,12 +7,7 @@ import type {
   Disposable,
   NotebookInstance,
 } from './index.js';
-import {
-  ProcessReadable,
-  type ProcessOutputChunk,
-  type ProcessOutputSource,
-  type ProcessResult,
-} from './shell.js';
+import { ProcessReadable, type ProcessOutputChunk, type ProcessOutputSource, type ProcessResult } from './shell.js';
 import { nanoid } from 'nanoid';
 
 export interface ComposerEventData {
@@ -36,22 +31,12 @@ export interface ComposerPackage {
 }
 
 export interface ComposerActions {
-  'composer.invoke': Action<
-    { id: string; command: ComposerCommand; args: Argument; options: Options },
-    ProcessResult
-  >;
+  'composer.invoke': Action<{ id: string; command: ComposerCommand; args: Argument; options: Options }, ProcessResult>;
   'composer.kill': Action<{ id: string }, boolean>;
   'composer.packages': Action<undefined, ComposerPackage[]>;
 }
 
-export type ComposerCommand =
-  | 'install'
-  | 'update'
-  | 'require'
-  | 'remove'
-  | 'search'
-  | 'show'
-  | 'dump-autoload';
+export type ComposerCommand = 'install' | 'update' | 'require' | 'remove' | 'search' | 'show' | 'dump-autoload';
 
 export type Argument<Name extends string = string, Type extends string | string[] = string | string[]> = Record<Name, Type>;
 
@@ -67,17 +52,16 @@ class ComposerCredentials {
   ) {}
 
   public async set(input: ComposerCredentialInput): Promise<ComposerCredentialInfo> {
-    const response = await this.client.put<ComposerCredentialInfo>(
-      `/notebook/${this.notebookId}/composer/credentials`,
-      input
-    );
+    const response = await this.client.put<ComposerCredentialInfo>(`/notebook/${this.notebookId}/composer/credentials`, input);
 
     return response.data;
   }
 
   public async remove(type: ComposerCredentialType, url?: string): Promise<void> {
     const params = new URLSearchParams({ type });
-    if (url) params.set('url', url);
+    if (url) {
+      params.set('url', url);
+    }
     await this.client.delete<void>(`/notebook/${this.notebookId}/composer/credentials?${params.toString()}`);
   }
 }
@@ -129,13 +113,16 @@ export class ComposerProcess {
       stderr.fail(error);
     };
 
-    this.completion = this.okra.invoke('composer.invoke', { id, command, args, options }).then((result) => {
-      finish();
-      return result;
-    }).catch((error) => {
-      fail(error);
-      throw error;
-    });
+    this.completion = this.okra
+      .invoke('composer.invoke', { id, command, args, options })
+      .then((result) => {
+        finish();
+        return result;
+      })
+      .catch((error) => {
+        fail(error);
+        throw error;
+      });
   }
 
   public wait(): Promise<ProcessResult> {
@@ -150,7 +137,10 @@ export class ComposerProcess {
 export default class Composer {
   public readonly credentials: ComposerCredentials;
 
-  public constructor(protected okra: NotebookInstance, client: Client) {
+  public constructor(
+    protected okra: NotebookInstance,
+    client: Client
+  ) {
     this.credentials = new ComposerCredentials(client, okra.data.id);
   }
 

@@ -55,9 +55,7 @@ export function hasGitHubSmokeEnvironment(): boolean {
   const token = optionalEnvironmentValue('PHPSANDBOX_SMOKE_GITHUB_TOKEN');
 
   if ((owner === undefined) !== (token === undefined)) {
-    throw new Error(
-      'PHPSANDBOX_SMOKE_GITHUB_OWNER and PHPSANDBOX_SMOKE_GITHUB_TOKEN must be configured together.',
-    );
+    throw new Error('PHPSANDBOX_SMOKE_GITHUB_OWNER and PHPSANDBOX_SMOKE_GITHUB_TOKEN must be configured together.');
   }
 
   return owner !== undefined && token !== undefined;
@@ -101,7 +99,7 @@ export function readPublicationSmokeEnvironment(): PublicationSmokeEnvironment {
   const provider = optionalEnvironmentValue('PHPSANDBOX_SMOKE_PUBLICATION_PROVIDER');
   if (provider !== 'cloudflare-containers' && provider !== 'laravel-cloud' && provider !== 'ssh-server') {
     throw new TypeError(
-      'PHPSANDBOX_SMOKE_PUBLICATION_PROVIDER must be "cloudflare-containers", "laravel-cloud", or "ssh-server".',
+      'PHPSANDBOX_SMOKE_PUBLICATION_PROVIDER must be "cloudflare-containers", "laravel-cloud", or "ssh-server".'
     );
   }
 

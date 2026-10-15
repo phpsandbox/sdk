@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { once } from './utils/promise.js';
 
 const TERMINAL_INPUT_FLUSH_DELAY_MS = 8;
+// eslint-disable-next-line no-control-regex -- Terminal control bytes intentionally trigger an immediate flush.
 const terminalInputFlushPattern = /[\x00-\x1f\x7f]/;
 
 export interface Task {
@@ -106,9 +107,8 @@ export default class Terminals {
   public async create(options: TerminalOptions = {}): Promise<SandboxProcess & Task> {
     const id = options.id ?? nanoid();
     const handle = this.processHandle(id, options.abortSignal);
-    const command = typeof options.command === 'string' && options.args?.length
-      ? [options.command, ...options.args]
-      : options.command;
+    const command =
+      typeof options.command === 'string' && options.args?.length ? [options.command, ...options.args] : options.command;
     const { abortSignal, args: _args, ...input } = options;
 
     try {
@@ -131,7 +131,10 @@ export default class Terminals {
     }
   }
 
-  public async attach(id: string, opts?: { replayHistory?: boolean; abortSignal?: AbortSignal }): Promise<(SandboxProcess & Task) | false> {
+  public async attach(
+    id: string,
+    opts?: { replayHistory?: boolean; abortSignal?: AbortSignal }
+  ): Promise<(SandboxProcess & Task) | false> {
     const handle = this.processHandle(id, opts?.abortSignal);
 
     try {
@@ -263,7 +266,7 @@ export default class Terminals {
     });
 
     const resize = (dimensions: { cols: number; rows: number }) => {
-      this.okra.invoke('terminal.resize', { id, width: dimensions.cols, height: dimensions.rows });
+      return this.okra.invoke('terminal.resize', { id, width: dimensions.cols, height: dimensions.rows });
     };
 
     if (abortSignal && !abortSignal.aborted) {

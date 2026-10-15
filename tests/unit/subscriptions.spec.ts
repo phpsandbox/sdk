@@ -75,15 +75,17 @@ describe('subscription helpers', () => {
       disposable.dispose();
     }
 
-    expect([
-      'repl.output',
-      'lsp.response.lsp-1',
-      'lsp.closed.lsp-1',
-      'lsp.error.lsp-1',
-      'lsp.response.lsp-2',
-      'lsp.closed.lsp-2',
-      'lsp.error.lsp-2',
-      'okra.disconnected',
-    ].every((event) => notebook.listenerCount(event) === 0)).toBe(true);
+    expect(
+      [
+        'repl.output',
+        'lsp.response.lsp-1',
+        'lsp.closed.lsp-1',
+        'lsp.error.lsp-1',
+        'lsp.response.lsp-2',
+        'lsp.closed.lsp-2',
+        'lsp.error.lsp-2',
+        'okra.disconnected',
+      ].every((event) => notebook.listenerCount(event) === 0)
+    ).toBe(true);
   });
 });

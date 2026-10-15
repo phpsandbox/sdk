@@ -2,11 +2,7 @@ import type { Action, NotebookInstance } from './index.js';
 import Logs, { type RuntimeLogEntry } from './log.js';
 import Metrics from './metrics.js';
 import Ports from './ports.js';
-import {
-  RuntimeTelemetry,
-  type RuntimeTelemetryFeature,
-  type RuntimeWatchOptions,
-} from './telemetry.js';
+import { RuntimeTelemetry, type RuntimeTelemetryFeature, type RuntimeWatchOptions } from './telemetry.js';
 
 export interface PortInfo {
   subdomain: string;

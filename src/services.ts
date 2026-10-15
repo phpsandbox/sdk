@@ -4,15 +4,7 @@ import { once } from './utils/promise.js';
 
 export type NotebookServiceKind = 'app' | 'web' | 'cache' | 'task';
 export type NotebookServiceSource = 'built_in' | 'setup_task';
-export type NotebookServiceState =
-  | 'running'
-  | 'starting'
-  | 'stopping'
-  | 'backoff'
-  | 'exited'
-  | 'fatal'
-  | 'stopped'
-  | 'unknown';
+export type NotebookServiceState = 'running' | 'starting' | 'stopping' | 'backoff' | 'exited' | 'fatal' | 'stopped' | 'unknown';
 
 export const notebookBuiltinServices = ['redis'] as const;
 export type NotebookBuiltinServiceName = (typeof notebookBuiltinServices)[number];
@@ -189,6 +181,5 @@ export default class Services {
         return stop().then(() => undefined);
       },
     });
-
   }
 }

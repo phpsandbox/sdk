@@ -11,10 +11,7 @@ describe('notebook runtime facade', () => {
     await notebook.stop();
     await notebook.restart();
 
-    expect(invoke.mock.calls.map(([action]) => action)).toEqual([
-      'container.stop',
-      'container.restart',
-    ]);
+    expect(invoke.mock.calls.map(([action]) => action)).toEqual(['container.stop', 'container.restart']);
   });
 
   it('keeps PHP configuration under runtime', async () => {

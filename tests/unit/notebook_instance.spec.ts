@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NotebookInstance, type NotebookInitSuccessResult } from '../../src/index.js';
+import { NotebookInstance } from '../../src/index.js';
 import { Beacon, connectBeacon } from '../../src/beacon/index.js';
 import { RemoteError } from '../../src/errors/index.js';
 
@@ -66,26 +66,6 @@ class FakeSocket {
 function createNotebook(socket: FakeSocket): NotebookInstance {
   const notebook = Object.create(NotebookInstance.prototype) as NotebookInstance;
   (notebook as any).socket = socket;
-
-  return notebook;
-}
-
-function createReadyNotebook(previewUrl: string): NotebookInstance {
-  const notebook = Object.create(NotebookInstance.prototype) as NotebookInstance & {
-    ready: () => Promise<NotebookInitSuccessResult>;
-  };
-
-  notebook.ready = async () => ({
-    type: 'success',
-    message: 'Ready',
-    data: {
-      env: [],
-      previewUrl,
-      ports: [],
-      provisioned: false,
-      provisioningAction: null,
-    },
-  });
 
   return notebook;
 }

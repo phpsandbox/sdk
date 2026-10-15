@@ -31,7 +31,9 @@ export async function* readPublicationStream(
     const lines = data;
     eventName = 'message';
     data = [];
-    if (!lines.length || !PublishStreamSseEventNameSchema.safeParse(name).success) return null;
+    if (!lines.length || !PublishStreamSseEventNameSchema.safeParse(name).success) {
+      return null;
+    }
     const raw = lines.join('\n');
     let payload: unknown;
     try {
@@ -40,19 +42,31 @@ export async function* readPublicationStream(
       payload = raw;
     }
     const event = PublishStreamSseEventSchema.parse({ event: name, data: payload });
-    if (event.type === 'result') receivedResult = true;
+    if (event.type === 'result') {
+      receivedResult = true;
+    }
     return event;
   }
 
   function line(value: string): PublishStreamEvent | null {
-    if (value === '') return dispatch();
-    if (value.startsWith(':')) return null;
+    if (value === '') {
+      return dispatch();
+    }
+    if (value.startsWith(':')) {
+      return null;
+    }
     const colon = value.indexOf(':');
     const field = colon < 0 ? value : value.slice(0, colon);
     let content = colon < 0 ? '' : value.slice(colon + 1);
-    if (content.startsWith(' ')) content = content.slice(1);
-    if (field === 'event') eventName = content;
-    if (field === 'data') data.push(content);
+    if (content.startsWith(' ')) {
+      content = content.slice(1);
+    }
+    if (field === 'event') {
+      eventName = content;
+    }
+    if (field === 'data') {
+      data.push(content);
+    }
     return null;
   }
 
@@ -63,20 +77,28 @@ export async function* readPublicationStream(
       // A CR at the end of a chunk may be the first half of CRLF.
       let match: RegExpExecArray | null;
       while ((match = /\r\n|\r|\n/.exec(buffer))) {
-        if (!done && match[0] === '\r' && match.index === buffer.length - 1) break;
+        if (!done && match[0] === '\r' && match.index === buffer.length - 1) {
+          break;
+        }
         const event = line(buffer.slice(0, match.index));
         buffer = buffer.slice(match.index + match[0].length);
-        if (event) yield event;
+        if (event) {
+          yield event;
+        }
       }
       if (done) {
         ended = true;
         if (buffer) {
           const event = line(buffer);
-          if (event) yield event;
+          if (event) {
+            yield event;
+          }
         }
         // Preserve the SDK's support for a final event without a trailing blank line.
         const event = dispatch();
-        if (event) yield event;
+        if (event) {
+          yield event;
+        }
         if (options.requireResult !== false && !receivedResult) {
           throw new PHPSandboxError('Publish stream ended without result');
         }
@@ -84,7 +106,9 @@ export async function* readPublicationStream(
       }
     }
   } finally {
-    if (!ended) await reader.cancel().catch(() => undefined);
+    if (!ended) {
+      await reader.cancel().catch(() => undefined);
+    }
     reader.releaseLock();
   }
 }
@@ -104,7 +128,9 @@ export function createPublicationStreamResponse(
   let abort: () => void;
 
   async function dispose() {
-    if (disposed) return;
+    if (disposed) {
+      return;
+    }
     disposed = true;
     options.signal?.removeEventListener('abort', abort);
     reader.releaseLock();
@@ -112,51 +138,64 @@ export function createPublicationStreamResponse(
   }
 
   function cancel(reason: unknown): Promise<void> {
-    return cancellation ??= (async () => {
+    return (cancellation ??= (async () => {
       finished = true;
       try {
         await reader.cancel(reason);
       } finally {
         await dispose();
       }
-    })();
+    })());
   }
 
-  return new Response(new ReadableStream<Uint8Array>({
-    start(controller) {
-      abort = () => {
-        controller.error(options.signal!.reason);
-        void cancel(options.signal!.reason).catch(() => undefined);
-      };
-      if (options.signal?.aborted) abort();
-      else options.signal?.addEventListener('abort', abort, { once: true });
-    },
-    async pull(controller) {
-      try {
-        const { done, value } = await reader.read();
-        if (finished) return;
-        if (done) {
-          finished = true;
-          await dispose();
-          controller.close();
-        } else {
-          controller.enqueue(value);
-        }
-      } catch (error) {
-        if (finished && cancellation) return;
-        try {
-          await cancel(error);
-        } finally {
-          controller.error(error);
-        }
-      }
-    },
-    cancel,
-  }, { highWaterMark: 0 }), {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'X-Accel-Buffering': 'no',
-    },
-  });
+  return new Response(
+    new ReadableStream<Uint8Array>(
+      {
+        start(controller) {
+          abort = () => {
+            controller.error(options.signal!.reason);
+            void cancel(options.signal!.reason).catch(() => undefined);
+          };
+          if (options.signal?.aborted) {
+            abort();
+          } else {
+            options.signal?.addEventListener('abort', abort, { once: true });
+          }
+        },
+        async pull(controller) {
+          try {
+            const { done, value } = await reader.read();
+            if (finished) {
+              return;
+            }
+            if (done) {
+              finished = true;
+              await dispose();
+              controller.close();
+            } else {
+              controller.enqueue(value);
+            }
+          } catch (error) {
+            if (finished && cancellation) {
+              return;
+            }
+            try {
+              await cancel(error);
+            } finally {
+              controller.error(error);
+            }
+          }
+        },
+        cancel,
+      },
+      { highWaterMark: 0 }
+    ),
+    {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+      },
+    }
+  );
 }

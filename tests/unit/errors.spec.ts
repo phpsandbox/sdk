@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  PHPSandboxError,
-  RemoteError,
-  TransportError,
-  remoteError,
-} from '../../src/errors/index.js';
+import { PHPSandboxError, RemoteError, TransportError, remoteError } from '../../src/errors/index.js';
 
 describe('SDK errors', () => {
   it('narrows canonical validation errors with structured details', () => {
@@ -35,24 +30,32 @@ describe('SDK errors', () => {
   });
 
   it('rejects non-canonical error responses', () => {
-    expect(() => remoteError('core', {
-      message: 'The input is invalid.',
-      errors: { name: ['The name field is required.'] },
-    })).toThrow(expect.objectContaining({
-      name: 'TransportError',
-      code: 'InvalidResponse',
-    }));
+    expect(() =>
+      remoteError('core', {
+        message: 'The input is invalid.',
+        errors: { name: ['The name field is required.'] },
+      })
+    ).toThrow(
+      expect.objectContaining({
+        name: 'TransportError',
+        code: 'InvalidResponse',
+      })
+    );
   });
 
   it('rejects unsupported error codes', () => {
-    expect(() => remoteError('runtime', {
-      status: 500,
-      code: 'SomethingUnexpected',
-      message: 'Unexpected failure.',
-    })).toThrow(expect.objectContaining({
-      name: 'TransportError',
-      code: 'InvalidResponse',
-    }));
+    expect(() =>
+      remoteError('runtime', {
+        status: 500,
+        code: 'SomethingUnexpected',
+        message: 'Unexpected failure.',
+      })
+    ).toThrow(
+      expect.objectContaining({
+        name: 'TransportError',
+        code: 'InvalidResponse',
+      })
+    );
   });
 
   it('preserves transport causes without exposing wire payloads', () => {
