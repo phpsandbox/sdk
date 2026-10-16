@@ -112,6 +112,7 @@ export type {
   ServerInstance,
   ServerListOptions,
   ServerMemberData,
+  ServerInvitationData,
   ServerSshOptions,
 } from './servers.js';
 export type {
