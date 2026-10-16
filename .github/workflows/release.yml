@@ -2,16 +2,6 @@ name: Release to npm
 
 on:
   workflow_dispatch:
-    inputs:
-      bump:
-        description: Version increment to publish
-        required: true
-        default: patch
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 permissions:
   contents: write
@@ -45,16 +35,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate release
+        run: npm run check
+
       - name: Configure release author
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump the package version
-        run: npm version "${{ inputs.bump }}" --message "Release v%s"
-
       - name: Publish to npm
         run: npm publish --access public
 
-      - name: Push the release commit and tag
-        run: git push origin HEAD:main --follow-tags
+      - name: Tag the published version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          git tag "v${version}"
+          git push origin "v${version}"
