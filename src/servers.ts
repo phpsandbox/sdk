@@ -16,6 +16,7 @@ export interface ServerData {
 }
 
 export interface ServerMemberData {
+  organizationId?: string | null;
   id: number;
   name: string;
   email: string;
@@ -73,6 +74,11 @@ export class ServerInstance {
 
   public async share(email: string): Promise<ServerMemberData> {
     return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, { email })).data;
+  }
+
+  public async shareWithOrganization(organizationId: string): Promise<ServerMemberData> {
+    return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, { organizationId }))
+      .data;
   }
 
   public async revokeAccess(memberId: number): Promise<void> {

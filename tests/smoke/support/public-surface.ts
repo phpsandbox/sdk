@@ -42,6 +42,7 @@ export const clientSurface = {
   publications: 'publication.manage',
   runtimeTransport: 'client.runtime-selection',
   servers: 'server.manage',
+  whoami: 'client.core-http',
 } satisfies SurfaceCoverage<sdk.PHPSandbox>;
 
 export const notebookApiSurface = {
@@ -53,7 +54,6 @@ export const notebookApiSurface = {
 } satisfies SurfaceCoverage<sdk.PHPSandbox['notebook']>;
 
 export const notebookSurface = {
-  auth: 'runtime.initialization',
   composer: 'composer.read',
   feedback: 'feedback',
   config: 'config.read',
