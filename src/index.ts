@@ -3,7 +3,6 @@ export type { PlatformAccess } from './platform.js';
 import { NotebookPublication } from './publication/index.js';
 import { Filesystem, FilesystemActions, FilesystemEvents } from './filesystem.js';
 import Terminals, { TerminalEvents, TerminalActions, type SpawnOptions } from './terminal.js';
-import Auth, { AuthActions } from './auth.js';
 import Lsp, { LspActions, LspEvents } from './lsp.js';
 import Composer, { ComposerActions, ComposerEvents } from './composer.js';
 import { LogEvents } from './log.js';
@@ -236,7 +235,6 @@ export type Events = TerminalEvents &
 export type Invokable = TerminalActions &
   RuntimeActions &
   FilesystemActions &
-  AuthActions &
   LspActions &
   ComposerActions &
   ServiceActions &
@@ -781,7 +779,6 @@ export interface NotebookData {
 export class NotebookInstance {
   public readonly files: Filesystem;
   public readonly terminals: Terminals;
-  public readonly auth: Auth;
   public readonly lsp: Lsp;
   public readonly composer: Composer;
   public readonly runtime: Runtime;
@@ -848,7 +845,6 @@ export class NotebookInstance {
 
     this.files = new Filesystem(this, this.socket === null ? null : (handler) => this.onDidConnect(handler));
     this.terminals = new Terminals(this);
-    this.auth = new Auth(this);
     this.lsp = new Lsp(this);
     this.composer = new Composer(this, client);
     this.runtime = new Runtime(this);

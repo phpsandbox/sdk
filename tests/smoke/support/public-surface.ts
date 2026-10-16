@@ -54,7 +54,6 @@ export const notebookApiSurface = {
 } satisfies SurfaceCoverage<sdk.PHPSandbox['notebook']>;
 
 export const notebookSurface = {
-  auth: 'runtime.initialization',
   composer: 'composer.read',
   feedback: 'feedback',
   config: 'config.read',

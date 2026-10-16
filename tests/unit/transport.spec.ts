@@ -97,13 +97,13 @@ describe('Transport', () => {
     const transport = new Transport(server.url, EventManager.createInstance(), { debug: true });
     transports.add(transport);
 
-    await expect(transport.call('auth.login', { runtimeTicket: 'private-ticket' })).rejects.toMatchObject({
+    await expect(transport.call('fs.readFile', { path: 'private-path' })).rejects.toMatchObject({
       message: 'private-runtime-error',
     });
     expect(transport.send('terminal.write', { input: 'private-command' })).toBe(true);
     const logged = JSON.stringify([...debug.mock.calls, ...error.mock.calls]);
-    expect(logged).toContain('auth.login');
-    expect(logged).not.toContain('private-ticket');
+    expect(logged).toContain('fs.readFile');
+    expect(logged).not.toContain('private-path');
     expect(logged).not.toContain('private-command');
     expect(logged).not.toContain('private-runtime-error');
   });
