@@ -42,7 +42,7 @@ export const clientSurface = {
   publications: 'publication.manage',
   runtimeTransport: 'client.runtime-selection',
   servers: 'server.manage',
-  platform: 'client.core-http',
+  whoami: 'client.core-http',
 } satisfies SurfaceCoverage<sdk.PHPSandbox>;
 
 export const notebookApiSurface = {
