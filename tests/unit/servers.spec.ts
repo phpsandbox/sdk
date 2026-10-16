@@ -16,8 +16,31 @@ function serverData(status: string = 'pending'): ServerData {
 }
 
 describe('server invitations', () => {
+  it('declines using proof in the body and propagates API rejection', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ data: { id: 'invite-1', status: 'declined' } }))
+      .mockResolvedValueOnce(Response.json({ error: { status: 409, code: 'Conflict', message: 'Invitation expired' } }, { status: 409 }));
+    const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
+
+    await expect(client.servers.invitations.decline('invite-1', 'private-proof')).resolves.toMatchObject({ status: 'declined' });
+    await expect(client.servers.invitations.accept('invite-1', 'private-proof')).rejects.toMatchObject({ status: 409 });
+
+    const request = new Request(fetch.mock.calls[0][0]);
+    expect(request.url).toBe('https://api.phpsandbox.io/v1/server-invitations/invite-1/decline');
+    expect(request.method).toBe('POST');
+    expect(await request.json()).toEqual({ token: 'private-proof' });
+  });
+
   it('uses one resource across creation, listing, inspection, acceptance, resend, and cancellation without exposing proof', async () => {
-    const invitation = { id: 'invite-1', serverId: 'server-1', serverName: 'Production', email: 'alex@example.test', status: 'pending', expiresAt: '2030-01-01T00:00:00Z', createdAt: '2026-01-01T00:00:00Z' };
+    const invitation = {
+      id: 'invite-1',
+      serverId: 'server-1',
+      serverName: 'Production',
+      email: 'alex@example.test',
+      status: 'pending',
+      expiresAt: '2030-01-01T00:00:00Z',
+      createdAt: '2026-01-01T00:00:00Z',
+    };
     const fetch = vi.fn<typeof globalThis.fetch>()
       .mockResolvedValueOnce(Response.json({ data: serverData() }))
       .mockResolvedValueOnce(Response.json({ data: invitation }))
@@ -74,7 +97,6 @@ describe('Server API', () => {
       ['GET', 'https://api.phpsandbox.io/v1/servers/server-1/members?page=2'],
       ['DELETE', 'https://api.phpsandbox.io/v1/servers/server-1/members/42'],
     ]);
-    expect(requests.map((request) => request.method)).toEqual(['GET', 'POST', 'GET', 'POST', 'POST', 'POST', 'DELETE']);
     expect(await requests[1].json()).toEqual({ email: member.email });
   });
 
@@ -106,7 +128,6 @@ describe('Server API', () => {
       ['GET', 'https://api.phpsandbox.io/v1/servers/server-1'],
       ['DELETE', 'https://api.phpsandbox.io/v1/servers/server-1'],
     ]);
-    expect(requests.map((request) => request.method)).toEqual(['GET', 'POST', 'GET', 'POST', 'POST', 'POST', 'DELETE']);
     expect(await requests[1].json()).toEqual({
       name: 'Production server',
       host: 'server.example.test',
