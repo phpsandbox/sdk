@@ -38,7 +38,8 @@ export class ServerInvitationApi {
   public constructor(private readonly client: Client) {}
 
   public async inspect(id: string, token: string): Promise<ServerInvitationData> {
-    return (await this.client.post<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/inspect`, { token })).data;
+    return (await this.client.post<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/inspect`, { token }))
+      .data;
   }
 
   public async accept(id: string, token: string): Promise<ServerInvitationData> {
@@ -46,7 +47,8 @@ export class ServerInvitationApi {
   }
 
   public async decline(id: string, token: string): Promise<ServerInvitationData> {
-    return (await this.client.post<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/decline`, { token })).data;
+    return (await this.client.post<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/decline`, { token }))
+      .data;
   }
 }
 
