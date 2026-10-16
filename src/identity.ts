@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const identitySchema = z.object({
-  organizationId: z.string(),
-  userId: z.string().nullable(),
+  user: z.object({ id: z.string(), name: z.string() }).nullable(),
+  organization: z.object({ id: z.string(), name: z.string() }),
   permissions: z.array(z.string()),
 });
 

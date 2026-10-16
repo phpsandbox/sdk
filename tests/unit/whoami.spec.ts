@@ -4,7 +4,11 @@ import { PHPSandbox } from '../../src/index.js';
 
 describe('Whoami', () => {
   it.each(['rest', 'realtime'] as const)('reports the authenticated user through the %s client', async (transport) => {
-    const identity = { organizationId: 'organization', userId: 'user', permissions: ['read:notebook'] };
+    const identity = {
+      organization: { id: 'organization', name: 'Example team' },
+      user: { id: 'user', name: 'Alex' },
+      permissions: ['read:notebook'],
+    };
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({ data: identity }));
     const client = PHPSandbox[transport]('hfp_test', 'https://api.example.test/v1', { fetch });
 
@@ -19,16 +23,19 @@ describe('Whoami', () => {
   });
 
   it('reports organization credentials without attributing them to a user', async () => {
-    const identity = { organizationId: 'organization', userId: null, permissions: ['read:notebook'] };
+    const identity = { organization: { id: 'organization', name: 'Example team' }, user: null, permissions: ['read:notebook'] };
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({ data: identity }));
 
     expect(await PHPSandbox.rest('hfp_test', undefined, { fetch }).whoami()).toEqual(identity);
   });
 
   it.each([
-    { organizationId: 'organization', userId: 'user', permissions: [12] },
-    { organizationId: 'organization', userId: 123, permissions: [] },
-    { organizationId: 'organization', actorId: 'user', permissions: [] },
+    { organization: { id: 'organization', name: 'Example team' }, user: { id: 'user', name: 'Alex' }, permissions: [12] },
+    { organization: { id: 'organization', name: 'Example team' }, user: { id: 'user', name: 123 }, permissions: [] },
+    { organizationId: 'organization', userId: 'user', permissions: [] },
+    { organization: { id: 'organization' }, user: null, permissions: [] },
+    { organization: { id: 'organization', name: 123 }, user: null, permissions: [] },
+    { organization: { id: 'organization', name: 'Example team' }, permissions: [] },
   ])('rejects malformed identity responses', async (identity) => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(Response.json({ data: identity }));
 
