@@ -25,7 +25,7 @@ export interface ServerMemberData {
 }
 
 export interface ServerInvitationData {
-  recipientOrganizationId?: string | null;
+  recipientOrganizationId: string | null;
   id: string;
   serverId: string;
   serverName: string;
@@ -33,28 +33,6 @@ export interface ServerInvitationData {
   status: 'pending' | 'accepting' | 'accepted' | 'declined' | 'cancelled' | 'expired';
   expiresAt: string;
   createdAt: string;
-}
-
-export class ServerInvitationApi {
-  public constructor(private readonly client: Client) {}
-
-  public async inspect(id: string, token: string): Promise<ServerInvitationData> {
-    return (
-      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/inspect`, { token })
-    ).data;
-  }
-
-  public async accept(id: string, token: string): Promise<ServerInvitationData> {
-    return (
-      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/accept`, { token })
-    ).data;
-  }
-
-  public async decline(id: string, token: string): Promise<ServerInvitationData> {
-    return (
-      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/decline`, { token })
-    ).data;
-  }
 }
 
 export interface ServerSshOptions {
@@ -72,11 +50,39 @@ export interface ServerListOptions {
   page?: number;
 }
 
-export class ServerApi {
-  public readonly invitations: ServerInvitationApi;
+export interface ServerInvitationTarget {
+  email: string;
+  organizationId?: never;
+  requestId?: string;
+}
 
-  public constructor(private readonly client: Client) {
-    this.invitations = new ServerInvitationApi(client);
+export interface ServerOrganizationTarget {
+  organizationId: string;
+  email?: never;
+  requestId?: string;
+}
+
+export type ShareServerInput = ServerInvitationTarget | ServerOrganizationTarget;
+
+export class ServerApi {
+  public constructor(private readonly client: Client) {}
+
+  public async inspectInvitation(id: string, token: string): Promise<ServerInvitationData> {
+    return (
+      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/inspect`, { token })
+    ).data;
+  }
+
+  public async acceptInvitation(id: string, token: string): Promise<ServerInvitationData> {
+    return (
+      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/accept`, { token })
+    ).data;
+  }
+
+  public async declineInvitation(id: string, token: string): Promise<ServerInvitationData> {
+    return (
+      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/decline`, { token })
+    ).data;
   }
 
   public async list(options: ServerListOptions = {}): Promise<PaginatedApiResponse<ServerData>> {
@@ -110,32 +116,28 @@ export class ServerInstance {
     return this.client.get<ServerMemberData[]>(`/servers/${encodeURIComponent(this.data.id)}/members${query}`);
   }
 
-  public async share(email: string): Promise<ServerMemberData> {
-    return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, { email })).data;
-  }
+  public share(target: ServerInvitationTarget): Promise<ServerInvitationData>;
+  public share(target: ServerOrganizationTarget): Promise<ServerMemberData>;
+  public share(target: ShareServerInput): Promise<ServerInvitationData | ServerMemberData>;
+  public async share(target: ShareServerInput): Promise<ServerInvitationData | ServerMemberData> {
+    if (target.email !== undefined) {
+      return (
+        await this.client.platformPost<ServerInvitationData>(`/servers/${encodeURIComponent(this.data.id)}/invitations`, {
+          email: target.email,
+          requestId: target.requestId ?? crypto.randomUUID(),
+        })
+      ).data;
+    }
 
-  public async shareWithOrganization(organizationId: string, options: { requestId?: string } = {}): Promise<ServerMemberData> {
-    return (
-      await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, {
-        organizationId,
-        ...options,
-      })
-    ).data;
+    const body = { organizationId: target.organizationId, requestId: target.requestId };
+
+    return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, body)).data;
   }
 
   public async revokeAccess(memberId: number): Promise<void> {
     await this.client.delete<{ deleted: boolean }>(
       `/servers/${encodeURIComponent(this.data.id)}/members/${encodeURIComponent(String(memberId))}`
     );
-  }
-
-  public async invite(email: string, options: { requestId?: string } = {}): Promise<ServerInvitationData> {
-    return (
-      await this.client.platformPost<ServerInvitationData>(`/servers/${encodeURIComponent(this.data.id)}/invitations`, {
-        email,
-        requestId: options.requestId ?? crypto.randomUUID(),
-      })
-    ).data;
   }
 
   public async invitations(options: ServerListOptions = {}): Promise<PaginatedApiResponse<ServerInvitationData>> {

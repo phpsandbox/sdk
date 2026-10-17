@@ -113,6 +113,9 @@ export type {
   ServerListOptions,
   ServerMemberData,
   ServerInvitationData,
+  ServerInvitationTarget,
+  ServerOrganizationTarget,
+  ShareServerInput,
   ServerSshOptions,
 } from './servers.js';
 export type {
