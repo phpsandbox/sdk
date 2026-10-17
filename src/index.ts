@@ -512,6 +512,8 @@ class NotebookApi {
 }
 
 export interface PHPSandboxClientOptions {
+  /** Platform endpoint for collaboration operations. Defaults to the hosted platform. */
+  platformUrl?: string;
   debug?: boolean;
   fetch?: typeof globalThis.fetch;
   webSocket?: unknown;
@@ -546,6 +548,7 @@ class ClientImplementation {
   private readonly fetch: typeof globalThis.fetch = globalThis.fetch;
 
   private readonly baseUrl: string;
+  private readonly platformUrl: string;
 
   private readonly headers: Record<string, string>;
 
@@ -562,6 +565,7 @@ class ClientImplementation {
     this.options = { ...options };
     this.runtimeTransportValue = runtimeTransport;
     this.baseUrl = normalizeApiBaseUrl(url);
+    this.platformUrl = normalizeApiBaseUrl(options.platformUrl ?? 'https://phpsandbox.io/api/v1');
 
     if (options.fetch) {
       this.fetch = options.fetch;
@@ -592,6 +596,18 @@ class ClientImplementation {
 
   public patch<T extends unknown>(path: string, body?: unknown): Promise<{ data: T }> {
     return this.requireData(this.makeRequest<T>('PATCH', path, { body: body === undefined ? undefined : JSON.stringify(body) }));
+  }
+
+  public platformGet<T>(path: string): Promise<{ data: T }> {
+    return this.requireData(this.makeRequest<T>('GET', path, undefined, 'platform'));
+  }
+
+  public platformPost<T>(path: string, body?: unknown): Promise<{ data: T }> {
+    return this.requireData(this.makeRequest<T>('POST', path, { body: JSON.stringify(body) }, 'platform'));
+  }
+
+  public platformDelete<T>(path: string): Promise<{ data: T | undefined }> {
+    return this.makeRequest<T>('DELETE', path, undefined, 'platform');
   }
 
   public async stream(path: string): Promise<ReadableStream<Uint8Array>> {
@@ -644,9 +660,15 @@ class ClientImplementation {
     return { ...response, data: response.data };
   }
 
-  private async makeRequest<T>(method: string, path: string, init?: RequestInit): Promise<{ data: T | undefined }> {
+  private async makeRequest<T>(
+    method: string,
+    path: string,
+    init?: RequestInit,
+    target: 'resource' | 'platform' = 'resource'
+  ): Promise<{ data: T | undefined }> {
+    const baseUrl = target === 'platform' ? this.platformUrl : this.baseUrl;
     const response = await this.fetchResponse(
-      authenticatedRequest(new URL(path.replace(/^\//, ''), this.baseUrl), {
+      authenticatedRequest(new URL(path.replace(/^\//, ''), baseUrl), {
         method,
         ...init,
         headers: this.headers,
@@ -654,7 +676,7 @@ class ClientImplementation {
     );
 
     if (!response.ok) {
-      throw await responseError(response);
+      throw await responseError(response, target === 'platform' ? 'platform' : 'core');
     }
 
     if (response.status === 204) {
@@ -700,11 +722,11 @@ class ClientImplementation {
   }
 }
 
-async function responseError(response: Response): Promise<PHPSandboxError> {
+async function responseError(response: Response, source: 'core' | 'platform' = 'core'): Promise<PHPSandboxError> {
   const body = await response.text();
 
   try {
-    return remoteError('core', errorPayload(body === '' ? undefined : JSON.parse(body)), response);
+    return remoteError(source, errorPayload(body === '' ? undefined : JSON.parse(body)), response);
   } catch {
     return new TransportError(
       `PHPSandbox API returned an invalid error response (HTTP ${response.status}).`,

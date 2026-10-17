@@ -10,6 +10,23 @@ npm install @phpsandbox/sdk
 
 Node.js `>=18` is required. This package is ESM-only; use `import` rather than `require()`.
 
+## Server invitations
+
+Server administrators can invite someone by email and inspect the shared invitation state:
+
+```typescript
+const server = await client.servers.get('SERVER_ID');
+const invitation = await server.invite('person@example.com', { requestId: crypto.randomUUID() });
+const invitations = await server.invitations();
+
+// The recipient uses their own workspace credential and the proof from their invitation link.
+await recipientClient.servers.invitations.accept(invitation.id, invitationProof);
+```
+
+Keep the same `requestId` when retrying creation. Invitations can also be inspected, declined, resent or cancelled. An `accepting` status means access confirmation is still in progress; retry acceptance with the same recipient workspace.
+
+Invitation operations use the hosted platform endpoint and the same credential as resource operations. For a custom deployment, pass `platformUrl` in the client options. Resource API routing remains unchanged.
+
 ## Quick Start
 
 Save this as `quickstart.mjs` and run `node quickstart.mjs` after setting `PHPSANDBOX_TOKEN`. Expected output: `Hello from PHPSandbox`. The example creates and deletes a temporary plain PHP notebook.

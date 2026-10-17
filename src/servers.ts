@@ -25,11 +25,12 @@ export interface ServerMemberData {
 }
 
 export interface ServerInvitationData {
+  recipientOrganizationId?: string | null;
   id: string;
   serverId: string;
   serverName: string;
   email: string;
-  status: 'pending' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+  status: 'pending' | 'accepting' | 'accepted' | 'declined' | 'cancelled' | 'expired';
   expiresAt: string;
   createdAt: string;
 }
@@ -38,17 +39,21 @@ export class ServerInvitationApi {
   public constructor(private readonly client: Client) {}
 
   public async inspect(id: string, token: string): Promise<ServerInvitationData> {
-    return (await this.client.post<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/inspect`, { token }))
-      .data;
+    return (
+      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/inspect`, { token })
+    ).data;
   }
 
   public async accept(id: string, token: string): Promise<ServerInvitationData> {
-    return (await this.client.post<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/accept`, { token })).data;
+    return (
+      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/accept`, { token })
+    ).data;
   }
 
   public async decline(id: string, token: string): Promise<ServerInvitationData> {
-    return (await this.client.post<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/decline`, { token }))
-      .data;
+    return (
+      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/decline`, { token })
+    ).data;
   }
 }
 
@@ -109,9 +114,13 @@ export class ServerInstance {
     return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, { email })).data;
   }
 
-  public async shareWithOrganization(organizationId: string): Promise<ServerMemberData> {
-    return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, { organizationId }))
-      .data;
+  public async shareWithOrganization(organizationId: string, options: { requestId?: string } = {}): Promise<ServerMemberData> {
+    return (
+      await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, {
+        organizationId,
+        ...options,
+      })
+    ).data;
   }
 
   public async revokeAccess(memberId: number): Promise<void> {
@@ -122,7 +131,7 @@ export class ServerInstance {
 
   public async invite(email: string, options: { requestId?: string } = {}): Promise<ServerInvitationData> {
     return (
-      await this.client.post<ServerInvitationData>(`/servers/${encodeURIComponent(this.data.id)}/invitations`, {
+      await this.client.platformPost<ServerInvitationData>(`/servers/${encodeURIComponent(this.data.id)}/invitations`, {
         email,
         requestId: options.requestId ?? crypto.randomUUID(),
       })
@@ -131,11 +140,11 @@ export class ServerInstance {
 
   public async invitations(options: ServerListOptions = {}): Promise<PaginatedApiResponse<ServerInvitationData>> {
     const query = options.page === undefined ? '' : `?${new URLSearchParams({ page: String(options.page) }).toString()}`;
-    return this.client.get<ServerInvitationData[]>(`/servers/${encodeURIComponent(this.data.id)}/invitations${query}`);
+    return this.client.platformGet<ServerInvitationData[]>(`/servers/${encodeURIComponent(this.data.id)}/invitations${query}`);
   }
 
   public async cancelInvitation(id: string): Promise<ServerInvitationData> {
-    const response = await this.client.delete<ServerInvitationData>(
+    const response = await this.client.platformDelete<ServerInvitationData>(
       `/servers/${encodeURIComponent(this.data.id)}/invitations/${encodeURIComponent(id)}`
     );
     if (response.data === undefined) {
@@ -147,7 +156,7 @@ export class ServerInstance {
 
   public async resendInvitation(id: string): Promise<ServerInvitationData> {
     return (
-      await this.client.post<ServerInvitationData>(
+      await this.client.platformPost<ServerInvitationData>(
         `/servers/${encodeURIComponent(this.data.id)}/invitations/${encodeURIComponent(id)}/resend`,
         {}
       )

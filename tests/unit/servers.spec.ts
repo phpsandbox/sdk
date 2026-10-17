@@ -16,6 +16,39 @@ function serverData(status: string = 'pending'): ServerData {
 }
 
 describe('server invitations', () => {
+  it('uses the configured platform endpoint with the same token and preserves resource routing', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ data: serverData() }))
+      .mockResolvedValueOnce(Response.json({ data: { id: 'invitation', status: 'pending' } }))
+      .mockResolvedValueOnce(
+        Response.json({ error: { status: 403, code: 'PermissionDenied', message: 'Administrator required' } }, { status: 403 })
+      );
+    const client = PHPSandbox.rest('platform-token', 'https://resources.example.test/v1', {
+      fetch,
+      platformUrl: 'https://platform.example.test/api/v1/',
+    });
+    const server = await client.servers.get('server-1');
+
+    await server.invite('alex@example.test', { requestId: 'stable-request' });
+    await expect(client.servers.invitations.accept('invitation', 'proof')).rejects.toMatchObject({
+      status: 403,
+      source: 'platform',
+    });
+
+    const requests = fetch.mock.calls.map(([input]) => new Request(input));
+    expect(requests.map((request) => request.url)).toEqual([
+      'https://resources.example.test/v1/servers/server-1',
+      'https://platform.example.test/api/v1/servers/server-1/invitations',
+      'https://platform.example.test/api/v1/server-invitations/invitation/accept',
+    ]);
+    expect(requests.map((request) => request.headers.get('Authorization'))).toEqual([
+      'Bearer platform-token',
+      'Bearer platform-token',
+      'Bearer platform-token',
+    ]);
+  });
+
   it('declines using proof in the body and propagates API rejection', async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
@@ -29,7 +62,7 @@ describe('server invitations', () => {
     await expect(client.servers.invitations.accept('invite-1', 'private-proof')).rejects.toMatchObject({ status: 409 });
 
     const request = new Request(fetch.mock.calls[0][0]);
-    expect(request.url).toBe('https://api.phpsandbox.io/v1/server-invitations/invite-1/decline');
+    expect(request.url).toBe('https://phpsandbox.io/api/v1/server-invitations/invite-1/decline');
     expect(request.method).toBe('POST');
     expect(await request.json()).toEqual({ token: 'private-proof' });
   });
@@ -66,12 +99,12 @@ describe('server invitations', () => {
     const requests = fetch.mock.calls.map(([request]) => new Request(request));
     expect(requests.map((request) => request.url)).toEqual([
       'https://api.phpsandbox.io/v1/servers/server-1',
-      'https://api.phpsandbox.io/v1/servers/server-1/invitations',
-      'https://api.phpsandbox.io/v1/servers/server-1/invitations',
-      'https://api.phpsandbox.io/v1/server-invitations/invite-1/inspect',
-      'https://api.phpsandbox.io/v1/server-invitations/invite-1/accept',
-      'https://api.phpsandbox.io/v1/servers/server-1/invitations/invite-1/resend',
-      'https://api.phpsandbox.io/v1/servers/server-1/invitations/invite-1',
+      'https://phpsandbox.io/api/v1/servers/server-1/invitations',
+      'https://phpsandbox.io/api/v1/servers/server-1/invitations',
+      'https://phpsandbox.io/api/v1/server-invitations/invite-1/inspect',
+      'https://phpsandbox.io/api/v1/server-invitations/invite-1/accept',
+      'https://phpsandbox.io/api/v1/servers/server-1/invitations/invite-1/resend',
+      'https://phpsandbox.io/api/v1/servers/server-1/invitations/invite-1',
     ]);
     expect(requests.map((request) => request.method)).toEqual(['GET', 'POST', 'GET', 'POST', 'POST', 'POST', 'DELETE']);
     expect(await requests[1].json()).toEqual({ email: invitation.email, requestId: 'request-1' });
