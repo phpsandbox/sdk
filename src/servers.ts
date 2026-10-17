@@ -69,19 +69,19 @@ export class ServerApi {
 
   public async inspectInvitation(id: string, token: string): Promise<ServerInvitationData> {
     return (
-      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/inspect`, { token })
+      await this.client.post<ServerInvitationData>(`/platform/server-invitations/${encodeURIComponent(id)}/inspect`, { token })
     ).data;
   }
 
   public async acceptInvitation(id: string, token: string): Promise<ServerInvitationData> {
     return (
-      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/accept`, { token })
+      await this.client.post<ServerInvitationData>(`/platform/server-invitations/${encodeURIComponent(id)}/accept`, { token })
     ).data;
   }
 
   public async declineInvitation(id: string, token: string): Promise<ServerInvitationData> {
     return (
-      await this.client.platformPost<ServerInvitationData>(`/server-invitations/${encodeURIComponent(id)}/decline`, { token })
+      await this.client.post<ServerInvitationData>(`/platform/server-invitations/${encodeURIComponent(id)}/decline`, { token })
     ).data;
   }
 
@@ -122,7 +122,7 @@ export class ServerInstance {
   public async share(target: ShareServerInput): Promise<ServerInvitationData | ServerMemberData> {
     if (target.email !== undefined) {
       return (
-        await this.client.platformPost<ServerInvitationData>(`/servers/${encodeURIComponent(this.data.id)}/invitations`, {
+        await this.client.post<ServerInvitationData>(`/platform/servers/${encodeURIComponent(this.data.id)}/invitations`, {
           email: target.email,
           requestId: target.requestId ?? crypto.randomUUID(),
         })
@@ -142,12 +142,12 @@ export class ServerInstance {
 
   public async invitations(options: ServerListOptions = {}): Promise<PaginatedApiResponse<ServerInvitationData>> {
     const query = options.page === undefined ? '' : `?${new URLSearchParams({ page: String(options.page) }).toString()}`;
-    return this.client.platformGet<ServerInvitationData[]>(`/servers/${encodeURIComponent(this.data.id)}/invitations${query}`);
+    return this.client.get<ServerInvitationData[]>(`/platform/servers/${encodeURIComponent(this.data.id)}/invitations${query}`);
   }
 
   public async cancelInvitation(id: string): Promise<ServerInvitationData> {
-    const response = await this.client.platformDelete<ServerInvitationData>(
-      `/servers/${encodeURIComponent(this.data.id)}/invitations/${encodeURIComponent(id)}`
+    const response = await this.client.delete<ServerInvitationData>(
+      `/platform/servers/${encodeURIComponent(this.data.id)}/invitations/${encodeURIComponent(id)}`
     );
     if (response.data === undefined) {
       throw new PHPSandboxError('Missing invitation cancellation response.');
@@ -158,8 +158,8 @@ export class ServerInstance {
 
   public async resendInvitation(id: string): Promise<ServerInvitationData> {
     return (
-      await this.client.platformPost<ServerInvitationData>(
-        `/servers/${encodeURIComponent(this.data.id)}/invitations/${encodeURIComponent(id)}/resend`,
+      await this.client.post<ServerInvitationData>(
+        `/platform/servers/${encodeURIComponent(this.data.id)}/invitations/${encodeURIComponent(id)}/resend`,
         {}
       )
     ).data;

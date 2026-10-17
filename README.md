@@ -72,7 +72,7 @@ Keep the same `requestId` when retrying creation. Use `client.servers.inspectInv
 
 For an immediate grant to an existing workspace, use `server.share({ organizationId: 'WORKSPACE_ID', requestId })`.
 
-Invitation operations use the hosted platform endpoint and the same credential as resource operations. For a custom deployment, pass `platformUrl` in the client options. Resource API routing remains unchanged.
+Invitation operations use the same API base URL and credential as all other operations. No additional endpoint configuration is required.
 
 ## Notebook Lifecycle
 
