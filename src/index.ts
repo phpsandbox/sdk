@@ -112,6 +112,10 @@ export type {
   ServerInstance,
   ServerListOptions,
   ServerMemberData,
+  ServerInvitationData,
+  ServerInvitationTarget,
+  ServerOrganizationTarget,
+  ShareServerInput,
   ServerSshOptions,
 } from './servers.js';
 export type {
@@ -653,7 +657,7 @@ class ClientImplementation {
     );
 
     if (!response.ok) {
-      throw await responseError(response);
+      throw await responseError(response, path.startsWith('/platform/') ? 'platform' : 'core');
     }
 
     if (response.status === 204) {
@@ -699,11 +703,11 @@ class ClientImplementation {
   }
 }
 
-async function responseError(response: Response): Promise<PHPSandboxError> {
+async function responseError(response: Response, source: 'core' | 'platform' = 'core'): Promise<PHPSandboxError> {
   const body = await response.text();
 
   try {
-    return remoteError('core', errorPayload(body === '' ? undefined : JSON.parse(body)), response);
+    return remoteError(source, errorPayload(body === '' ? undefined : JSON.parse(body)), response);
   } catch {
     return new TransportError(
       `PHPSandbox API returned an invalid error response (HTTP ${response.status}).`,

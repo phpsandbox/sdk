@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PHPSandbox, type ServerData } from '../../src/index.js';
+import { PHPSandbox, type ServerData, type ServerInvitationData } from '../../src/index.js';
 
 function serverData(status: string = 'pending'): ServerData {
   return {
@@ -15,8 +15,105 @@ function serverData(status: string = 'pending'): ServerData {
   };
 }
 
+describe('server invitations', () => {
+  it('uses one configured API endpoint and credential for resource and invitation operations', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ data: serverData() }))
+      .mockResolvedValueOnce(Response.json({ data: { id: 'invitation', status: 'pending' } }))
+      .mockResolvedValueOnce(
+        Response.json({ error: { status: 403, code: 'PermissionDenied', message: 'Administrator required' } }, { status: 403 })
+      );
+    const client = PHPSandbox.rest('platform-token', 'https://resources.example.test/v1', {
+      fetch,
+    });
+    const server = await client.servers.get('server-1');
+
+    await server.share({ email: 'alex@example.test', requestId: 'stable-request' });
+    await expect(client.servers.acceptInvitation('invitation', 'proof')).rejects.toMatchObject({
+      status: 403,
+      source: 'platform',
+    });
+
+    const requests = fetch.mock.calls.map(([input]) => new Request(input));
+    expect(requests.map((request) => request.url)).toEqual([
+      'https://resources.example.test/v1/servers/server-1',
+      'https://resources.example.test/v1/platform/servers/server-1/invitations',
+      'https://resources.example.test/v1/platform/server-invitations/invitation/accept',
+    ]);
+    expect(requests.map((request) => request.headers.get('Authorization'))).toEqual([
+      'Bearer platform-token',
+      'Bearer platform-token',
+      'Bearer platform-token',
+    ]);
+  });
+
+  it('declines using proof in the body and propagates API rejection', async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ data: { id: 'invite-1', status: 'declined' } }))
+      .mockResolvedValueOnce(
+        Response.json({ error: { status: 409, code: 'Conflict', message: 'Invitation expired' } }, { status: 409 })
+      );
+    const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
+
+    await expect(client.servers.declineInvitation('invite-1', 'private-proof')).resolves.toMatchObject({ status: 'declined' });
+    await expect(client.servers.acceptInvitation('invite-1', 'private-proof')).rejects.toMatchObject({ status: 409 });
+
+    const request = new Request(fetch.mock.calls[0][0]);
+    expect(request.url).toBe('https://api.phpsandbox.io/v1/platform/server-invitations/invite-1/decline');
+    expect(request.method).toBe('POST');
+    expect(await request.json()).toEqual({ token: 'private-proof' });
+  });
+
+  it('uses one resource across creation, listing, inspection, acceptance, resend, and cancellation without exposing proof', async () => {
+    const invitation = {
+      id: 'invite-1',
+      recipientOrganizationId: null,
+      serverId: 'server-1',
+      serverName: 'Production',
+      email: 'alex@example.test',
+      status: 'pending',
+      expiresAt: '2030-01-01T00:00:00Z',
+      createdAt: '2026-01-01T00:00:00Z',
+    } satisfies ServerInvitationData;
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ data: serverData() }))
+      .mockResolvedValueOnce(Response.json({ data: invitation }))
+      .mockResolvedValueOnce(Response.json({ data: [invitation] }))
+      .mockResolvedValueOnce(Response.json({ data: invitation }))
+      .mockResolvedValueOnce(Response.json({ data: { ...invitation, status: 'accepted' } }))
+      .mockResolvedValueOnce(Response.json({ data: invitation }))
+      .mockResolvedValueOnce(Response.json({ data: { ...invitation, status: 'cancelled' } }));
+    const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
+    const server = await client.servers.get('server-1');
+
+    await expect(server.share({ email: invitation.email, requestId: 'request-1' })).resolves.toEqual(invitation);
+    await expect(server.invitations()).resolves.toMatchObject({ data: [invitation] });
+    await client.servers.inspectInvitation('invite-1', 'private-proof');
+    await expect(client.servers.acceptInvitation('invite-1', 'private-proof')).resolves.toMatchObject({ status: 'accepted' });
+    await server.resendInvitation('invite-1');
+    await server.cancelInvitation('invite-1');
+
+    const requests = fetch.mock.calls.map(([request]) => new Request(request));
+    expect(requests.map((request) => request.url)).toEqual([
+      'https://api.phpsandbox.io/v1/servers/server-1',
+      'https://api.phpsandbox.io/v1/platform/servers/server-1/invitations',
+      'https://api.phpsandbox.io/v1/platform/servers/server-1/invitations',
+      'https://api.phpsandbox.io/v1/platform/server-invitations/invite-1/inspect',
+      'https://api.phpsandbox.io/v1/platform/server-invitations/invite-1/accept',
+      'https://api.phpsandbox.io/v1/platform/servers/server-1/invitations/invite-1/resend',
+      'https://api.phpsandbox.io/v1/platform/servers/server-1/invitations/invite-1',
+    ]);
+    expect(requests.map((request) => request.method)).toEqual(['GET', 'POST', 'GET', 'POST', 'POST', 'POST', 'DELETE']);
+    expect(await requests[1].json()).toEqual({ email: invitation.email, requestId: 'request-1' });
+    expect(await requests[4].json()).toEqual({ token: 'private-proof' });
+  });
+});
+
 describe('Server API', () => {
-  it('shares one server with an existing account, lists members, and revokes access', async () => {
+  it('shares one server with an existing workspace, lists members, and revokes access', async () => {
     const member = { id: 42, name: 'Teammate', email: 'teammate@example.test', access: 'deployer' };
     const fetch = vi
       .fn<typeof globalThis.fetch>()
@@ -27,7 +124,7 @@ describe('Server API', () => {
     const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
     const server = await client.servers.get('server-1');
     expect(server.data.access).toBe('owner');
-    await expect(server.share(member.email)).resolves.toEqual(member);
+    await expect(server.share({ organizationId: 'workspace-1' })).resolves.toEqual(member);
     await expect(server.members({ page: 2 })).resolves.toMatchObject({ data: [member], meta: { currentPage: 2 } });
     await server.revokeAccess(member.id);
     const requests = fetch.mock.calls.map(([request]) => request as Request);
@@ -37,7 +134,7 @@ describe('Server API', () => {
       ['GET', 'https://api.phpsandbox.io/v1/servers/server-1/members?page=2'],
       ['DELETE', 'https://api.phpsandbox.io/v1/servers/server-1/members/42'],
     ]);
-    expect(await requests[1].json()).toEqual({ email: member.email });
+    expect(await requests[1].json()).toEqual({ organizationId: 'workspace-1' });
   });
 
   it('lists, creates, refreshes, and deletes server resources', async () => {

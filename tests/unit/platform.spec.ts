@@ -10,12 +10,12 @@ describe('Organization server sharing', () => {
       .mockResolvedValueOnce(Response.json({ data: { id: 42, organizationId: 'org', access: 'deployer' } }));
     const server = await PHPSandbox.rest('hfp_test', undefined, { fetch }).servers.get('server');
 
-    await server.shareWithOrganization('org');
+    await server.share({ organizationId: 'org', requestId: 'stable-grant' });
 
     const request = fetch.mock.calls[1]?.[0];
     ok(request instanceof Request);
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(request.method).toBe('POST');
-    expect(await request.json()).toEqual({ organizationId: 'org' });
+    expect(await request.json()).toEqual({ organizationId: 'org', requestId: 'stable-grant' });
   });
 });

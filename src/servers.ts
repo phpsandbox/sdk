@@ -1,4 +1,5 @@
 import type { Client, PaginatedApiResponse } from './index.js';
+import { PHPSandboxError } from './errors/index.js';
 
 export interface ServerData {
   id: string;
@@ -23,6 +24,17 @@ export interface ServerMemberData {
   access: 'deployer';
 }
 
+export interface ServerInvitationData {
+  recipientOrganizationId: string | null;
+  id: string;
+  serverId: string;
+  serverName: string;
+  email: string;
+  status: 'pending' | 'accepting' | 'accepted' | 'declined' | 'cancelled' | 'expired';
+  expiresAt: string;
+  createdAt: string;
+}
+
 export interface ServerSshOptions {
   user?: string;
   port?: number;
@@ -38,8 +50,40 @@ export interface ServerListOptions {
   page?: number;
 }
 
+export interface ServerInvitationTarget {
+  email: string;
+  organizationId?: never;
+  requestId?: string;
+}
+
+export interface ServerOrganizationTarget {
+  organizationId: string;
+  email?: never;
+  requestId?: string;
+}
+
+export type ShareServerInput = ServerInvitationTarget | ServerOrganizationTarget;
+
 export class ServerApi {
   public constructor(private readonly client: Client) {}
+
+  public async inspectInvitation(id: string, token: string): Promise<ServerInvitationData> {
+    return (
+      await this.client.post<ServerInvitationData>(`/platform/server-invitations/${encodeURIComponent(id)}/inspect`, { token })
+    ).data;
+  }
+
+  public async acceptInvitation(id: string, token: string): Promise<ServerInvitationData> {
+    return (
+      await this.client.post<ServerInvitationData>(`/platform/server-invitations/${encodeURIComponent(id)}/accept`, { token })
+    ).data;
+  }
+
+  public async declineInvitation(id: string, token: string): Promise<ServerInvitationData> {
+    return (
+      await this.client.post<ServerInvitationData>(`/platform/server-invitations/${encodeURIComponent(id)}/decline`, { token })
+    ).data;
+  }
 
   public async list(options: ServerListOptions = {}): Promise<PaginatedApiResponse<ServerData>> {
     const query = options.page === undefined ? '' : `?${new URLSearchParams({ page: String(options.page) }).toString()}`;
@@ -72,19 +116,53 @@ export class ServerInstance {
     return this.client.get<ServerMemberData[]>(`/servers/${encodeURIComponent(this.data.id)}/members${query}`);
   }
 
-  public async share(email: string): Promise<ServerMemberData> {
-    return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, { email })).data;
-  }
+  public share(target: ServerInvitationTarget): Promise<ServerInvitationData>;
+  public share(target: ServerOrganizationTarget): Promise<ServerMemberData>;
+  public share(target: ShareServerInput): Promise<ServerInvitationData | ServerMemberData>;
+  public async share(target: ShareServerInput): Promise<ServerInvitationData | ServerMemberData> {
+    if (target.email !== undefined) {
+      return (
+        await this.client.post<ServerInvitationData>(`/platform/servers/${encodeURIComponent(this.data.id)}/invitations`, {
+          email: target.email,
+          requestId: target.requestId ?? crypto.randomUUID(),
+        })
+      ).data;
+    }
 
-  public async shareWithOrganization(organizationId: string): Promise<ServerMemberData> {
-    return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, { organizationId }))
-      .data;
+    const body = { organizationId: target.organizationId, requestId: target.requestId };
+
+    return (await this.client.post<ServerMemberData>(`/servers/${encodeURIComponent(this.data.id)}/members`, body)).data;
   }
 
   public async revokeAccess(memberId: number): Promise<void> {
     await this.client.delete<{ deleted: boolean }>(
       `/servers/${encodeURIComponent(this.data.id)}/members/${encodeURIComponent(String(memberId))}`
     );
+  }
+
+  public async invitations(options: ServerListOptions = {}): Promise<PaginatedApiResponse<ServerInvitationData>> {
+    const query = options.page === undefined ? '' : `?${new URLSearchParams({ page: String(options.page) }).toString()}`;
+    return this.client.get<ServerInvitationData[]>(`/platform/servers/${encodeURIComponent(this.data.id)}/invitations${query}`);
+  }
+
+  public async cancelInvitation(id: string): Promise<ServerInvitationData> {
+    const response = await this.client.delete<ServerInvitationData>(
+      `/platform/servers/${encodeURIComponent(this.data.id)}/invitations/${encodeURIComponent(id)}`
+    );
+    if (response.data === undefined) {
+      throw new PHPSandboxError('Missing invitation cancellation response.');
+    }
+
+    return response.data;
+  }
+
+  public async resendInvitation(id: string): Promise<ServerInvitationData> {
+    return (
+      await this.client.post<ServerInvitationData>(
+        `/platform/servers/${encodeURIComponent(this.data.id)}/invitations/${encodeURIComponent(id)}/resend`,
+        {}
+      )
+    ).data;
   }
 
   public refresh(): Promise<ServerInstance> {

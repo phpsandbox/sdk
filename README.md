@@ -55,6 +55,25 @@ PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', {
 });
 ```
 
+## Server invitations
+
+Server administrators can invite someone by email and inspect the shared invitation state:
+
+```typescript
+const server = await client.servers.get('SERVER_ID');
+const invitation = await server.share({ email: 'person@example.com', requestId: crypto.randomUUID() });
+const invitations = await server.invitations();
+
+// The recipient uses their own workspace credential and the proof from their invitation link.
+await recipientClient.servers.acceptInvitation(invitation.id, invitationProof);
+```
+
+Keep the same `requestId` when retrying creation. Use `client.servers.inspectInvitation()`, `acceptInvitation()` and `declineInvitation()` to respond, and `server.resendInvitation()` or `cancelInvitation()` to manage pending invitations. An `accepting` status means access confirmation is still in progress; retry acceptance with the same recipient workspace.
+
+For an immediate grant to an existing workspace, use `server.share({ organizationId: 'WORKSPACE_ID', requestId })`.
+
+Invitation operations use the same API base URL and credential as all other operations. No additional endpoint configuration is required.
+
 ## Notebook Lifecycle
 
 ```ts

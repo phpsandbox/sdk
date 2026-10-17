@@ -1,4 +1,4 @@
-export type RemoteErrorSource = 'core' | 'runtime';
+export type RemoteErrorSource = 'core' | 'platform' | 'runtime';
 
 const remoteErrorCodes = [
   'ActionNotFound',
