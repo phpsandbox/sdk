@@ -24,6 +24,19 @@ const accessSchema = z.object({
   canRefund: z.boolean(),
 });
 export type PaymentsAccess = z.infer<typeof accessSchema>;
+const applicationsSchema = z.object({
+  notebookId: z.string(),
+  applications: z.array(
+    z.object({
+      id: z.string(),
+      url: z.string().nullable(),
+      healthy: z.boolean(),
+      passwordProtected: z.boolean(),
+      deployedAt: z.string().datetime().nullable(),
+    })
+  ),
+});
+export type PaymentApplicationsData = z.infer<typeof applicationsSchema>;
 const bindingSchema = z.object({
   id: z.string(),
   notebookId: z.string(),
@@ -113,24 +126,10 @@ export class PaymentsApi {
     return new NotebookPayments(notebookId, this.client);
   }
 
-  public async applications(notebookId: string): Promise<{
-    notebookId: string;
-    applications: { id: string; url: string | null; healthy: boolean; deployedAt: string | null; passwordProtected: boolean }[];
-  }> {
-    return z
-      .object({
-        notebookId: z.string(),
-        applications: z.array(
-          z.object({
-            id: z.string(),
-            url: z.string().nullable(),
-            healthy: z.boolean(),
-            passwordProtected: z.boolean(),
-            deployedAt: z.string().datetime().nullable(),
-          })
-        ),
-      })
-      .parse((await this.client.get<unknown>(`/notebook/${encodeURIComponent(notebookId)}/payments/applications`)).data);
+  public async applications(notebookId: string): Promise<PaymentApplicationsData> {
+    return applicationsSchema.parse(
+      (await this.client.get<unknown>(`/notebook/${encodeURIComponent(notebookId)}/payments/applications`)).data
+    );
   }
 
   public async access(): Promise<PaymentsAccess> {
