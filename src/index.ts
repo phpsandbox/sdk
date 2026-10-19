@@ -22,6 +22,8 @@ import { RestRuntimeInvoker } from './runtime/rest.js';
 import { Feedback } from './feedback.js';
 import { IntegrationApi, SandboxIntegrationApi } from './integrations/index.js';
 import { authenticatedRequest } from './http.js';
+import { PaymentsApi, NotebookPayments } from './payments.js';
+export * from './payments.js';
 
 export type { Disposable } from './types.js';
 export { LspConnection } from './lsp.js';
@@ -539,6 +541,7 @@ class ClientImplementation {
   public readonly publications: PublicationApi;
   public readonly servers: ServerApi;
   public readonly integrations: IntegrationApi;
+  public readonly payments: PaymentsApi;
   public readonly options: PHPSandboxClientOptions;
   private readonly runtimeTransportValue: RuntimeTransport;
 
@@ -562,6 +565,7 @@ class ClientImplementation {
     this.notebook = new NotebookApi(this);
     this.servers = new ServerApi(this);
     this.integrations = new IntegrationApi(this);
+    this.payments = new PaymentsApi(this);
     this.options = { ...options };
     this.runtimeTransportValue = runtimeTransport;
     this.baseUrl = normalizeApiBaseUrl(url);
@@ -735,12 +739,14 @@ export class PHPSandbox {
   public readonly publications: PublicationApi;
   public readonly servers: ServerApi;
   public readonly integrations: IntegrationApi;
+  public readonly payments: PaymentsApi;
 
   private constructor(private readonly client: ClientImplementation) {
     this.notebook = client.notebook;
     this.publications = client.publications;
     this.servers = client.servers;
     this.integrations = client.integrations;
+    this.payments = client.payments;
   }
 
   public async whoami(): Promise<Identity> {
@@ -799,6 +805,7 @@ export class NotebookInstance {
   public readonly config: Config;
   public readonly secrets: NotebookSecrets;
   public readonly integrations: SandboxIntegrationApi;
+  public readonly payments: NotebookPayments;
   public readonly preview: NotebookPreview;
   public readonly mail: NotebookMail;
   public readonly feedback: Feedback;
@@ -865,6 +872,7 @@ export class NotebookInstance {
     this.config = new Config(this);
     this.secrets = new NotebookSecrets(client, this.data.id);
     this.integrations = new SandboxIntegrationApi(this.data.id, client);
+    this.payments = new NotebookPayments(this.data.id, client);
     this.preview = new NotebookPreview(client, this.data.id);
     this.mail = new NotebookMail(client, this.data.id);
     this.feedback = new Feedback(client, this.data.id);
