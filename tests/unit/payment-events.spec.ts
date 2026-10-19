@@ -9,6 +9,9 @@ const event = {
   type: 'payment.updated',
   mode: 'test',
   transaction: {
+    subscriptionId: null,
+    periodStart: null,
+    periodEnd: null,
     id: 'purchase',
     bindingId: 'binding',
     orderId: 'course',

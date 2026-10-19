@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import type { Client } from './index.js';
 
+export const DEFAULT_PAYMENT_CALLBACK_PATH = '/api/phpsandbox-payments/events';
+
 export const paymentModeSchema = z.enum(['test', 'live']);
 export type PaymentMode = z.infer<typeof paymentModeSchema>;
 const accountSchema = z.object({
@@ -22,6 +24,7 @@ const accessSchema = z.object({
   canRead: z.boolean(),
   canManage: z.boolean(),
   canRefund: z.boolean(),
+  recoveryEndsAt: z.string().nullable().default(null),
 });
 export type PaymentsAccess = z.infer<typeof accessSchema>;
 const applicationsSchema = z.object({
@@ -51,6 +54,7 @@ const bindingSchema = z.object({
 });
 export type PaymentBindingData = z.infer<typeof bindingSchema>;
 const priceSchema = z.object({
+  billingInterval: z.enum(['month', 'year']).nullable().default(null),
   id: z.string(),
   name: z.string(),
   amount: z.number().int(),
@@ -59,6 +63,9 @@ const priceSchema = z.object({
 });
 export type PaymentPriceData = z.infer<typeof priceSchema>;
 const transactionSchema = z.object({
+  subscriptionId: z.string().nullable().default(null),
+  periodStart: z.string().datetime({ offset: true }).nullable().default(null),
+  periodEnd: z.string().datetime({ offset: true }).nullable().default(null),
   id: z.string(),
   bindingId: z.string(),
   orderId: z.string(),
@@ -73,6 +80,34 @@ const transactionSchema = z.object({
   deliveredAt: z.string().nullable(),
 });
 export type PaymentTransactionData = z.infer<typeof transactionSchema>;
+const subscriptionSchema = z.object({
+  id: z.string(),
+  bindingId: z.string(),
+  priceId: z.string(),
+  orderId: z.string(),
+  status: z.enum([
+    'pending',
+    'incomplete',
+    'incomplete_expired',
+    'trialing',
+    'active',
+    'past_due',
+    'canceled',
+    'unpaid',
+    'paused',
+  ]),
+  billingInterval: z.enum(['month', 'year']),
+  paidThrough: z.string().datetime({ offset: true }).nullable(),
+  cancelAtPeriodEnd: z.boolean(),
+  checkoutUrl: z.string().nullable(),
+  revision: z.number().int(),
+});
+export type PaymentSubscriptionData = z.infer<typeof subscriptionSchema>;
+export interface PaymentSubscriptionPortalInput {
+  returnPath: string;
+}
+const portalSchema = z.object({ url: z.string().url() });
+
 const refundResultSchema = transactionSchema.extend({
   refund: z.object({
     id: z.string(),
@@ -98,6 +133,7 @@ export interface ConfigurePaymentsInput {
   callbackPath?: string;
 }
 export interface CreatePaymentPriceInput {
+  billingInterval?: 'month' | 'year';
   requestId: string;
   name: string;
   amount: number;
@@ -197,6 +233,36 @@ export class NotebookPayments {
     return transactionSchema.parse((await this.client.post<unknown>(`${this.path(mode)}/checkouts`, input)).data);
   }
 
+  public async subscribe(input: CreatePaymentCheckoutInput, mode: PaymentMode = 'test'): Promise<PaymentSubscriptionData> {
+    return subscriptionSchema.parse((await this.client.post<unknown>(`${this.path(mode)}/subscriptions`, input)).data);
+  }
+
+  public async subscriptions(mode: PaymentMode = 'test'): Promise<PaymentSubscriptionData[]> {
+    return z.array(subscriptionSchema).parse((await this.client.get<unknown>(`${this.path(mode)}/subscriptions`)).data);
+  }
+
+  public async subscription(id: string, mode: PaymentMode = 'test'): Promise<PaymentSubscriptionData> {
+    return subscriptionSchema.parse(
+      (await this.client.get<unknown>(`${this.path(mode)}/subscriptions/${encodeURIComponent(id)}`)).data
+    );
+  }
+
+  public async cancelSubscription(id: string, mode: PaymentMode = 'test'): Promise<PaymentSubscriptionData> {
+    return subscriptionSchema.parse(
+      (await this.client.post<unknown>(`${this.path(mode)}/subscriptions/${encodeURIComponent(id)}/cancel`, {})).data
+    );
+  }
+
+  public async subscriptionPortal(
+    id: string,
+    input: PaymentSubscriptionPortalInput,
+    mode: PaymentMode = 'test'
+  ): Promise<{ url: string }> {
+    return portalSchema.parse(
+      (await this.client.post<unknown>(`${this.path(mode)}/subscriptions/${encodeURIComponent(id)}/portal`, input)).data
+    );
+  }
+
   public async transactions(mode: PaymentMode = 'test'): Promise<PaymentTransactionData[]> {
     return z.array(transactionSchema).parse((await this.client.get<unknown>(`${this.path(mode)}/transactions`)).data);
   }
@@ -208,12 +274,20 @@ export class NotebookPayments {
   }
 }
 
-const paymentEventSchema = z.object({
-  id: z.string(),
-  type: z.literal('payment.updated'),
-  mode: paymentModeSchema,
-  transaction: transactionSchema,
-});
+const paymentEventSchema = z.discriminatedUnion('type', [
+  z.object({
+    id: z.string(),
+    type: z.literal('payment.updated'),
+    mode: paymentModeSchema,
+    transaction: transactionSchema,
+  }),
+  z.object({
+    id: z.string(),
+    type: z.literal('subscription.updated'),
+    mode: paymentModeSchema,
+    subscription: subscriptionSchema,
+  }),
+]);
 export type PaymentEvent = z.infer<typeof paymentEventSchema>;
 
 /** Verify the original bytes before parsing JSON. Use only in trusted server code. */
@@ -256,6 +330,28 @@ export class PaymentRuntime {
   public async transaction(id: string): Promise<PaymentTransactionData> {
     return transactionSchema.parse(
       (await this.client.get<unknown>(`/platform/payments/runtime/transactions/${encodeURIComponent(id)}`)).data
+    );
+  }
+
+  public async subscribe(input: CreatePaymentCheckoutInput): Promise<PaymentSubscriptionData> {
+    return subscriptionSchema.parse((await this.client.post<unknown>('/platform/payments/runtime/subscriptions', input)).data);
+  }
+
+  public async subscription(id: string): Promise<PaymentSubscriptionData> {
+    return subscriptionSchema.parse(
+      (await this.client.get<unknown>(`/platform/payments/runtime/subscriptions/${encodeURIComponent(id)}`)).data
+    );
+  }
+
+  public async cancelSubscription(id: string): Promise<PaymentSubscriptionData> {
+    return subscriptionSchema.parse(
+      (await this.client.post<unknown>(`/platform/payments/runtime/subscriptions/${encodeURIComponent(id)}/cancel`, {})).data
+    );
+  }
+
+  public async subscriptionPortal(id: string, input: PaymentSubscriptionPortalInput): Promise<{ url: string }> {
+    return portalSchema.parse(
+      (await this.client.post<unknown>(`/platform/payments/runtime/subscriptions/${encodeURIComponent(id)}/portal`, input)).data
     );
   }
 
