@@ -1,5 +1,7 @@
 export const capabilityIds = [
   'sdk.contracts',
+  'payments.contracts',
+  'payments.provider',
   'client.core-http',
   'client.runtime-selection',
   'notebook.lifecycle',
@@ -87,6 +89,22 @@ const beaconIntegration = 'tests/smoke/integrations/beacon.smoke.ts';
 const feedbackWidgetIntegration = 'tests/smoke/integrations/feedback-widget.smoke.ts';
 
 export const capabilities: Record<CapabilityId, Capability> = {
+  'payments.contracts': covered(
+    'Managed payment HTTP contracts and signed purchase event verification',
+    ['core'],
+    'unit',
+    'tests/unit/payments.spec.ts',
+    'tests/unit/payment-events.spec.ts'
+  ),
+  'payments.provider': {
+    area: 'Stripe Connect onboarding, payment collection and refunds',
+    transports: ['core'],
+    status: 'external',
+    tier: 'external',
+    specs: [],
+    reason:
+      'Requires an opted-in Connect test platform and a verified test seller. Unit contract coverage does not verify provider readiness or bank payouts.',
+  },
   'sdk.contracts': covered(
     'SDK runtime exports, errors, schemas, and value objects',
     ['core'],

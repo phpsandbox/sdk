@@ -4,6 +4,7 @@ import { capabilities, capabilityIds } from '../support/capabilities.js';
 import {
   beaconRuntimeExports,
   clientSurface,
+  paymentFacadeSurfaces,
   filesystemSurface,
   notebookApiSurface,
   notebookSurface,
@@ -31,6 +32,7 @@ describe('production smoke capability catalogue', () => {
       ...Object.values(sdkRuntimeExports),
       ...Object.values(beaconRuntimeExports),
       ...Object.values(clientSurface),
+      ...Object.values(paymentFacadeSurfaces).flatMap((surface) => Object.values(surface)),
       ...Object.values(notebookApiSurface),
       ...Object.values(notebookSurface),
       ...Object.values(publicationSurface),

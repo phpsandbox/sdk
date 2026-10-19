@@ -5,6 +5,12 @@ import type { CapabilityId } from './capabilities.js';
 type SurfaceCoverage<T> = { readonly [TKey in keyof T]-?: CapabilityId };
 
 export const sdkRuntimeExports = {
+  PaymentsApi: 'payments.provider',
+  NotebookPayments: 'payments.provider',
+  PaymentRuntime: 'payments.provider',
+  paymentModeSchema: 'payments.contracts',
+  DEFAULT_PAYMENT_CALLBACK_PATH: 'payments.contracts',
+  verifyPaymentEvent: 'payments.contracts',
   NotebookPublication: 'publication.manage',
   PublicationApi: 'publication.manage',
   PublicationInstance: 'publication.manage',
@@ -37,6 +43,7 @@ export const beaconRuntimeExports = {
 } satisfies SurfaceCoverage<typeof beacon>;
 
 export const clientSurface = {
+  payments: 'payments.provider',
   integrations: 'client.core-http',
   notebook: 'notebook.lifecycle',
   publications: 'publication.manage',
@@ -54,6 +61,7 @@ export const notebookApiSurface = {
 } satisfies SurfaceCoverage<sdk.PHPSandbox['notebook']>;
 
 export const notebookSurface = {
+  payments: 'payments.provider',
   composer: 'composer.read',
   feedback: 'feedback',
   config: 'config.read',
@@ -264,4 +272,43 @@ export const runtimeFacadeSurfaces = {
     create: 'terminal',
     list: 'terminal',
   } satisfies SurfaceCoverage<sdk.NotebookInstance['terminals']>,
+};
+
+export const paymentFacadeSurfaces = {
+  organization: {
+    access: 'payments.provider',
+    accounts: 'payments.provider',
+    createAccount: 'payments.provider',
+    forNotebook: 'payments.contracts',
+    onboarding: 'payments.provider',
+    applications: 'payments.provider',
+    runtime: 'payments.provider',
+  } satisfies SurfaceCoverage<sdk.PaymentsApi>,
+  notebook: {
+    get: 'payments.provider',
+    configure: 'payments.provider',
+    provision: 'payments.provider',
+    prices: 'payments.provider',
+    createPrice: 'payments.provider',
+    prepareActivation: 'payments.provider',
+    activate: 'payments.provider',
+    disable: 'payments.provider',
+    subscribe: 'payments.provider',
+    subscription: 'payments.provider',
+    cancelSubscription: 'payments.provider',
+    subscriptionPortal: 'payments.provider',
+    checkout: 'payments.provider',
+    subscriptions: 'payments.provider',
+    transactions: 'payments.provider',
+    refund: 'payments.provider',
+  } satisfies SurfaceCoverage<sdk.NotebookPayments>,
+  runtime: {
+    subscribe: 'payments.provider',
+    subscription: 'payments.provider',
+    cancelSubscription: 'payments.provider',
+    subscriptionPortal: 'payments.provider',
+    checkout: 'payments.provider',
+    transaction: 'payments.provider',
+    prices: 'payments.provider',
+  } satisfies SurfaceCoverage<sdk.PaymentRuntime>,
 };
