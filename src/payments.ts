@@ -113,7 +113,7 @@ export class PaymentsApi {
     return new NotebookPayments(notebookId, this.client);
   }
 
-  public async resourceAccess(notebookId: string): Promise<{
+  public async applications(notebookId: string): Promise<{
     notebookId: string;
     applications: { id: string; url: string | null; healthy: boolean; deployedAt: string | null; passwordProtected: boolean }[];
   }> {
@@ -130,7 +130,7 @@ export class PaymentsApi {
           })
         ),
       })
-      .parse((await this.client.get<unknown>(`/notebook/${encodeURIComponent(notebookId)}/payment-access`)).data);
+      .parse((await this.client.get<unknown>(`/notebook/${encodeURIComponent(notebookId)}/payments/applications`)).data);
   }
 
   public async access(): Promise<PaymentsAccess> {

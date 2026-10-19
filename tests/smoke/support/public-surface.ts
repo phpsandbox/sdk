@@ -280,7 +280,7 @@ export const paymentFacadeSurfaces = {
     createAccount: 'payments.provider',
     forNotebook: 'payments.contracts',
     onboarding: 'payments.provider',
-    resourceAccess: 'payments.provider',
+    applications: 'payments.provider',
     runtime: 'payments.provider',
   } satisfies SurfaceCoverage<sdk.PaymentsApi>,
   notebook: {

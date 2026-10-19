@@ -14,6 +14,49 @@ describe('managed payments', () => {
     expect(fetch.mock.calls[0]?.[0].url).toContain('/platform/payments/sandboxes/sdk-only/test');
   });
 
+  it('lists payment applications through the ownership-checked notebook endpoint', async () => {
+    const data = {
+      notebookId: 'sdk-only',
+      applications: [
+        {
+          id: 'app-1',
+          url: 'https://course.example.test',
+          healthy: true,
+          deployedAt: '2026-10-19T12:00:00.000Z',
+          passwordProtected: false,
+        },
+      ],
+    };
+    const fetch = vi.fn(async (request: Request) => {
+      expect(request.method).toBe('GET');
+      expect(request.url).toBe('https://api.example.test/v1/notebook/sdk-only/payments/applications');
+      expect(request.headers.get('authorization')).toBe('Bearer hfp_example');
+      return Response.json({ data });
+    });
+    vi.stubGlobal('fetch', fetch);
+    const sdk = PHPSandbox.rest('hfp_example', 'https://api.example.test/v1');
+
+    await expect(sdk.payments.applications('sdk-only')).resolves.toEqual(data);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects payment application metadata with missing protection state', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json({
+          data: {
+            notebookId: 'sdk-only',
+            applications: [{ id: 'app-1', url: null, healthy: true, deployedAt: null }],
+          },
+        })
+      )
+    );
+    const sdk = PHPSandbox.rest('hfp_example', 'https://api.example.test/v1');
+
+    await expect(sdk.payments.applications('sdk-only')).rejects.toThrow();
+  });
+
   it('validates payment access responses instead of granting malformed entitlements', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ data: { subscribed: true } })));
     const sdk = PHPSandbox.rest('hfp_example', 'https://api.example.test/v1');
