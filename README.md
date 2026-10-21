@@ -55,6 +55,32 @@ PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', {
 });
 ```
 
+## App server integration
+
+Apps hosted on PHPSandbox can use one environment-scoped identity for Customers and Payments:
+
+```ts
+import { PHPSandbox } from '@phpsandbox/sdk';
+
+const platform = PHPSandbox.app();
+const customer = await platform.customers.identify({
+  externalId: account.customerExternalId,
+  email: account.email,
+});
+const checkout = await platform.payments.checkout({
+  customerId: customer.id,
+  requestId: order.requestId,
+  orderId: order.id,
+  priceId: order.priceId,
+  successPath: '/thanks',
+  cancelPath: '/account',
+});
+```
+
+Persist an opaque UUID on each app account for its external customer identity; separate databases must not reuse sequential IDs. Initialize this client only on the app server. It reads the provisioned app configuration and exposes only app runtime capabilities, without notebook or organization administration. Production uses its own identity and never falls back to development. Select `{ mode: 'test' }` once for an intentional sandbox run. Runtimes without `process.env` can supply server bindings through `{ env }`.
+
+Verify incoming payment callbacks with `platform.payments.verifyEvent(rawBody, signature)`, passing the `phpsandbox-signature` header. The client verifies the original bytes, timestamp and environment before returning the event; the app must still validate order ownership and apply revisions idempotently.
+
 ## Server invitations
 
 Server administrators can invite someone by email and inspect the shared invitation state:

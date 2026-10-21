@@ -5,6 +5,7 @@ import type { CapabilityId } from './capabilities.js';
 type SurfaceCoverage<T> = { readonly [TKey in keyof T]-?: CapabilityId };
 
 export const sdkRuntimeExports = {
+  AppRuntime: 'app.contracts',
   CustomersApi: 'customers.contracts',
   CustomerRuntime: 'customers.contracts',
   NotebookCustomers: 'customers.contracts',
@@ -309,6 +310,7 @@ export const paymentFacadeSurfaces = {
     refund: 'payments.provider',
   } satisfies SurfaceCoverage<sdk.NotebookPayments>,
   runtime: {
+    verifyEvent: 'app.contracts',
     subscribe: 'payments.provider',
     subscription: 'payments.provider',
     cancelSubscription: 'payments.provider',

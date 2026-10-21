@@ -1,6 +1,7 @@
 export const capabilityIds = [
   'sdk.contracts',
   'customers.contracts',
+  'app.contracts',
   'payments.contracts',
   'payments.provider',
   'client.core-http',
@@ -90,6 +91,12 @@ const beaconIntegration = 'tests/smoke/integrations/beacon.smoke.ts';
 const feedbackWidgetIntegration = 'tests/smoke/integrations/feedback-widget.smoke.ts';
 
 export const capabilities: Record<CapabilityId, Capability> = {
+  'app.contracts': covered(
+    'Server app identity and environment-scoped capability APIs',
+    ['core'],
+    'unit',
+    'tests/unit/app.spec.ts'
+  ),
   'customers.contracts': covered(
     'Customer identity, preferences, activity, messaging, and workspace HTTP contracts',
     ['core'],

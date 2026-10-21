@@ -301,7 +301,7 @@ export async function verifyPaymentEvent(
   mode: PaymentMode,
   now = Date.now()
 ): Promise<PaymentEvent> {
-  if (!/^hpay_[a-f0-9]{64}$/.test(token)) {
+  if (!/^(?:hpay|happ)_[a-f0-9]{64}$/.test(token)) {
     throw new Error('Invalid application payment credential.');
   }
   const match = /^t=(\d+),v1=([a-f0-9]{64})$/.exec(signature);
@@ -324,7 +324,18 @@ export async function verifyPaymentEvent(
 }
 
 export class PaymentRuntime {
-  public constructor(private readonly client: Client) {}
+  public constructor(
+    private readonly client: Client,
+    private readonly appCredential?: { token: string; mode: PaymentMode }
+  ) {}
+
+  /** Verify the phpsandbox-signature header against the configured app environment. */
+  public async verifyEvent(body: string, signature: string): Promise<PaymentEvent> {
+    if (!this.appCredential) {
+      throw new Error('Initialize the server app client with PHPSandbox.app() to verify payment events.');
+    }
+    return verifyPaymentEvent(body, signature, this.appCredential.token, this.appCredential.mode);
+  }
 
   public async checkout(input: CreatePaymentCheckoutInput): Promise<PaymentTransactionData> {
     return transactionSchema.parse((await this.client.post<unknown>('/platform/payments/runtime/checkouts', input)).data);

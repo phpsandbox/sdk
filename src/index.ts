@@ -1,3 +1,6 @@
+import { AppRuntime, resolveAppConfiguration, type AppRuntimeOptions } from './app.js';
+export { AppRuntime };
+export type { AppRuntimeOptions };
 import { identitySchema, type Identity } from './identity.js';
 export type { Identity } from './identity.js';
 import { NotebookPublication } from './publication/index.js';
@@ -327,6 +330,8 @@ export interface NotebookSecretData {
   name: string;
   type: SecretType;
   environment: SecretEnvironment;
+  managedBy?: string | null;
+  inheritOnFork?: boolean;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -336,6 +341,9 @@ export interface NotebookSecretListOptions {
 }
 
 export interface UpsertNotebookSecretInput {
+  /** Platform-owned secrets cannot be inherited by forks. Requires a platform credential. */
+  managed?: boolean;
+  inheritOnFork?: boolean;
   value: string;
   type?: SecretType;
   environment?: SecretEnvironment;
@@ -767,6 +775,11 @@ export class PHPSandbox {
 
   public get runtimeTransport(): RuntimeTransport {
     return this.client.runtimeTransport;
+  }
+
+  public static app(options: AppRuntimeOptions = {}): AppRuntime {
+    const { token, url, mode } = resolveAppConfiguration(options);
+    return new AppRuntime(new ClientImplementation(token, url, {}, 'rest'), token, mode);
   }
 
   public static realtime(
