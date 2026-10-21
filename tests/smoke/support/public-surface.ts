@@ -5,6 +5,11 @@ import type { CapabilityId } from './capabilities.js';
 type SurfaceCoverage<T> = { readonly [TKey in keyof T]-?: CapabilityId };
 
 export const sdkRuntimeExports = {
+  CustomersApi: 'customers.contracts',
+  CustomerRuntime: 'customers.contracts',
+  NotebookCustomers: 'customers.contracts',
+  customerModeSchema: 'customers.contracts',
+  customerSchema: 'customers.contracts',
   PaymentsApi: 'payments.provider',
   NotebookPayments: 'payments.provider',
   PaymentRuntime: 'payments.provider',
@@ -43,6 +48,7 @@ export const beaconRuntimeExports = {
 } satisfies SurfaceCoverage<typeof beacon>;
 
 export const clientSurface = {
+  customers: 'customers.contracts',
   payments: 'payments.provider',
   integrations: 'client.core-http',
   notebook: 'notebook.lifecycle',

@@ -23,6 +23,8 @@ import { Feedback } from './feedback.js';
 import { IntegrationApi, SandboxIntegrationApi } from './integrations/index.js';
 import { authenticatedRequest } from './http.js';
 import { PaymentsApi, NotebookPayments } from './payments.js';
+import { CustomersApi } from './customers.js';
+export * from './customers.js';
 export * from './payments.js';
 
 export type { Disposable } from './types.js';
@@ -542,6 +544,7 @@ class ClientImplementation {
   public readonly servers: ServerApi;
   public readonly integrations: IntegrationApi;
   public readonly payments: PaymentsApi;
+  public readonly customers: CustomersApi;
   public readonly options: PHPSandboxClientOptions;
   private readonly runtimeTransportValue: RuntimeTransport;
 
@@ -566,6 +569,7 @@ class ClientImplementation {
     this.servers = new ServerApi(this);
     this.integrations = new IntegrationApi(this);
     this.payments = new PaymentsApi(this);
+    this.customers = new CustomersApi(this);
     this.options = { ...options };
     this.runtimeTransportValue = runtimeTransport;
     this.baseUrl = normalizeApiBaseUrl(url);
@@ -740,6 +744,7 @@ export class PHPSandbox {
   public readonly servers: ServerApi;
   public readonly integrations: IntegrationApi;
   public readonly payments: PaymentsApi;
+  public readonly customers: CustomersApi;
 
   private constructor(private readonly client: ClientImplementation) {
     this.notebook = client.notebook;
@@ -747,6 +752,7 @@ export class PHPSandbox {
     this.servers = client.servers;
     this.integrations = client.integrations;
     this.payments = client.payments;
+    this.customers = client.customers;
   }
 
   public async whoami(): Promise<Identity> {

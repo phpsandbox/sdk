@@ -41,6 +41,7 @@ const applicationsSchema = z.object({
 });
 export type PaymentApplicationsData = z.infer<typeof applicationsSchema>;
 const bindingSchema = z.object({
+  target: z.enum(['preview', 'publication']).optional(),
   id: z.string(),
   notebookId: z.string(),
   applicationId: z.string().nullable(),
@@ -128,6 +129,7 @@ const activationSchema = z.object({
 });
 export type PaymentActivationReview = z.infer<typeof activationSchema>;
 export interface ConfigurePaymentsInput {
+  target?: 'preview' | 'publication';
   expectedRevision: number;
   applicationId?: string | null;
   callbackPath?: string;
@@ -140,6 +142,7 @@ export interface CreatePaymentPriceInput {
   currency: string;
 }
 export interface CreatePaymentCheckoutInput {
+  customerId?: string;
   requestId: string;
   orderId: string;
   priceId: string;
