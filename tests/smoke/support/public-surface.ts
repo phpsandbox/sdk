@@ -5,6 +5,12 @@ import type { CapabilityId } from './capabilities.js';
 type SurfaceCoverage<T> = { readonly [TKey in keyof T]-?: CapabilityId };
 
 export const sdkRuntimeExports = {
+  AppRuntime: 'app.contracts',
+  CustomersApi: 'customers.contracts',
+  CustomerRuntime: 'customers.contracts',
+  NotebookCustomers: 'customers.contracts',
+  customerModeSchema: 'customers.contracts',
+  customerSchema: 'customers.contracts',
   PaymentsApi: 'payments.provider',
   NotebookPayments: 'payments.provider',
   PaymentRuntime: 'payments.provider',
@@ -43,6 +49,7 @@ export const beaconRuntimeExports = {
 } satisfies SurfaceCoverage<typeof beacon>;
 
 export const clientSurface = {
+  customers: 'customers.contracts',
   payments: 'payments.provider',
   integrations: 'client.core-http',
   notebook: 'notebook.lifecycle',
@@ -224,6 +231,7 @@ export const runtimeFacadeSurfaces = {
     whenSocketConnected: 'lsp',
   } satisfies SurfaceCoverage<sdk.NotebookInstance['lsp']>,
   mail: {
+    capture: 'mail.manage',
     delete: 'mail.manage',
     disable: 'mail.manage',
     enable: 'mail.manage',
@@ -303,6 +311,7 @@ export const paymentFacadeSurfaces = {
     refund: 'payments.provider',
   } satisfies SurfaceCoverage<sdk.NotebookPayments>,
   runtime: {
+    verifyEvent: 'app.contracts',
     subscribe: 'payments.provider',
     subscription: 'payments.provider',
     cancelSubscription: 'payments.provider',

@@ -1,3 +1,6 @@
+import { AppRuntime, resolveAppConfiguration, type AppRuntimeOptions } from './app.js';
+export { AppRuntime };
+export type { AppRuntimeOptions };
 import { identitySchema, type Identity } from './identity.js';
 export type { Identity } from './identity.js';
 import { NotebookPublication } from './publication/index.js';
@@ -23,6 +26,8 @@ import { Feedback } from './feedback.js';
 import { IntegrationApi, SandboxIntegrationApi } from './integrations/index.js';
 import { authenticatedRequest } from './http.js';
 import { PaymentsApi, NotebookPayments } from './payments.js';
+import { CustomersApi } from './customers.js';
+export * from './customers.js';
 export * from './payments.js';
 
 export type { Disposable } from './types.js';
@@ -325,6 +330,8 @@ export interface NotebookSecretData {
   name: string;
   type: SecretType;
   environment: SecretEnvironment;
+  managedBy?: string | null;
+  inheritOnFork?: boolean;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -334,6 +341,9 @@ export interface NotebookSecretListOptions {
 }
 
 export interface UpsertNotebookSecretInput {
+  /** Platform-owned secrets cannot be inherited by forks. Requires a platform credential. */
+  managed?: boolean;
+  inheritOnFork?: boolean;
   value: string;
   type?: SecretType;
   environment?: SecretEnvironment;
@@ -542,6 +552,7 @@ class ClientImplementation {
   public readonly servers: ServerApi;
   public readonly integrations: IntegrationApi;
   public readonly payments: PaymentsApi;
+  public readonly customers: CustomersApi;
   public readonly options: PHPSandboxClientOptions;
   private readonly runtimeTransportValue: RuntimeTransport;
 
@@ -566,6 +577,7 @@ class ClientImplementation {
     this.servers = new ServerApi(this);
     this.integrations = new IntegrationApi(this);
     this.payments = new PaymentsApi(this);
+    this.customers = new CustomersApi(this);
     this.options = { ...options };
     this.runtimeTransportValue = runtimeTransport;
     this.baseUrl = normalizeApiBaseUrl(url);
@@ -740,6 +752,7 @@ export class PHPSandbox {
   public readonly servers: ServerApi;
   public readonly integrations: IntegrationApi;
   public readonly payments: PaymentsApi;
+  public readonly customers: CustomersApi;
 
   private constructor(private readonly client: ClientImplementation) {
     this.notebook = client.notebook;
@@ -747,6 +760,7 @@ export class PHPSandbox {
     this.servers = client.servers;
     this.integrations = client.integrations;
     this.payments = client.payments;
+    this.customers = client.customers;
   }
 
   public async whoami(): Promise<Identity> {
@@ -761,6 +775,11 @@ export class PHPSandbox {
 
   public get runtimeTransport(): RuntimeTransport {
     return this.client.runtimeTransport;
+  }
+
+  public static app(options: AppRuntimeOptions = {}): AppRuntime {
+    const { token, url, mode } = resolveAppConfiguration(options);
+    return new AppRuntime(new ClientImplementation(token, url, {}, 'rest'), token, mode);
   }
 
   public static realtime(
@@ -1275,6 +1294,20 @@ class NotebookMail {
 
   public async status(): Promise<NotebookMailStateData> {
     const response = await this.client.get<NotebookMailStateData>(`/notebook/${this.notebookId}/mail`);
+
+    return response.data;
+  }
+
+  /** Capture a platform-generated development email in the notebook inbox. Never sends externally. */
+  public async capture(input: {
+    requestId: string;
+    from: string;
+    fromName: string;
+    to: string;
+    subject: string;
+    text: string;
+  }): Promise<NotebookMailData> {
+    const response = await this.client.post<NotebookMailData>(`/notebook/${this.notebookId}/mails`, input);
 
     return response.data;
   }
