@@ -21,15 +21,15 @@ describe('Customers', () => {
       expect(request.url).toBe('https://api.example.test/v1/platform/customers/runtime/identify');
       expect(request.method).toBe('POST');
       expect(request.headers.get('authorization')).toBe('Bearer hcust_example');
-      expect(await request.json()).toEqual({ externalId: 'app-user-1', email: 'alex@example.test' });
+      expect(await request.json()).toEqual({ externalId: 'app-user-1', email: 'alex@example.test', billingStatus: 'free' });
       return Response.json({ data: customer });
     });
     vi.stubGlobal('fetch', fetch);
     const client = PHPSandbox.rest('hcust_example', 'https://api.example.test/v1');
 
-    await expect(client.customers.runtime.identify({ externalId: 'app-user-1', email: 'alex@example.test' })).resolves.toEqual(
-      customer
-    );
+    await expect(
+      client.customers.runtime.identify({ externalId: 'app-user-1', email: 'alex@example.test', billingStatus: 'free' })
+    ).resolves.toEqual(customer);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 

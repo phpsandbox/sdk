@@ -66,6 +66,7 @@ const platform = PHPSandbox.app();
 const customer = await platform.customers.identify({
   externalId: account.customerExternalId,
   email: account.email,
+  billingStatus: account.hasSubscription ? 'paid' : 'free',
 });
 const checkout = await platform.payments.checkout({
   customerId: customer.id,
@@ -334,6 +335,16 @@ const state = await notebook.mail.status();
 if (!state.enabled) {
   await notebook.mail.enable();
 }
+
+// Capture a development email in the notebook inbox without external delivery.
+await notebook.mail.capture({
+  requestId: crypto.randomUUID(),
+  from: 'hello@example.com',
+  fromName: 'Example app',
+  to: 'alex@example.com',
+  subject: 'Welcome',
+  text: 'Hello Alex',
+});
 
 const mails = await notebook.mail.list();
 const mail = await notebook.mail.get(mails.data[0].hash);

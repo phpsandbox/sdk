@@ -80,6 +80,7 @@ export interface IdentifyCustomerInput {
   email: string;
   name?: string;
   source?: string;
+  billingStatus?: 'unknown' | 'free' | 'paid';
 }
 export interface CustomerEventInput {
   eventId: string;

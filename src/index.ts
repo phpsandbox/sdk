@@ -1298,6 +1298,20 @@ class NotebookMail {
     return response.data;
   }
 
+  /** Capture a platform-generated development email in the notebook inbox. Never sends externally. */
+  public async capture(input: {
+    requestId: string;
+    from: string;
+    fromName: string;
+    to: string;
+    subject: string;
+    text: string;
+  }): Promise<NotebookMailData> {
+    const response = await this.client.post<NotebookMailData>(`/notebook/${this.notebookId}/mails`, input);
+
+    return response.data;
+  }
+
   public async enable(): Promise<NotebookMailStateData> {
     const response = await this.client.put<NotebookMailStateData>(`/notebook/${this.notebookId}/mail`);
 

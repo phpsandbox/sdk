@@ -231,6 +231,7 @@ export const runtimeFacadeSurfaces = {
     whenSocketConnected: 'lsp',
   } satisfies SurfaceCoverage<sdk.NotebookInstance['lsp']>,
   mail: {
+    capture: 'mail.manage',
     delete: 'mail.manage',
     disable: 'mail.manage',
     enable: 'mail.manage',
