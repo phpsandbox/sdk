@@ -1,5 +1,56 @@
+// credit_limit is retained as the compatibility identifier for the application-configured event follow-up.
 import { z } from 'zod';
 import type { Client } from './index.js';
+
+const eventName = z.string().trim().min(1).max(100);
+const customerConfigurationSchema = z.object({
+  funnel: z
+    .object({
+      title: z.string().trim().min(1).max(100),
+      stages: z
+        .array(
+          z.discriminatedUnion('measure', [
+            z.object({
+              id: z
+                .string()
+                .regex(/^[a-zA-Z0-9_-]+$/)
+                .max(50),
+              label: z.string().trim().min(1).max(100),
+              measure: z.literal('event'),
+              event: eventName,
+            }),
+            z.object({
+              id: z
+                .string()
+                .regex(/^[a-zA-Z0-9_-]+$/)
+                .max(50),
+              label: z.string().trim().min(1).max(100),
+              measure: z.literal('first_payment'),
+            }),
+            z.object({
+              id: z
+                .string()
+                .regex(/^[a-zA-Z0-9_-]+$/)
+                .max(50),
+              label: z.string().trim().min(1).max(100),
+              measure: z.literal('event_after_payment'),
+              event: eventName,
+            }),
+          ])
+        )
+        .max(12),
+    })
+    .nullable(),
+  followUp: z
+    .object({
+      label: z.string().trim().min(1).max(100),
+      triggerEvent: eventName,
+      prerequisiteEvent: eventName.nullable(),
+      stopOnPayment: z.boolean(),
+    })
+    .nullable(),
+});
+export type CustomerConfiguration = z.infer<typeof customerConfigurationSchema>;
 
 export const customerModeSchema = z.enum(['test', 'live']);
 export type CustomerMode = z.infer<typeof customerModeSchema>;
@@ -10,6 +61,12 @@ export const customerSchema = z.object({
   name: z.string().nullable(),
   source: z.string().nullable(),
   marketingSubscribed: z.boolean(),
+  communicationBasis: z.enum(['unknown', 'legacy_account', 'explicit_opt_in', 'unsubscribed']).optional(),
+  legacyPolicy: z.string().nullable().optional(),
+  joinedAt: z.string().nullable().optional(),
+  importedAt: z.string().nullable().optional(),
+  lastActiveAt: z.string().nullable().optional(),
+  billingStatus: z.enum(['unknown', 'free', 'paid']).optional(),
   suppressionReason: z.string().nullable(),
   activatedAt: z.string().nullable(),
   createdAt: z.string().nullable(),
@@ -24,6 +81,8 @@ const spaceSchema = z.object({
   replyTo: z.string().nullable(),
   senderVerified: z.boolean(),
   domainRecords: z.string().nullable(),
+  configuration: customerConfigurationSchema.optional(),
+  emailTemplate: z.string().nullable().optional(),
   provisionedAt: z.string().nullable().optional(),
   lastRequestAt: z.string().nullable().optional(),
   processedAt: z.string().nullable().optional(),
@@ -38,7 +97,7 @@ const journeyInputSchema = z.object({
 });
 export type CustomerJourneyInput = z.infer<typeof journeyInputSchema>;
 const journeySchema = journeyInputSchema.extend({
-  kind: z.enum(['welcome', 'setup', 'purchase']),
+  kind: z.enum(['welcome', 'setup', 'purchase', 'credit_limit']),
   version: z.number().int().optional(),
   startsAt: z.string().nullable().optional(),
   draft: journeyInputSchema.nullable().optional(),
@@ -55,17 +114,22 @@ const messageSchema = z.object({
   dueAt: z.string().nullable().optional(),
   attemptedAt: z.string().nullable().optional(),
   receivedAt: z.string().nullable().optional(),
-  journeyKind: z.enum(['welcome', 'setup', 'purchase']).nullable().optional(),
+  journeyKind: z.enum(['welcome', 'setup', 'purchase', 'credit_limit']).nullable().optional(),
   journeyVersion: z.number().int().nullable().optional(),
   category: z.enum(['marketing', 'service']).optional(),
   from: z.string().nullable().optional(),
   replyTo: z.string().nullable().optional(),
   renderedText: z.string().nullable().optional(),
+  renderedHtml: z.string().nullable().optional(),
   unsubscribeUrl: z.string().nullable().optional(),
   createdAt: z.string().nullable(),
 });
 export type CustomerMessageData = z.infer<typeof messageSchema>;
 const overviewSchema = z.object({
+  funnel: z
+    .object({ title: z.string(), stages: z.array(z.object({ id: z.string(), label: z.string(), count: z.number() })) })
+    .nullable()
+    .optional(),
   space: spaceSchema.nullable(),
   customers: z.array(customerSchema),
   journeys: z.array(journeySchema),
@@ -78,16 +142,55 @@ export type CustomersOverview = z.infer<typeof overviewSchema>;
 export interface IdentifyCustomerInput {
   externalId: string;
   email: string;
-  name?: string;
+  name?: string | null;
   source?: string;
   billingStatus?: 'unknown' | 'free' | 'paid';
+  /** Original registration time, independent of the Customers record creation time. */
+  joinedAt?: string;
+  lastActiveAt?: string;
+  /** Historical synchronization never enrolls signup journeys. */
+  historical?: boolean;
+  /** Explicit eligibility policy for accounts with unknown preferences; this does not record consent. */
+  legacyPolicy?: string;
+  /** Import known suppressions. Identification can never clear an existing suppression. */
+  suppressionReason?: string;
+  /** Preserve a known unsubscribe atomically during account identification. Never clears an unsubscribe. */
+  unsubscribed?: true;
+  /** Original known unsubscribe time. A later explicit opt-in remains authoritative. */
+  unsubscribedAt?: string;
 }
 export interface CustomerEventInput {
   eventId: string;
   name: string;
+  organizationExternalId?: string;
   occurredAt?: string;
+  /** Preserve activity history without activating or enrolling a customer. */
+  historical?: boolean;
   properties?: Record<string, string | number | boolean | null>;
 }
+export interface CustomerOrganizationInput {
+  externalId: string;
+  name: string;
+  ownerExternalId: string;
+  /** Complete current membership snapshot. The owner is always included. */
+  members: { externalId: string; role: string }[];
+}
+export interface CustomerPaymentInput {
+  paymentId: string;
+  amountMinor: number;
+  currency: string;
+  paidAt: string;
+  historical?: boolean;
+}
+const customerOrganizationSchema = z.object({
+  id: z.string(),
+  externalId: z.string(),
+  name: z.string(),
+  ownerCustomerId: z.string(),
+  firstPaidAt: z.string().nullable(),
+  activatedAt: z.string().nullable(),
+});
+export type CustomerOrganizationData = z.infer<typeof customerOrganizationSchema>;
 export interface SendCustomerMessageInput {
   requestId: string;
   subject: string;
@@ -98,6 +201,65 @@ export interface SendCustomerMessageInput {
 /** Use only from trusted app servers with a dedicated Customers credential. */
 export class CustomerRuntime {
   public constructor(private readonly client: Client) {}
+
+  /** Configure this application's event funnel and follow-up rules. Does not activate messaging. */
+  public async configure(input: CustomerConfiguration & { emailTemplate?: string | null }): Promise<CustomerConfiguration> {
+    const configuration = customerConfigurationSchema.parse(input);
+    return customerConfigurationSchema.parse(
+      (
+        await this.client.put<unknown>('/platform/customers/runtime/configuration', {
+          ...configuration,
+          ...(input.emailTemplate !== undefined ? { emailTemplate: input.emailTemplate } : {}),
+        })
+      ).data
+    );
+  }
+
+  /** Inspect the workspace and environment selected by this app credential. */
+  public async context(): Promise<{ id: string; notebookId: string; mode: CustomerMode }> {
+    return z
+      .object({ id: z.string(), notebookId: z.string(), mode: customerModeSchema })
+      .parse((await this.client.get<unknown>('/platform/customers/runtime/context')).data);
+  }
+
+  /** Pull due conversion follow-ups, then recheck authoritative billing, credit and access. */
+  public async pendingFollowUps(): Promise<{ messageId: string; organizationExternalId: string; actorExternalId: string }[]> {
+    return z
+      .array(z.object({ messageId: z.string(), organizationExternalId: z.string(), actorExternalId: z.string() }))
+      .parse((await this.client.get<unknown>('/platform/customers/runtime/follow-ups')).data);
+  }
+
+  /** Eligible deliveries run immediately; expired checks are never reused by a later worker. */
+  public async resolveFollowUp(
+    messageId: string,
+    resolution: 'eligible' | 'ineligible' | 'paid' | 'credits_available' | 'access_changed'
+  ): Promise<CustomerMessageData> {
+    return messageSchema.parse(
+      (
+        await this.client.post<unknown>(`/platform/customers/runtime/follow-ups/${encodeURIComponent(messageId)}/resolve`, {
+          resolution,
+        })
+      ).data
+    );
+  }
+
+  public async organization(input: CustomerOrganizationInput): Promise<CustomerOrganizationData> {
+    return customerOrganizationSchema.parse(
+      (await this.client.put<unknown>('/platform/customers/runtime/organizations', input)).data
+    );
+  }
+
+  /** Report only server-confirmed positive payments from your existing billing integration. */
+  public async confirmPayment(organizationExternalId: string, input: CustomerPaymentInput): Promise<CustomerOrganizationData> {
+    return customerOrganizationSchema.parse(
+      (
+        await this.client.post<unknown>(
+          `/platform/customers/runtime/organizations/${encodeURIComponent(organizationExternalId)}/payments`,
+          input
+        )
+      ).data
+    );
+  }
 
   public async identify(input: IdentifyCustomerInput): Promise<CustomerData> {
     return customerSchema.parse((await this.client.post<unknown>('/platform/customers/runtime/identify', input)).data);
@@ -127,7 +289,10 @@ export class CustomerRuntime {
       );
   }
 
-  public async preferences(customerId: string, input: { subscribed: boolean; source: string }): Promise<CustomerData> {
+  public async preferences(
+    customerId: string,
+    input: { subscribed: boolean; source: string; occurredAt?: string }
+  ): Promise<CustomerData> {
     return customerSchema.parse(
       (await this.client.put<unknown>(`/platform/customers/runtime/${encodeURIComponent(customerId)}/preferences`, input)).data
     );

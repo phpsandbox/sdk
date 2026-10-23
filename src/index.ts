@@ -445,6 +445,7 @@ export interface NotebookMailData {
   createdAt: string;
   diffForHumans: string;
   html: string | null;
+  text?: string | null;
 }
 
 export interface NotebookMailStateData {
@@ -1306,6 +1307,7 @@ class NotebookMail {
     to: string;
     subject: string;
     text: string;
+    html?: string;
   }): Promise<NotebookMailData> {
     const response = await this.client.post<NotebookMailData>(`/notebook/${this.notebookId}/mails`, input);
 
