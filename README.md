@@ -82,6 +82,10 @@ Persist an opaque UUID on each app account for its external customer identity; s
 
 Verify incoming payment callbacks with `platform.payments.verifyEvent(rawBody, signature)`, passing the `phpsandbox-signature` header. The client verifies the original bytes, timestamp and environment before returning the event; the app must still validate order ownership and apply revisions idempotently.
 
+Application Customers also supports historical identification (`historical`, `joinedAt`, `lastActiveAt`), separate legacy-account eligibility (`legacyPolicy`), known unsubscribes and suppressions, organization membership snapshots, and confirmed positive payments from existing billing. Use `customers.organization()` to synchronize relationships and `customers.confirmPayment()` only after backend provider verification. Historical payments never create first-payment conversions.
+
+For approved credit-limit journeys, an application worker pulls `customers.pendingFollowUps()`, rechecks authoritative payment, access and actual credits, then immediately calls `customers.resolveFollowUp()`. Delivery rechecks contact eligibility and requires a fresh application decision. Keep original preference timestamps with `customers.preferences(..., { subscribed, source, occurredAt })`; a legacy policy does not fabricate consent.
+
 ## Server invitations
 
 Server administrators can invite someone by email and inspect the shared invitation state:

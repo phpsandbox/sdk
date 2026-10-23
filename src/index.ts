@@ -445,6 +445,7 @@ export interface NotebookMailData {
   createdAt: string;
   diffForHumans: string;
   html: string | null;
+  text?: string | null;
 }
 
 export interface NotebookMailStateData {
