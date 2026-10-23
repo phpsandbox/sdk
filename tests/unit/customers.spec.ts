@@ -150,3 +150,29 @@ describe('Application customer synchronization', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+it('configures an application-specific funnel and template using the scoped runtime endpoint', async () => {
+  const configuration = {
+    funnel: {
+      title: 'Course outcomes',
+      stages: [{ id: 'lesson', label: 'Finished a lesson', measure: 'event' as const, event: 'lesson.completed' }],
+    },
+    followUp: { label: 'Help learners', triggerEvent: 'lesson.stalled', prerequisiteEvent: null, stopOnPayment: false },
+  };
+  const fetch = vi.fn(async (request: Request) => {
+    expect(request.url).toBe('https://api.example.test/v1/platform/customers/runtime/configuration');
+    expect(request.method).toBe('PUT');
+    expect(request.headers.get('authorization')).toBe(`Bearer happ_${'a'.repeat(64)}`);
+    expect(await request.json()).toEqual({ ...configuration, emailTemplate: '<main>{{content}}</main>' });
+    return Response.json({ data: configuration });
+  });
+  vi.stubGlobal('fetch', fetch);
+
+  const result = await PHPSandbox.app({
+    mode: 'test',
+    env: { PHPSANDBOX_APP_TEST_TOKEN: `happ_${'a'.repeat(64)}`, PHPSANDBOX_APP_API_URL: 'https://api.example.test/v1' },
+  }).customers.configure({ ...configuration, emailTemplate: '<main>{{content}}</main>' });
+
+  expect(result).toEqual(configuration);
+  expect(fetch).toHaveBeenCalledTimes(1);
+});

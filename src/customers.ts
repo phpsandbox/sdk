@@ -1,5 +1,56 @@
+// credit_limit is retained as the compatibility identifier for the application-configured event follow-up.
 import { z } from 'zod';
 import type { Client } from './index.js';
+
+const eventName = z.string().trim().min(1).max(100);
+const customerConfigurationSchema = z.object({
+  funnel: z
+    .object({
+      title: z.string().trim().min(1).max(100),
+      stages: z
+        .array(
+          z.discriminatedUnion('measure', [
+            z.object({
+              id: z
+                .string()
+                .regex(/^[a-zA-Z0-9_-]+$/)
+                .max(50),
+              label: z.string().trim().min(1).max(100),
+              measure: z.literal('event'),
+              event: eventName,
+            }),
+            z.object({
+              id: z
+                .string()
+                .regex(/^[a-zA-Z0-9_-]+$/)
+                .max(50),
+              label: z.string().trim().min(1).max(100),
+              measure: z.literal('first_payment'),
+            }),
+            z.object({
+              id: z
+                .string()
+                .regex(/^[a-zA-Z0-9_-]+$/)
+                .max(50),
+              label: z.string().trim().min(1).max(100),
+              measure: z.literal('event_after_payment'),
+              event: eventName,
+            }),
+          ])
+        )
+        .max(12),
+    })
+    .nullable(),
+  followUp: z
+    .object({
+      label: z.string().trim().min(1).max(100),
+      triggerEvent: eventName,
+      prerequisiteEvent: eventName.nullable(),
+      stopOnPayment: z.boolean(),
+    })
+    .nullable(),
+});
+export type CustomerConfiguration = z.infer<typeof customerConfigurationSchema>;
 
 export const customerModeSchema = z.enum(['test', 'live']);
 export type CustomerMode = z.infer<typeof customerModeSchema>;
@@ -30,6 +81,8 @@ const spaceSchema = z.object({
   replyTo: z.string().nullable(),
   senderVerified: z.boolean(),
   domainRecords: z.string().nullable(),
+  configuration: customerConfigurationSchema.optional(),
+  emailTemplate: z.string().nullable().optional(),
   provisionedAt: z.string().nullable().optional(),
   lastRequestAt: z.string().nullable().optional(),
   processedAt: z.string().nullable().optional(),
@@ -67,22 +120,15 @@ const messageSchema = z.object({
   from: z.string().nullable().optional(),
   replyTo: z.string().nullable().optional(),
   renderedText: z.string().nullable().optional(),
+  renderedHtml: z.string().nullable().optional(),
   unsubscribeUrl: z.string().nullable().optional(),
   createdAt: z.string().nullable(),
 });
 export type CustomerMessageData = z.infer<typeof messageSchema>;
 const overviewSchema = z.object({
-  conversion: z
-    .object({
-      usedAi: z.number(),
-      reachedLimit: z.number(),
-      qualified: z.number(),
-      offerExposed: z.number(),
-      checkoutStarted: z.number(),
-      firstPayments: z.number(),
-      resumedBuilding: z.number(),
-      fullPriceRenewals: z.number(),
-    })
+  funnel: z
+    .object({ title: z.string(), stages: z.array(z.object({ id: z.string(), label: z.string(), count: z.number() })) })
+    .nullable()
     .optional(),
   space: spaceSchema.nullable(),
   customers: z.array(customerSchema),
@@ -156,6 +202,19 @@ export interface SendCustomerMessageInput {
 export class CustomerRuntime {
   public constructor(private readonly client: Client) {}
 
+  /** Configure this application's event funnel and follow-up rules. Does not activate messaging. */
+  public async configure(input: CustomerConfiguration & { emailTemplate?: string | null }): Promise<CustomerConfiguration> {
+    const configuration = customerConfigurationSchema.parse(input);
+    return customerConfigurationSchema.parse(
+      (
+        await this.client.put<unknown>('/platform/customers/runtime/configuration', {
+          ...configuration,
+          ...(input.emailTemplate !== undefined ? { emailTemplate: input.emailTemplate } : {}),
+        })
+      ).data
+    );
+  }
+
   /** Inspect the workspace and environment selected by this app credential. */
   public async context(): Promise<{ id: string; notebookId: string; mode: CustomerMode }> {
     return z
@@ -173,7 +232,7 @@ export class CustomerRuntime {
   /** Eligible deliveries run immediately; expired checks are never reused by a later worker. */
   public async resolveFollowUp(
     messageId: string,
-    resolution: 'eligible' | 'paid' | 'credits_available' | 'access_changed'
+    resolution: 'eligible' | 'ineligible' | 'paid' | 'credits_available' | 'access_changed'
   ): Promise<CustomerMessageData> {
     return messageSchema.parse(
       (
