@@ -80,7 +80,29 @@ const checkout = await platform.payments.checkout({
 
 Persist an opaque UUID on each app account for its external customer identity; separate databases must not reuse sequential IDs. Initialize this client only on the app server. It reads the provisioned app configuration and exposes only app runtime capabilities, without notebook or organization administration. Production uses its own identity and never falls back to development. Select `{ mode: 'test' }` once for an intentional sandbox run. Runtimes without `process.env` can supply server bindings through `{ env }`.
 
+Applications can configure their own organization conversion stages and one event follow-up. Configuration never activates a journey:
+
+```ts
+await app.customers.configure({
+  funnel: {
+    title: 'Learning outcomes',
+    stages: [{ id: 'lesson', label: 'Completed a lesson', measure: 'event', event: 'lesson.completed' }],
+  },
+  followUp: { label: 'Help learners', triggerEvent: 'lesson.stalled', prerequisiteEvent: null, stopOnPayment: false },
+  emailTemplate: '<html><body><h1>{{subject}}</h1><main>{{content}}</main></body></html>',
+});
+```
+
+Stages support `event`, `first_payment`, and `event_after_payment` measures. Historical imports never count as new conversions or trigger event follow-ups. The existing `credit_limit` journey identifier is retained for compatibility; its trigger, prerequisite and payment rule now come from application configuration, while its delay and reviewed content remain journey settings. Pause the journey before changing its rules, then review and activate it separately. Due follow-ups require a fresh application eligibility resolution through `pendingFollowUps()` and `resolveFollowUp()`.
+
+HTML templates support escaped `subject`, `content`, `name`, `email` and `unsubscribeUrl` placeholders; `content` is required. Plain text remains available, and marketing messages always receive an unsubscribe footer. Set `emailTemplate: null` to use plain text. Queued messages and reviewed campaigns preserve their selected design. Production currently uses a fixed platform From address; display name and Reply-To are configurable. Custom sending domains are not supported.
+
+
 Verify incoming payment callbacks with `platform.payments.verifyEvent(rawBody, signature)`, passing the `phpsandbox-signature` header. The client verifies the original bytes, timestamp and environment before returning the event; the app must still validate order ownership and apply revisions idempotently.
+
+Application Customers also supports historical identification (`historical`, `joinedAt`, `lastActiveAt`), separate legacy-account eligibility (`legacyPolicy`), known unsubscribes and suppressions, organization membership snapshots, and confirmed positive payments from existing billing. Use `customers.organization()` to synchronize relationships and `customers.confirmPayment()` only after backend provider verification. Historical payments never create first-payment conversions.
+
+For approved credit-limit journeys, an application worker pulls `customers.pendingFollowUps()`, rechecks authoritative payment, access and actual credits, then immediately calls `customers.resolveFollowUp()`. Delivery rechecks contact eligibility and requires a fresh application decision. Keep original preference timestamps with `customers.preferences(..., { subscribed, source, occurredAt })`; a legacy policy does not fabricate consent.
 
 ## Server invitations
 

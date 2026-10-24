@@ -71,3 +71,108 @@ describe('Customers', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Application customer synchronization', () => {
+  const token = `happ_${'a'.repeat(64)}`;
+  const environment = { PHPSANDBOX_APP_TEST_TOKEN: token, PHPSANDBOX_APP_API_URL: 'https://api.example.test/v1' };
+  const organization = {
+    id: 'org-1',
+    externalId: 'app-org/1',
+    name: 'Example',
+    ownerCustomerId: 'customer-1',
+    firstPaidAt: null,
+    activatedAt: null,
+  };
+
+  it('preserves historical metadata and a separate legacy policy through the supported app client', async () => {
+    const input = {
+      externalId: 'app-user-1',
+      email: 'alex@example.test',
+      historical: true,
+      joinedAt: '2020-01-01T00:00:00Z',
+      legacyPolicy: 'existing-accounts-v1',
+    };
+    const fetch = vi.fn(async (request: Request) => {
+      expect(request.headers.get('authorization')).toBe(`Bearer ${token}`);
+      expect(request.url).toBe('https://api.example.test/v1/platform/customers/runtime/identify');
+      expect(await request.json()).toEqual(input);
+      return Response.json({ data: { ...customer, communicationBasis: 'legacy_account', legacyPolicy: 'existing-accounts-v1' } });
+    });
+    vi.stubGlobal('fetch', fetch);
+    const app = PHPSandbox.app({ mode: 'test', env: environment });
+
+    const result = await app.customers.identify(input);
+
+    expect(result.communicationBasis).toBe('legacy_account');
+    expect(result.marketingSubscribed).toBe(false);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends organization membership as an authoritative snapshot', async () => {
+    const input = {
+      externalId: 'app-org/1',
+      name: 'Example',
+      ownerExternalId: 'app-user-1',
+      members: [{ externalId: 'app-user-2', role: 'member' }],
+    };
+    const fetch = vi.fn(async (request: Request) => {
+      expect(request.method).toBe('PUT');
+      expect(request.url).toBe('https://api.example.test/v1/platform/customers/runtime/organizations');
+      expect(request.headers.get('authorization')).toBe(`Bearer ${token}`);
+      expect(await request.json()).toEqual(input);
+      return Response.json({ data: organization });
+    });
+    vi.stubGlobal('fetch', fetch);
+    const app = PHPSandbox.app({ mode: 'test', env: environment });
+
+    await expect(app.customers.organization(input)).resolves.toEqual(organization);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports confirmed payments with encoded organization identity and original payment facts', async () => {
+    const input = {
+      paymentId: 'invoice-1',
+      amountMinor: 2000,
+      currency: 'usd',
+      paidAt: '2026-10-23T12:00:00Z',
+      historical: false,
+    };
+    const fetch = vi.fn(async (request: Request) => {
+      expect(request.method).toBe('POST');
+      expect(request.url).toBe('https://api.example.test/v1/platform/customers/runtime/organizations/app-org%2F1/payments');
+      expect(await request.json()).toEqual(input);
+      return Response.json({ data: organization });
+    });
+    vi.stubGlobal('fetch', fetch);
+    const app = PHPSandbox.app({ mode: 'test', env: environment });
+
+    await expect(app.customers.confirmPayment('app-org/1', input)).resolves.toEqual(organization);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+it('configures an application-specific funnel and template using the scoped runtime endpoint', async () => {
+  const configuration = {
+    funnel: {
+      title: 'Course outcomes',
+      stages: [{ id: 'lesson', label: 'Finished a lesson', measure: 'event' as const, event: 'lesson.completed' }],
+    },
+    followUp: { label: 'Help learners', triggerEvent: 'lesson.stalled', prerequisiteEvent: null, stopOnPayment: false },
+  };
+  const fetch = vi.fn(async (request: Request) => {
+    expect(request.url).toBe('https://api.example.test/v1/platform/customers/runtime/configuration');
+    expect(request.method).toBe('PUT');
+    expect(request.headers.get('authorization')).toBe(`Bearer happ_${'a'.repeat(64)}`);
+    expect(await request.json()).toEqual({ ...configuration, emailTemplate: '<main>{{content}}</main>' });
+    return Response.json({ data: configuration });
+  });
+  vi.stubGlobal('fetch', fetch);
+
+  const result = await PHPSandbox.app({
+    mode: 'test',
+    env: { PHPSANDBOX_APP_TEST_TOKEN: `happ_${'a'.repeat(64)}`, PHPSANDBOX_APP_API_URL: 'https://api.example.test/v1' },
+  }).customers.configure({ ...configuration, emailTemplate: '<main>{{content}}</main>' });
+
+  expect(result).toEqual(configuration);
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
