@@ -27,14 +27,15 @@ case "$component:$phase" in
     node_major 24
     [[ "$(npm --version)" == 11.* ]]
     npm ci
-    npm run check
+    npm run build
     npm pack --ignore-scripts --pack-destination "$RELEASE_OUTPUT"
     ;;
   sdk:apply)
+    require_env RELEASE_NPM_TAG
     node_major 24
     npm whoami --registry=https://registry.npmjs.org/ > /dev/null
     # Publish the checked tarball, not a fresh build. npm handles OTP interactively.
-    npm publish "$RELEASE_PACKAGE" --access public --registry=https://registry.npmjs.org/ --ignore-scripts
+    npm publish "$RELEASE_PACKAGE" --tag "$RELEASE_NPM_TAG" --access public --registry=https://registry.npmjs.org/ --ignore-scripts
     ;;
   *) echo "Unsupported release component or phase: $component:$phase" >&2; exit 1 ;;
 esac

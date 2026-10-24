@@ -58,6 +58,19 @@ function assertComponent(component) {
   }
 }
 
+export function publicationTag(version, tag) {
+  if (typeof version !== 'string' || version.length === 0) {
+    throw new Error('A package version is required.');
+  }
+  if (!['latest', 'canary'].includes(tag)) {
+    throw new Error('Choose --tag latest or --tag canary.');
+  }
+  if (version.includes('-') && tag === 'latest') {
+    throw new Error('Prerelease versions must use --tag canary, not latest.');
+  }
+  return tag;
+}
+
 function repositoryPlan(component, options) {
   assertComponent(component);
   if (!shaPattern.test(options.ref ?? '')) {
@@ -74,7 +87,9 @@ function repositoryPlan(component, options) {
   if (options.target) {
     throw new Error('This project does not accept --target.');
   }
-  return { component, repository: expected, revision };
+  const { version } = JSON.parse(capture('git', ['-C', repo, 'show', `${revision}:package.json`]));
+  const tag = publicationTag(version, options.tag ?? 'latest');
+  return { component, repository: expected, revision, version, tag };
 }
 
 function describe(plan) {
@@ -135,7 +150,6 @@ export function prepare(component, options) {
     }
     manifest.package = packageName[0];
     manifest.packageSha256 = hash(join(output, manifest.package));
-    manifest.version = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8')).version;
   }
   writeJson(join(output, 'manifest.json'), manifest);
   rmSync(source, { recursive: true });
@@ -161,6 +175,7 @@ export function readManifest(directory) {
     throw new Error('Release archive checksum mismatch.');
   }
   if (manifest.component === 'sdk') {
+    publicationTag(manifest.version, manifest.tag);
     if (
       typeof manifest.package !== 'string' ||
       basename(manifest.package) !== manifest.package ||
@@ -181,7 +196,13 @@ function applicationEnvironment(manifest, directory, source, id) {
     RELEASE_ID: id,
   };
   if (manifest.component === 'sdk') {
+    const { version } = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'));
+    if (version !== manifest.version) {
+      throw new Error('Package version differs from the prepared manifest.');
+    }
+    publicationTag(version, manifest.tag);
     env.RELEASE_PACKAGE = join(directory, manifest.package);
+    env.RELEASE_NPM_TAG = manifest.tag;
   }
   return env;
 }
@@ -226,6 +247,7 @@ export function main(args) {
       ref: { type: 'string' },
       out: { type: 'string' },
       target: { type: 'string' },
+      tag: { type: 'string' },
       execute: { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
     },
@@ -233,7 +255,7 @@ export function main(args) {
   const [action, subject] = positionals;
   if (values.help || !action) {
     console.log(
-      'Usage:\n  node scripts/releases/release.mjs plan|prepare <sdk> --ref FULL_SHA [--repo PATH] [--out NEW_DIRECTORY]\n  node scripts/releases/release.mjs apply RELEASE_DIRECTORY [--execute]\n\nSee docs/manual-releases.md for credentials, checks and recovery.'
+      'Usage:\n  node scripts/releases/release.mjs plan|prepare <sdk> --ref FULL_SHA [--tag latest|canary] [--repo PATH] [--out NEW_DIRECTORY]\n  node scripts/releases/release.mjs apply RELEASE_DIRECTORY [--execute]\n\nSee docs/manual-releases.md for credentials, checks and recovery.'
     );
     return;
   }
@@ -248,7 +270,7 @@ export function main(args) {
     }
     prepare(subject, values);
   } else if (action === 'apply') {
-    if (values.repo || values.ref || values.out || values.target) {
+    if (values.repo || values.ref || values.out || values.target || values.tag) {
       throw new Error('Apply uses the manifest; do not override its inputs.');
     }
     apply(subject, values.execute);

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { prepareEnvironment } from './release.mjs';
+import { prepareEnvironment, publicationTag } from './release.mjs';
 
 const cli = fileURLToPath(new URL('./release.mjs', import.meta.url));
 
@@ -76,7 +76,7 @@ if (args[0] === 'pack') {
   );
   const env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
   const invoke = (...args) => spawnSync(process.execPath, [cli, ...args], { env, encoding: 'utf8' });
-  const prepare = () => invoke('prepare', 'sdk', '--repo', repo, '--ref', revision, '--out', output);
+  const prepare = () => invoke('prepare', 'sdk', '--repo', repo, '--ref', revision, '--tag', 'canary', '--out', output);
   const calls = () =>
     readFileSync(log, 'utf8')
       .trim()
@@ -103,8 +103,8 @@ await test('preparation checks the committed snapshot and excludes dirty and unt
   assert.equal(existsSync(join(f.output, 'attempt.json')), false);
 });
 
-await test('failed checks never produce a releasable manifest or package', (t) => {
-  const f = fixture(t, 'run check');
+await test('failed builds never produce a releasable manifest or package', (t) => {
+  const f = fixture(t, 'run build');
 
   const result = f.prepare();
 
@@ -144,6 +144,7 @@ for (const artifact of ['release.tar.gz', 'phpsandbox-sdk-0.0.0-test.tgz']) {
 
 await test('execute publishes only the checked npm tarball and records completion', (t) => {
   const f = fixture(t);
+  f.env.RELEASE_NPM_TAG = 'latest';
   assert.equal(f.prepare().status, 0);
 
   const result = f.invoke('apply', f.output, '--execute');
@@ -153,6 +154,7 @@ await test('execute publishes only the checked npm tarball and records completio
   assert.equal(publications.length, 1);
   assert.equal(publications[0][1], join(f.output, 'phpsandbox-sdk-0.0.0-test.tgz'));
   assert.ok(publications[0].includes('--ignore-scripts'));
+  assert.equal(publications[0][publications[0].indexOf('--tag') + 1], 'canary');
   const receipt = JSON.parse(readFileSync(join(f.output, 'completed.json'), 'utf8'));
   assert.equal(receipt.revision, f.revision);
 
@@ -229,7 +231,7 @@ await test('the standalone command derives its repository without a central chec
   const checkout = fileURLToPath(new URL('../../', import.meta.url));
   const revision = command('git', ['-C', checkout, 'rev-parse', 'HEAD']);
 
-  const result = f.invoke('plan', 'sdk', '--ref', revision);
+  const result = f.invoke('plan', 'sdk', '--ref', revision, '--tag', 'canary');
 
   assert.equal(result.status, 0, result.stderr);
   assert.ok(result.stdout.includes('"repository": "phpsandbox/sdk"'));
@@ -243,4 +245,43 @@ await test('the standalone command rejects another project component', (t) => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Choose a component/);
+});
+
+test('stable releases can use latest', () => {
+  assert.equal(publicationTag('0.6.0', 'latest'), 'latest');
+});
+
+test('prereleases cannot move latest', () => {
+  assert.throws(() => publicationTag('0.6.0-canary.0', 'latest'), /Prerelease versions/);
+});
+
+test('unsupported publication tags are rejected', () => {
+  assert.throws(() => publicationTag('0.6.0-canary.0', 'invalid'), /Choose --tag/);
+});
+
+test('apply cannot override the prepared publication tag', (t) => {
+  const f = fixture(t);
+
+  const result = f.invoke('apply', f.output, '--tag', 'latest', '--execute');
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /do not override/);
+  assert.equal(existsSync(join(f.output, 'attempt.json')), false);
+});
+
+test('manifest metadata cannot relabel a prerelease as stable', (t) => {
+  const f = fixture(t);
+  assert.equal(f.prepare().status, 0);
+  const path = join(f.output, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(path, 'utf8'));
+  manifest.version = '0.0.0';
+  manifest.tag = 'latest';
+  writeFileSync(path, JSON.stringify(manifest));
+
+  const result = f.invoke('apply', f.output, '--execute');
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /version differs/);
+  assert.equal(f.calls().filter((args) => args[0] === 'publish').length, 0);
+  assert.equal(existsSync(join(f.output, 'attempt.json')), false);
 });
