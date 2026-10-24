@@ -2,6 +2,12 @@ name: Release to npm
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: npm publication channel
+        type: choice
+        default: latest
+        options: [latest, canary]
 
 permissions:
   contents: write
@@ -32,6 +38,17 @@ jobs:
       - name: Update npm for trusted publishing
         run: npm install --global npm@11
 
+      - name: Validate publication channel
+        env:
+          RELEASE_NPM_TAG: ${{ inputs.tag }}
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            import { publicationTag } from "./scripts/releases/release.mjs";
+            const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+            publicationTag(version, process.env.RELEASE_NPM_TAG);
+          '
+
       - name: Install dependencies
         run: npm ci
 
@@ -44,7 +61,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Publish to npm
-        run: npm publish --access public
+        env:
+          RELEASE_NPM_TAG: ${{ inputs.tag }}
+        run: npm publish --access public --tag "$RELEASE_NPM_TAG"
 
       - name: Tag the published version
         run: |
