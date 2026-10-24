@@ -85,7 +85,7 @@ if (args[0] === 'pack') {
   return { directory, repo, bin, output, log, revision, invoke, prepare, calls, env };
 }
 
-test('preparation checks the committed snapshot and excludes dirty and untracked files', (t) => {
+await test('preparation checks the committed snapshot and excludes dirty and untracked files', (t) => {
   const f = fixture(t);
   writeFileSync(join(f.repo, 'source.txt'), 'uncommitted\n');
   writeFileSync(join(f.repo, 'untracked-secret'), 'secret');
@@ -104,7 +104,7 @@ test('preparation checks the committed snapshot and excludes dirty and untracked
   assert.equal(existsSync(join(f.output, 'attempt.json')), false);
 });
 
-test('failed checks never produce a releasable manifest or package', (t) => {
+await test('failed checks never produce a releasable manifest or package', (t) => {
   const f = fixture(t, 'run check');
 
   const result = f.prepare();
@@ -115,7 +115,7 @@ test('failed checks never produce a releasable manifest or package', (t) => {
   assert.deepEqual(f.calls(), [['ci'], ['run', 'check']]);
 });
 
-test('apply defaults to a verified plan with no publication or attempt', (t) => {
+await test('apply defaults to a verified plan with no publication or attempt', (t) => {
   const f = fixture(t);
   assert.equal(f.prepare().status, 0);
   const before = f.calls();
@@ -129,7 +129,7 @@ test('apply defaults to a verified plan with no publication or attempt', (t) => 
 });
 
 for (const artifact of ['release.tar.gz', 'phpsandbox-sdk-0.0.0-test.tgz']) {
-  test(`tampered ${artifact} fails before publication`, (t) => {
+  await test(`tampered ${artifact} fails before publication`, (t) => {
     const f = fixture(t);
     assert.equal(f.prepare().status, 0);
     const before = f.calls();
@@ -144,7 +144,7 @@ for (const artifact of ['release.tar.gz', 'phpsandbox-sdk-0.0.0-test.tgz']) {
   });
 }
 
-test('execute publishes only the checked npm tarball and records completion', (t) => {
+await test('execute publishes only the checked npm tarball and records completion', (t) => {
   const f = fixture(t);
   assert.equal(f.prepare().status, 0);
 
@@ -171,7 +171,7 @@ test('execute publishes only the checked npm tarball and records completion', (t
   assert.equal(f.calls().filter((args) => args[0] === 'publish').length, 1);
 });
 
-test('publication failure leaves an attempt without claiming completion', (t) => {
+await test('publication failure leaves an attempt without claiming completion', (t) => {
   const f = fixture(t, 'whoami --registry=https://registry.npmjs.org/');
   assert.equal(f.prepare().status, 0);
 
@@ -183,7 +183,7 @@ test('publication failure leaves an attempt without claiming completion', (t) =>
   assert.equal(f.calls().filter((args) => args[0] === 'publish').length, 0);
 });
 
-test('moving refs are rejected before checks', (t) => {
+await test('moving refs are rejected before checks', (t) => {
   const f = fixture(t);
 
   const result = f.invoke('prepare', 'sdk', '--repo', f.repo, '--ref', 'HEAD', '--out', f.output);
@@ -193,7 +193,7 @@ test('moving refs are rejected before checks', (t) => {
   assert.equal(existsSync(f.output), false);
 });
 
-test('apply rejects target and ref overrides', (t) => {
+await test('apply rejects target and ref overrides', (t) => {
   const f = fixture(t);
 
   const result = f.invoke('apply', f.output, '--ref', f.revision, '--execute');
@@ -203,7 +203,7 @@ test('apply rejects target and ref overrides', (t) => {
   assert.equal(existsSync(f.output), false);
 });
 
-test('test subprocesses do not inherit production payment or database variables', () => {
+await test('test subprocesses do not inherit production payment or database variables', () => {
   const env = prepareEnvironment('sdk', '/tmp/release', undefined, {
     PATH: process.env.PATH,
     DOT_ENV: 'production secrets',
@@ -216,7 +216,7 @@ test('test subprocesses do not inherit production payment or database variables'
   assert.equal(env.DB_HOST, undefined);
 });
 
-test('changed release tooling invalidates an old preparation before publication', (t) => {
+await test('changed release tooling invalidates an old preparation before publication', (t) => {
   const f = fixture(t);
   assert.equal(f.prepare().status, 0);
   const path = join(f.output, 'manifest.json');
@@ -233,7 +233,7 @@ test('changed release tooling invalidates an old preparation before publication'
   assert.equal(existsSync(join(f.output, 'attempt.json')), false);
 });
 
-test('the standalone command derives its repository without a central checkout', (t) => {
+await test('the standalone command derives its repository without a central checkout', (t) => {
   const f = fixture(t);
   const checkout = fileURLToPath(new URL('../../', import.meta.url));
   const revision = command('git', ['-C', checkout, 'rev-parse', 'HEAD']);
@@ -245,7 +245,7 @@ test('the standalone command derives its repository without a central checkout',
   assert.match(result.stdout, new RegExp(revision));
 });
 
-test('the standalone command rejects another project component', (t) => {
+await test('the standalone command rejects another project component', (t) => {
   const f = fixture(t);
 
   const result = f.invoke('plan', 'another-project', '--repo', f.repo, '--ref', f.revision);
