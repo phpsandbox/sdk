@@ -452,9 +452,6 @@ MIT
 
 Save your app configuration, prepare a proposal for the apps you want to publish, and submit that proposal after explicit confirmation. Use `notebook.secrets` for production secrets and `notebook.publication.catalog` to discover destinations and available resources.
 
-See [SSH publication process contracts](docs/ssh-publications.md) for process roles,
-release migration acknowledgements, and persistent storage.
-
 ```ts
 const notebook = await client.notebook.get('SANDBOX_ID');
 try {
