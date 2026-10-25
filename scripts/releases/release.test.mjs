@@ -247,19 +247,19 @@ await test('the standalone command rejects another project component', (t) => {
   assert.match(result.stderr, /Choose a component/);
 });
 
-test('stable releases can use latest', () => {
+await test('stable releases can use latest', () => {
   assert.equal(publicationTag('0.6.0', 'latest'), 'latest');
 });
 
-test('prereleases cannot move latest', () => {
+await test('prereleases cannot move latest', () => {
   assert.throws(() => publicationTag('0.6.0-canary.0', 'latest'), /Prerelease versions/);
 });
 
-test('unsupported publication tags are rejected', () => {
+await test('unsupported publication tags are rejected', () => {
   assert.throws(() => publicationTag('0.6.0-canary.0', 'invalid'), /Choose --tag/);
 });
 
-test('apply cannot override the prepared publication tag', (t) => {
+await test('apply cannot override the prepared publication tag', (t) => {
   const f = fixture(t);
 
   const result = f.invoke('apply', f.output, '--tag', 'latest', '--execute');
@@ -269,7 +269,7 @@ test('apply cannot override the prepared publication tag', (t) => {
   assert.equal(existsSync(join(f.output, 'attempt.json')), false);
 });
 
-test('manifest metadata cannot relabel a prerelease as stable', (t) => {
+await test('manifest metadata cannot relabel a prerelease as stable', (t) => {
   const f = fixture(t);
   assert.equal(f.prepare().status, 0);
   const path = join(f.output, 'manifest.json');

@@ -171,11 +171,32 @@ export interface PublicationManagedAddress {
   url: string;
 }
 export type PublicationRouting = PublicationRoutingDraft & { managedAddress: PublicationManagedAddress };
+export interface PublicationProcessRole {
+  name: string;
+  kind: 'web' | 'worker' | 'scheduler';
+  command: string[];
+  instances: number;
+  cpu: number;
+  memoryMiB: number;
+  shutdownSeconds: number;
+}
+
+export interface PublicationReleaseCommand {
+  command: string[];
+  timeoutSeconds: number;
+  backwardCompatible: true;
+}
+
 export type PublicationContainerRuntime = {
   mode: 'container';
   port: number;
   healthCheck: { path: string };
   command?: string[];
+};
+export type PublicationSshRuntime = PublicationContainerRuntime & {
+  roles?: PublicationProcessRole[];
+  release?: PublicationReleaseCommand;
+  storagePath?: string;
 };
 export type PublicationNativeRuntime = { mode: 'provider-native'; port?: never; command?: never; healthCheck?: never };
 interface PublicationAppDraftBase {
@@ -192,7 +213,7 @@ export type PublicationAppDraft = PublicationAppDraftBase &
     | {
         destination: { provider: 'ssh-server'; serverId?: string };
         build: PublicationContainerBuild;
-        runtime: PublicationContainerRuntime;
+        runtime: PublicationSshRuntime;
       }
     | {
         destination: { provider: 'cloudflare-containers' } & Partial<Omit<CloudflareContainersProviderOptions, 'resources'>>;
