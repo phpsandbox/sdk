@@ -144,6 +144,8 @@ export type GitMergeInput = GitRemoteSource & {
   token?: string;
   ref?: string;
   expectedBaseRef?: string;
+  /** Apply only changes after this source checkpoint, using three-way conflict detection. Requires runtime baselineRef support. */
+  baselineRef?: string;
   author?: string;
   message?: string;
 };
