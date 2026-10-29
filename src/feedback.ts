@@ -26,8 +26,16 @@ export interface SubmitFeedbackInput {
   context?: {
     url?: string;
     path?: string;
+    title?: string;
+    userAgent?: string;
+    appVersion?: string;
+    imageUrls?: string[];
   };
   metadata?: Record<string, unknown>;
+}
+
+export interface SubmitFeedbackOptions {
+  idempotencyKey?: string;
 }
 
 export interface FeedbackData {
@@ -86,8 +94,8 @@ export class Feedback {
     return response.data;
   }
 
-  public async submit(input: SubmitFeedbackInput): Promise<FeedbackData> {
-    const response = await this.client.post<FeedbackData>(this.path(), input);
+  public async submit(input: SubmitFeedbackInput, options: SubmitFeedbackOptions = {}): Promise<FeedbackData> {
+    const response = await this.client.post<FeedbackData>(this.path(), input, options);
 
     return response.data;
   }

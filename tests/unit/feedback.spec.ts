@@ -2,6 +2,38 @@ import { describe, expect, it, vi } from 'vitest';
 import { PHPSandbox } from '../../src/index.js';
 
 describe('sandbox.feedback', () => {
+  it('preserves author and context and sends the same idempotency key on retries', async () => {
+    const requests: Request[] = [];
+    const fetch = vi.fn(async (request: Request) => {
+      requests.push(request);
+      return Response.json({ data: { id: 'feedback-1' } });
+    });
+    const client = PHPSandbox.rest('standard-token', 'https://api.example.test/v1', { fetch });
+    const input = {
+      type: 'bug' as const,
+      message: 'Save failed',
+      author: { externalId: 'user-42', name: 'Example User', email: 'user@example.test' },
+      context: {
+        url: 'https://app.example.test/settings',
+        userAgent: 'Example browser',
+        imageUrls: ['https://app.example.test/screenshot.png'],
+      },
+      metadata: { source: 'product-feedback' },
+    };
+
+    await client.feedback.forProject('project-1').submit(input, { idempotencyKey: 'submission-1' });
+    await client.feedback.forProject('project-1').submit(input, { idempotencyKey: 'submission-1' });
+
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      expect(request.url).toBe('https://api.example.test/v1/platform/projects/project-1/feedback');
+      expect(request.headers.get('authorization')).toBe('Bearer standard-token');
+      expect(request.headers.get('content-type')).toBe('application/json');
+      expect(request.headers.get('idempotency-key')).toBe('submission-1');
+      expect(await request.json()).toEqual(input);
+    }
+  });
+
   it('uses one notebook-scoped interface for configuration, ingestion, and management', async () => {
     const requests: Array<{ method: string; url: string; body: unknown }> = [];
     const fetch = vi.fn(async (request: Request) => {

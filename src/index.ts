@@ -136,6 +136,7 @@ export type {
   FeedbackWidgetConfig,
   FeedbackWidgetTarget,
   SubmitFeedbackInput,
+  SubmitFeedbackOptions,
   UpdateFeedbackInput,
 } from './feedback.js';
 export type {
@@ -601,8 +602,13 @@ class ClientImplementation {
     return this.requireData(this.makeRequest<T>('GET', path));
   }
 
-  public post<T extends unknown>(path: string, body?: unknown): Promise<{ data: T }> {
-    return this.requireData(this.makeRequest<T>('POST', path, { body: body === undefined ? undefined : JSON.stringify(body) }));
+  public post<T extends unknown>(path: string, body?: unknown, options: { idempotencyKey?: string } = {}): Promise<{ data: T }> {
+    return this.requireData(
+      this.makeRequest<T>('POST', path, {
+        body: body === undefined ? undefined : JSON.stringify(body),
+        headers: options.idempotencyKey === undefined ? undefined : { 'Idempotency-Key': options.idempotencyKey },
+      })
+    );
   }
 
   public delete<T>(path: string): Promise<{ data: T | undefined }> {
@@ -668,11 +674,16 @@ class ClientImplementation {
   }
 
   private async makeRequest<T>(method: string, path: string, init?: RequestInit): Promise<{ data: T | undefined }> {
+    const headers = new Headers(init?.headers);
+    for (const [name, value] of Object.entries(this.headers)) {
+      headers.set(name, value);
+    }
+
     const response = await this.fetchResponse(
       authenticatedRequest(new URL(path.replace(/^\//, ''), this.baseUrl), {
         method,
         ...init,
-        headers: this.headers,
+        headers,
       })
     );
 
