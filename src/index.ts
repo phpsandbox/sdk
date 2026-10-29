@@ -22,7 +22,8 @@ import { PHPSandboxError, RemoteError, TransportError, remoteError } from './err
 import { PublicationApi } from './publication/index.js';
 import { ServerApi } from './servers.js';
 import { RestRuntimeInvoker } from './runtime/rest.js';
-import { Feedback } from './feedback.js';
+import { Feedback, FeedbackApi } from './feedback.js';
+export { Feedback, FeedbackApi } from './feedback.js';
 import { IntegrationApi, SandboxIntegrationApi } from './integrations/index.js';
 import { authenticatedRequest } from './http.js';
 import { PaymentsApi, NotebookPayments } from './payments.js';
@@ -135,6 +136,7 @@ export type {
   FeedbackWidgetConfig,
   FeedbackWidgetTarget,
   SubmitFeedbackInput,
+  SubmitFeedbackOptions,
   UpdateFeedbackInput,
 } from './feedback.js';
 export type {
@@ -554,6 +556,7 @@ class ClientImplementation {
   public readonly integrations: IntegrationApi;
   public readonly payments: PaymentsApi;
   public readonly customers: CustomersApi;
+  public readonly feedback: FeedbackApi;
   public readonly options: PHPSandboxClientOptions;
   private readonly runtimeTransportValue: RuntimeTransport;
 
@@ -579,6 +582,7 @@ class ClientImplementation {
     this.integrations = new IntegrationApi(this);
     this.payments = new PaymentsApi(this);
     this.customers = new CustomersApi(this);
+    this.feedback = new FeedbackApi(this);
     this.options = { ...options };
     this.runtimeTransportValue = runtimeTransport;
     this.baseUrl = normalizeApiBaseUrl(url);
@@ -598,8 +602,13 @@ class ClientImplementation {
     return this.requireData(this.makeRequest<T>('GET', path));
   }
 
-  public post<T extends unknown>(path: string, body?: unknown): Promise<{ data: T }> {
-    return this.requireData(this.makeRequest<T>('POST', path, { body: body === undefined ? undefined : JSON.stringify(body) }));
+  public post<T extends unknown>(path: string, body?: unknown, options: { idempotencyKey?: string } = {}): Promise<{ data: T }> {
+    return this.requireData(
+      this.makeRequest<T>('POST', path, {
+        body: body === undefined ? undefined : JSON.stringify(body),
+        headers: options.idempotencyKey === undefined ? undefined : { 'Idempotency-Key': options.idempotencyKey },
+      })
+    );
   }
 
   public delete<T>(path: string): Promise<{ data: T | undefined }> {
@@ -665,11 +674,16 @@ class ClientImplementation {
   }
 
   private async makeRequest<T>(method: string, path: string, init?: RequestInit): Promise<{ data: T | undefined }> {
+    const headers = new Headers(init?.headers);
+    for (const [name, value] of Object.entries(this.headers)) {
+      headers.set(name, value);
+    }
+
     const response = await this.fetchResponse(
       authenticatedRequest(new URL(path.replace(/^\//, ''), this.baseUrl), {
         method,
         ...init,
-        headers: this.headers,
+        headers,
       })
     );
 
@@ -754,6 +768,7 @@ export class PHPSandbox {
   public readonly integrations: IntegrationApi;
   public readonly payments: PaymentsApi;
   public readonly customers: CustomersApi;
+  public readonly feedback: FeedbackApi;
 
   private constructor(private readonly client: ClientImplementation) {
     this.notebook = client.notebook;
@@ -762,6 +777,7 @@ export class PHPSandbox {
     this.integrations = client.integrations;
     this.payments = client.payments;
     this.customers = client.customers;
+    this.feedback = client.feedback;
   }
 
   public async whoami(): Promise<Identity> {

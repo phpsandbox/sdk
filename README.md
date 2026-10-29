@@ -378,6 +378,9 @@ await notebook.mail.disable();
 ### Feedback
 
 ```ts
+// Feedback uses the same API token as the rest of the SDK.
+// You can also address it directly with client.feedback.forProject(projectId)
+// or client.feedback.forNotebook(notebookId), without fetching a notebook.
 await notebook.feedback.configure({
   widget: {
     targets: ['preview', 'publication'],
