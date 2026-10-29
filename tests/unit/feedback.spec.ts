@@ -5,6 +5,7 @@ describe('sandbox.feedback', () => {
   it('uses one notebook-scoped interface for configuration, ingestion, and management', async () => {
     const requests: Array<{ method: string; url: string; body: unknown }> = [];
     const fetch = vi.fn(async (request: Request) => {
+      expect(request.headers.get('authorization')).toBe('Bearer token');
       const text = await request.text();
       requests.push({
         method: request.method,
@@ -47,34 +48,54 @@ describe('sandbox.feedback', () => {
     expect(requests.slice(1)).toEqual([
       {
         method: 'PUT',
-        url: 'https://api.phpsandbox.io/v1/notebook/sandbox-1/feedback/configuration',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback/configuration',
         body: { widget: { targets: ['preview', 'publication'], types: ['bug', 'suggestion'] } },
       },
       {
         method: 'GET',
-        url: 'https://api.phpsandbox.io/v1/notebook/sandbox-1/feedback/configuration',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback/configuration',
         body: undefined,
       },
       {
         method: 'POST',
-        url: 'https://api.phpsandbox.io/v1/notebook/sandbox-1/feedback',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback',
         body: { type: 'bug', message: 'Save failed', author: { externalId: 'user-42' } },
       },
       {
         method: 'GET',
-        url: 'https://api.phpsandbox.io/v1/notebook/sandbox-1/feedback?status=open&page=2',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback?status=open&page=2',
         body: undefined,
       },
       {
         method: 'GET',
-        url: 'https://api.phpsandbox.io/v1/notebook/sandbox-1/feedback/feedback-1',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback/feedback-1',
         body: undefined,
       },
       {
         method: 'PATCH',
-        url: 'https://api.phpsandbox.io/v1/notebook/sandbox-1/feedback/feedback-1',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback/feedback-1',
         body: { status: 'resolved' },
       },
+    ]);
+  });
+  it('addresses a project directly using the existing token without loading a notebook', async () => {
+    const requests: Request[] = [];
+    const fetch = vi.fn(async (request: Request) => {
+      requests.push(request);
+      return Response.json({ data: [] });
+    });
+    const client = PHPSandbox.rest('standard-token', 'https://api.example.test/v1', { fetch });
+
+    await client.feedback.forProject('project/1').list();
+    await client.feedback.forNotebook('notebook/1').list();
+
+    expect(requests.map((request) => request.url)).toEqual([
+      'https://api.example.test/v1/platform/projects/project%2F1/feedback',
+      'https://api.example.test/v1/platform/projects/notebook%2F1/feedback',
+    ]);
+    expect(requests.map((request) => request.headers.get('authorization'))).toEqual([
+      'Bearer standard-token',
+      'Bearer standard-token',
     ]);
   });
 });

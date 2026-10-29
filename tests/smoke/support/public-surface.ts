@@ -6,6 +6,8 @@ type SurfaceCoverage<T> = { readonly [TKey in keyof T]-?: CapabilityId };
 
 export const sdkRuntimeExports = {
   AppRuntime: 'app.contracts',
+  Feedback: 'feedback',
+  FeedbackApi: 'feedback',
   CustomersApi: 'customers.contracts',
   CustomerRuntime: 'customers.contracts',
   NotebookCustomers: 'customers.contracts',
@@ -50,6 +52,7 @@ export const beaconRuntimeExports = {
 
 export const clientSurface = {
   customers: 'customers.contracts',
+  feedback: 'feedback',
   payments: 'payments.provider',
   integrations: 'client.core-http',
   notebook: 'notebook.lifecycle',

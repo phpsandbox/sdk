@@ -1,7 +1,7 @@
 import type { Client, PaginatedApiResponse } from './index.js';
 
 export type FeedbackType = 'bug' | 'suggestion' | 'question' | 'other';
-export type FeedbackStatus = 'open' | 'resolved' | 'archived';
+export type FeedbackStatus = 'open' | 'queued' | 'resolved' | 'archived';
 export type FeedbackSource = 'sdk' | 'widget';
 export type FeedbackWidgetTarget = 'preview' | 'publication';
 
@@ -32,6 +32,7 @@ export interface SubmitFeedbackInput {
 
 export interface FeedbackData {
   id: string;
+  projectId: string;
   type: FeedbackType;
   message: string;
   status: FeedbackStatus;
@@ -70,7 +71,7 @@ export interface UpdateFeedbackInput {
 export class Feedback {
   public constructor(
     private readonly client: Client,
-    private readonly notebookId: string
+    private readonly identifier: string
   ) {}
 
   public async configure(input: ConfigureFeedbackInput): Promise<ConfigureFeedbackInput> {
@@ -114,6 +115,19 @@ export class Feedback {
   }
 
   private path(suffix = ''): string {
-    return `/notebook/${this.notebookId}/feedback${suffix}`;
+    return `/platform/projects/${encodeURIComponent(this.identifier)}/feedback${suffix}`;
+  }
+}
+
+/** Address project feedback directly without fetching or starting a sandbox. */
+export class FeedbackApi {
+  public constructor(private readonly client: Client) {}
+
+  public forProject(projectId: string): Feedback {
+    return new Feedback(this.client, projectId);
+  }
+
+  public forNotebook(notebookId: string): Feedback {
+    return new Feedback(this.client, notebookId);
   }
 }

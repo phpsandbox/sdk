@@ -22,7 +22,8 @@ import { PHPSandboxError, RemoteError, TransportError, remoteError } from './err
 import { PublicationApi } from './publication/index.js';
 import { ServerApi } from './servers.js';
 import { RestRuntimeInvoker } from './runtime/rest.js';
-import { Feedback } from './feedback.js';
+import { Feedback, FeedbackApi } from './feedback.js';
+export { Feedback, FeedbackApi } from './feedback.js';
 import { IntegrationApi, SandboxIntegrationApi } from './integrations/index.js';
 import { authenticatedRequest } from './http.js';
 import { PaymentsApi, NotebookPayments } from './payments.js';
@@ -554,6 +555,7 @@ class ClientImplementation {
   public readonly integrations: IntegrationApi;
   public readonly payments: PaymentsApi;
   public readonly customers: CustomersApi;
+  public readonly feedback: FeedbackApi;
   public readonly options: PHPSandboxClientOptions;
   private readonly runtimeTransportValue: RuntimeTransport;
 
@@ -579,6 +581,7 @@ class ClientImplementation {
     this.integrations = new IntegrationApi(this);
     this.payments = new PaymentsApi(this);
     this.customers = new CustomersApi(this);
+    this.feedback = new FeedbackApi(this);
     this.options = { ...options };
     this.runtimeTransportValue = runtimeTransport;
     this.baseUrl = normalizeApiBaseUrl(url);
@@ -754,6 +757,7 @@ export class PHPSandbox {
   public readonly integrations: IntegrationApi;
   public readonly payments: PaymentsApi;
   public readonly customers: CustomersApi;
+  public readonly feedback: FeedbackApi;
 
   private constructor(private readonly client: ClientImplementation) {
     this.notebook = client.notebook;
@@ -762,6 +766,7 @@ export class PHPSandbox {
     this.integrations = client.integrations;
     this.payments = client.payments;
     this.customers = client.customers;
+    this.feedback = client.feedback;
   }
 
   public async whoami(): Promise<Identity> {
