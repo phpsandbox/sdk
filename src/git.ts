@@ -144,6 +144,8 @@ export type GitMergeInput = GitRemoteSource & {
   token?: string;
   ref?: string;
   expectedBaseRef?: string;
+  /** Apply only changes after this source checkpoint, using three-way conflict detection. Requires runtime baselineRef support. */
+  baselineRef?: string;
   author?: string;
   message?: string;
 };
@@ -151,6 +153,8 @@ export type GitMergeInput = GitRemoteSource & {
 export type GitMergeResult =
   | {
       status: 'merged';
+      /** Confirms that the runtime applied the requested baseline delta. */
+      baselineRef?: string;
       message: string;
       baseRef: string;
       targetRef: string;
@@ -158,6 +162,7 @@ export type GitMergeResult =
     }
   | {
       status: 'conflict';
+      baselineRef?: string;
       message: string;
       baseRef: string;
       targetRef: string;
@@ -171,6 +176,7 @@ export type GitMergeResult =
     }
   | {
       status: 'up_to_date' | 'unrelated';
+      baselineRef?: string;
       message: string;
       baseRef: string;
       targetRef: string;
