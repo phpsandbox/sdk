@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, assert, beforeAll, describe, expect, test } from 'vitest';
 import { FileType } from '@phpsandbox/sdk';
 import type { SandboxFixture } from '../support/resources.js';
 import { createSandboxFixture, operation } from '../support/resources.js';
@@ -100,21 +100,20 @@ describe.sequential('production filesystem contract', () => {
     await expect(operation('read binary file', () => fixture!.sandbox.files.read(path))).resolves.toEqual(expected);
   });
 
-  test.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime')(
-    'downloads the selected smoke directory as an archive',
-    async () => {
-      const chunks: Uint8Array[] = [];
+  test('downloads the selected smoke directory as an archive', async () => {
+    assert(fixture !== undefined, 'The sandbox fixture must be initialized');
+    const sandbox = fixture.sandbox;
 
-      await operation('download smoke directory', () =>
-        fixture!.sandbox.files.download({
-          include: [`${directory}/**`],
-          onChunk: (chunk) => chunks.push(chunk),
-        })
-      );
+    const size = await operation('download smoke directory', async () => {
+      let bytes = 0;
+      for await (const chunk of sandbox.files.download({ include: [`${directory}/**`] })) {
+        bytes += chunk.byteLength;
+      }
+      return bytes;
+    });
 
-      expect(chunks.reduce((size, chunk) => size + chunk.byteLength, 0)).toBeGreaterThan(0);
-    }
-  );
+    expect(size).toBeGreaterThan(0);
+  });
 
   test.runIf(process.env.PHPSANDBOX_SMOKE_TRANSPORT === 'realtime')('follows appended file content', async () => {
     const path = `${directory}/follow.log`;

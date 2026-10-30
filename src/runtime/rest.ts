@@ -32,6 +32,7 @@ const restActionRoutes: Readonly<Partial<Record<RestRuntimeAction, RestActionRou
   'shell.exec': { method: 'POST', path: '/runtime/executions' },
   'fs.readFile': { method: 'GET', path: '/runtime/files/content' },
   'fs.writeFile': { method: 'PUT', path: '/runtime/files/content' },
+  'fs.download': { method: 'POST', path: '/runtime/files/download' },
   'fs.createDirectory': { method: 'PUT', path: '/runtime/directories' },
   'fs.readDirectory': { method: 'POST', path: '/runtime/directories/read' },
   'fs.stat': { method: 'POST', path: '/runtime/files/stat' },
@@ -69,6 +70,7 @@ export class RestRuntimeInvoker {
   private ticket!: string;
   private refreshPromise: Promise<void> | null = null;
   private readonly notebookId: string;
+  private readonly streams = new Set<AbortController>();
 
   public constructor(
     data: NotebookData,
@@ -119,6 +121,137 @@ export class RestRuntimeInvoker {
     throw new PHPSandboxError('Fire-and-forget actions require the realtime transport.');
   }
 
+  public dispose(): void {
+    for (const stream of this.streams) {
+      stream.abort(new DOMException('Notebook disposed', 'AbortError'));
+    }
+  }
+
+  public stream(
+    action: 'fs.download',
+    data: { include?: string[]; exclude?: string[] },
+    options: CallOption = {}
+  ): ReadableStream<Uint8Array> {
+    const cancellation = new AbortController();
+    this.streams.add(cancellation);
+    const abort = runtimeAbort({ ...options, abortSignal: cancellation.signal });
+    const abortFromCaller = () => cancellation.abort(options.abortSignal?.reason);
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let closed = false;
+    let onAbort = () => {};
+
+    const dispose = () => {
+      this.streams.delete(cancellation);
+      options.abortSignal?.removeEventListener('abort', abortFromCaller);
+      abort.signal.removeEventListener('abort', onAbort);
+      abort.dispose();
+    };
+    const cancelReader = async (reason: unknown) => {
+      const activeReader = reader;
+      reader = undefined;
+      if (activeReader !== undefined) {
+        await activeReader.cancel(reason).catch(() => undefined);
+        activeReader.releaseLock();
+      }
+    };
+
+    return new ReadableStream<Uint8Array>(
+      {
+        start: (controller) => {
+          onAbort = () => {
+            if (closed) {
+              return;
+            }
+            closed = true;
+            dispose();
+            controller.error(abort.signal.reason);
+            void cancelReader(abort.signal.reason);
+          };
+          abort.signal.addEventListener('abort', onAbort, { once: true });
+          options.abortSignal?.addEventListener('abort', abortFromCaller, { once: true });
+          if (options.abortSignal?.aborted) {
+            abortFromCaller();
+          }
+        },
+        pull: async (controller) => {
+          try {
+            if (reader === undefined) {
+              const response = await this.streamResponse(action, data, abort.signal);
+              if (closed) {
+                await response.body?.cancel();
+                return;
+              }
+              if (response.body === null) {
+                throw new TransportError('PHPSandbox runtime returned an empty download.', 'InvalidResponse', response);
+              }
+              reader = response.body.getReader();
+            }
+
+            const result = await reader.read();
+            if (closed) {
+              return;
+            }
+            if (result.done) {
+              closed = true;
+              dispose();
+              reader.releaseLock();
+              reader = undefined;
+              controller.close();
+            } else {
+              controller.enqueue(result.value);
+            }
+          } catch (error) {
+            if (!closed) {
+              closed = true;
+              cancellation.abort(error);
+              dispose();
+              await cancelReader(error);
+              controller.error(error);
+            }
+          }
+        },
+        cancel: async (reason) => {
+          closed = true;
+          cancellation.abort(reason);
+          dispose();
+          await cancelReader(reason);
+        },
+      },
+      { highWaterMark: 0 }
+    );
+  }
+
+  private async streamResponse(action: 'fs.download', data: unknown, signal: AbortSignal): Promise<Response> {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      signal.throwIfAborted();
+      const response = await runtimeFetch(this.fetch, this.request(action, data, signal));
+      if (signal.aborted) {
+        await response.body?.cancel();
+        signal.throwIfAborted();
+      }
+      if (response.status === 401 && attempt === 0 && this.refresh !== undefined) {
+        await response.body?.cancel();
+        await this.refreshAuthorization();
+        continue;
+      }
+      if (!response.ok) {
+        const payload = await runtimeActionResponse(response);
+        throw remoteError('runtime', payload.error, response);
+      }
+      if (!response.headers.get('content-type')?.toLowerCase().startsWith('application/zip')) {
+        await response.body?.cancel();
+        throw new TransportError('PHPSandbox runtime returned an invalid download.', 'InvalidResponse', response);
+      }
+      return response;
+    }
+
+    throw new RemoteError('Notebook download could not be authorized.', {
+      source: 'runtime',
+      status: 401,
+      code: 'AuthenticationRequired',
+    });
+  }
+
   private async invokeRaw<T>(action: RestRuntimeAction, data: unknown, options: CallOption): Promise<T> {
     const abort = runtimeAbort(options);
 
@@ -156,7 +289,7 @@ export class RestRuntimeInvoker {
     const url = new URL(this.actionUrl);
     url.pathname += route.path;
     const headers: Record<string, string> = {
-      Accept: 'application/json, application/octet-stream',
+      Accept: action === 'fs.download' ? 'application/zip' : 'application/json, application/octet-stream',
       Authorization: `Bearer ${this.ticket}`,
     };
 
