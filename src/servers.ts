@@ -1,12 +1,34 @@
 import type { Client, PaginatedApiResponse } from './index.js';
 import { PHPSandboxError } from './errors/index.js';
 
+export interface ServerAgentUpdate {
+  id: string;
+  targetVersion: string;
+  status: 'requested' | 'waiting' | 'verifying' | 'installing' | 'succeeded' | 'failed' | 'rolled_back' | 'expired' | 'unknown';
+  updatedAt: string;
+}
+
+export interface ServerAgentStatus {
+  version: string | null;
+  connection: 'connected' | 'offline' | 'unknown';
+  lastSeenAt: string | null;
+  managedUpdates: boolean;
+  setupVersion: string | null;
+  autoUpdate: boolean;
+  latestVersion: string | null;
+  recommendedVersion: string | null;
+  releaseCheckedAt: string | null;
+  versionStatus: 'current' | 'outdated' | 'unknown';
+  operation: ServerAgentUpdate | null;
+}
+
 export interface ServerData {
   id: string;
   name: string;
   host: string;
   provider: string;
   status: string;
+  agent?: ServerAgentStatus;
   access: 'owner' | 'deployer';
   token?: string;
   sshPublicKey?: string;
@@ -107,8 +129,15 @@ export class ServerInstance {
     private readonly client: Client
   ) {}
 
-  public async installation(): Promise<{ installCommand: string }> {
-    return (await this.client.get<{ installCommand: string }>(`/servers/${encodeURIComponent(this.data.id)}/installation`)).data;
+  public async updateAgent(input: { requestId: string; targetVersion: string }): Promise<ServerAgentUpdate> {
+    return (await this.client.post<ServerAgentUpdate>(`/servers/${encodeURIComponent(this.data.id)}/agent/updates`, input)).data;
+  }
+
+  public async installation(options: { managedUpdates?: boolean } = {}): Promise<{ installCommand: string }> {
+    const query = options.managedUpdates ? '?managedUpdates=1' : '';
+    return (
+      await this.client.get<{ installCommand: string }>(`/servers/${encodeURIComponent(this.data.id)}/installation${query}`)
+    ).data;
   }
 
   public async members(options: ServerListOptions = {}): Promise<PaginatedApiResponse<ServerMemberData>> {
