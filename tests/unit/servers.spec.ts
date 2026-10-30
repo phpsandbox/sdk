@@ -189,3 +189,49 @@ describe('Server API', () => {
     await expect(pending.waitReady({ interval: 0 })).rejects.toThrow('Server provisioning failed: server-1');
   });
 });
+
+it('requests an exact agent release with the same idempotency identity across retries', async () => {
+  const operation = {
+    id: '49d3ca1d-40cd-44be-826a-a87581b3fd1b',
+    targetVersion: 'v0.3.2',
+    trigger: 'manual',
+    status: 'requested',
+    updatedAt: '2026-10-30T00:00:00Z',
+  };
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValueOnce(Response.json({ data: serverData() }))
+    .mockResolvedValueOnce(Response.json({ data: operation }, { status: 202 }))
+    .mockResolvedValueOnce(Response.json({ data: operation }, { status: 202 }));
+  const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
+  const server = await client.servers.get('server-1');
+  const input = { requestId: '49d3ca1d-40cd-44be-826a-a87581b3fd1b', targetVersion: 'v0.3.2' };
+
+  await expect(server.updateAgent(input)).resolves.toEqual(operation);
+  await expect(server.updateAgent(input)).resolves.toEqual(operation);
+
+  const requests = fetch.mock.calls.slice(1).map(([request]) => new Request(request));
+  expect(requests.map((request) => [request.method, request.url])).toEqual([
+    ['POST', 'https://api.phpsandbox.io/v1/servers/server-1/agent/updates'],
+    ['POST', 'https://api.phpsandbox.io/v1/servers/server-1/agent/updates'],
+  ]);
+  expect(await Promise.all(requests.map((request) => request.json()))).toEqual([input, input]);
+});
+
+it('keeps managed installation consent separate from the normal installation command', async () => {
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValueOnce(Response.json({ data: serverData() }))
+    .mockResolvedValueOnce(Response.json({ data: { installCommand: 'install' } }))
+    .mockResolvedValueOnce(Response.json({ data: { installCommand: 'install --managed-updates' } }));
+  const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
+  const server = await client.servers.get('server-1');
+
+  await expect(server.installation()).resolves.toEqual({ installCommand: 'install' });
+  await expect(server.installation({ managedUpdates: true })).resolves.toEqual({ installCommand: 'install --managed-updates' });
+
+  expect(fetch.mock.calls.slice(1).map(([request]) => new Request(request).url)).toEqual([
+    'https://api.phpsandbox.io/v1/servers/server-1/installation',
+    'https://api.phpsandbox.io/v1/servers/server-1/installation?managedUpdates=1',
+  ]);
+});

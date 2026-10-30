@@ -117,6 +117,8 @@ export * from './publication/index.js';
 export type {
   CreateServerInput,
   ServerData,
+  ServerAgentStatus,
+  ServerAgentUpdate,
   ServerInstance,
   ServerListOptions,
   ServerMemberData,
