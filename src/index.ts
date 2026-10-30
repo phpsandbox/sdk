@@ -848,6 +848,7 @@ export class NotebookInstance {
   public readonly publication: NotebookPublication;
   private readonly socket: Transport | null;
   private readonly restInvoker: RestRuntimeInvoker | null;
+  private downloadInvoker: RestRuntimeInvoker | null = null;
   private readonly emitter: EventDispatcher;
 
   public initialized: NotebookInitResult | false = false;
@@ -1021,6 +1022,24 @@ export class NotebookInstance {
     return this.realtimeSocket().send(action, data || {});
   }
 
+  /** Binary downloads use HTTP independently of the selected runtime transport. */
+  public stream(
+    action: 'fs.download',
+    data: { include?: string[]; exclude?: string[] } = {},
+    options: CallOption = {}
+  ): ReadableStream<Uint8Array> {
+    const runtimeUrlProvider = this.client.options.runtimeUrlProvider;
+    this.downloadInvoker ??=
+      this.restInvoker ??
+      new RestRuntimeInvoker(
+        this.data,
+        this.client.options.fetch ?? globalThis.fetch,
+        runtimeUrlProvider === undefined ? undefined : () => runtimeUrlProvider(this.data.id)
+      );
+
+    return this.downloadInvoker.stream(action, data, options);
+  }
+
   public listen<T extends keyof Events>(event: T, handler: (data: Events[T]) => void): Disposable;
   public listen(event: string, handler: (data: unknown) => void): Disposable;
   public listen(event: string, handler: Function): Disposable {
@@ -1031,6 +1050,7 @@ export class NotebookInstance {
   }
 
   public dispose(): void {
+    this.downloadInvoker?.dispose();
     this.disposables.forEach((d) => d.dispose());
     if (this.socket !== null && !this.socket.isClosed) {
       this.socket.disconnect();

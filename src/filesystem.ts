@@ -81,9 +81,9 @@ export interface FileLineRangeResult extends FileLineRange {
 }
 
 export interface FileDownloadOptions {
-  onChunk?: (data: Uint8Array) => void;
   exclude?: string[];
   include?: string[];
+  signal?: AbortSignal;
 }
 
 export interface SearchOptions {
@@ -882,23 +882,14 @@ export class Filesystem {
       .catch(() => false);
   }
 
-  public async download(options: FileDownloadOptions = {}): Promise<Blob> {
-    const id = nanoid();
-    const stream = !!options.onChunk;
-    const chunks: Uint8Array[] = [];
-    const disposable = this.okra.listen(
-      `fs.download.${id}`,
-      stream
-        ? options.onChunk!
-        : (data) => {
-            chunks.push(data);
-          }
+  public download(options: FileDownloadOptions = {}): ReadableStream<Uint8Array> {
+    return this.okra.stream(
+      'fs.download',
+      { include: options.include, exclude: options.exclude },
+      {
+        abortSignal: options.signal,
+      }
     );
-
-    return this.okra
-      .invoke('fs.download', { id, exclude: options.exclude, include: options.include })
-      .then(() => new Blob(chunks as BlobPart[], { type: 'application/octet-stream' }))
-      .finally(() => disposable.dispose());
   }
 
   public tree(path: string = '/'): Promise<string> {

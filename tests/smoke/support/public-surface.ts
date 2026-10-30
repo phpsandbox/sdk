@@ -106,6 +106,7 @@ export const notebookSurface = {
   send: 'runtime.events',
   services: 'services.read',
   stop: 'runtime.lifecycle',
+  stream: 'filesystem.streaming',
   terminals: 'terminal',
   update: 'notebook.lifecycle',
 } satisfies SurfaceCoverage<sdk.NotebookInstance>;

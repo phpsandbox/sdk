@@ -15,11 +15,6 @@ class FakeNotebook {
       return [];
     }
 
-    if (action === 'fs.download') {
-      this.emit(`fs.download.${data.id}`, new Uint8Array([1, 2, 3]));
-      return;
-    }
-
     if (action === 'fs.readStream') {
       this.emit(`fs.read.${data.id}`, { id: data.id, data: new Uint8Array([1, 2]) });
       this.emit(`fs.read.${data.id}`, { id: data.id, data: new Uint8Array([3, 4]) });
@@ -62,6 +57,10 @@ class FakeNotebook {
     if (action === 'fs.writeStream') {
       return true;
     }
+  }
+
+  public stream() {
+    return new ReadableStream<Uint8Array>();
   }
 
   public listen(event: string, handler: (data: any) => void) {
@@ -183,15 +182,21 @@ describe('Filesystem', () => {
     expect(notebook.calls.filter((call) => call.action === 'fs.unwatch')).toHaveLength(1);
   });
 
-  it('disposes download listeners after completion', async () => {
+  it('returns the runtime download stream and forwards filters and cancellation', () => {
     const { filesystem, notebook } = createFilesystem();
+    const signal = new AbortController().signal;
+    const stream = new ReadableStream<Uint8Array>();
+    const download = vi.spyOn(notebook, 'stream').mockReturnValue(stream);
 
-    const blob = await filesystem.download();
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    const downloadEvent = notebook.calls.find((call) => call.action === 'fs.download')?.data.id;
+    const result = filesystem.download({ include: ['src/**'], exclude: ['vendor/**'], signal });
 
-    expect(Array.from(bytes)).toEqual([1, 2, 3]);
-    expect(notebook.listenerCount(`fs.download.${downloadEvent}`)).toBe(0);
+    expect(result).toBe(stream);
+    expect(download).toHaveBeenCalledExactlyOnceWith(
+      'fs.download',
+      { include: ['src/**'], exclude: ['vendor/**'] },
+      { abortSignal: signal }
+    );
+    expect(notebook.calls).toEqual([]);
   });
 
   it('streams reads as chunks without calling the buffered read action', async () => {

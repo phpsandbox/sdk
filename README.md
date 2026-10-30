@@ -209,6 +209,32 @@ const [hasMore, matches] = await notebook.files.search(
 );
 ```
 
+`files.download()` returns a `ReadableStream<Uint8Array>` containing the notebook ZIP.
+Read it incrementally or pipe it to a writable stream:
+
+```ts
+const controller = new AbortController();
+const archive = notebook.files.download({
+  include: ['src/**'],
+  exclude: ['vendor/**'],
+  signal: controller.signal,
+});
+
+for await (const chunk of archive) {
+  await consume(chunk);
+}
+```
+
+Downloads use HTTP for both realtime and REST clients and require the runtime's
+`POST /api/v1/notebooks/{notebook}/runtime/files/download` endpoint. Reading starts
+the request; cancelling the stream, aborting its signal, or disposing the notebook
+stops the transfer. Failures reject stream reads and are not retried after bytes
+have started arriving.
+
+**Breaking change in 0.6.0-canary.4:** downloads no longer return a `Blob` or accept
+`onChunk`. If you need a Blob, explicitly collect the archive with
+`await new Response(notebook.files.download()).blob()`; this buffers the ZIP in memory.
+
 ### Terminal
 
 ```ts
