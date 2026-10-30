@@ -4,6 +4,7 @@ import { PHPSandboxError } from './errors/index.js';
 export interface ServerAgentUpdate {
   id: string;
   targetVersion: string;
+  trigger?: 'manual' | 'automatic';
   status: 'requested' | 'waiting' | 'verifying' | 'installing' | 'succeeded' | 'failed' | 'rolled_back' | 'expired' | 'unknown';
   updatedAt: string;
 }

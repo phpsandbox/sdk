@@ -194,6 +194,7 @@ it('requests an exact agent release with the same idempotency identity across re
   const operation = {
     id: '49d3ca1d-40cd-44be-826a-a87581b3fd1b',
     targetVersion: 'v0.3.2',
+    trigger: 'manual',
     status: 'requested',
     updatedAt: '2026-10-30T00:00:00Z',
   };
