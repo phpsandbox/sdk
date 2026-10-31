@@ -412,7 +412,7 @@ export interface PublicationData<TProvider extends PublicationProviderName = Pub
 }
 
 export interface UpdatePublicationProtectionInput {
-  mode: PublicationProtectionMode;
+  mode: Exclude<PublicationProtectionMode, 'external'>;
   password?: string;
 }
 

@@ -24,7 +24,7 @@ export const PublicationSizeSchema = z.enum(['nano', 'small', 'medium', 'large',
 export const PublicationRegionSchema = z.enum(['ENAM', 'WNAM', 'EEUR', 'WEUR', 'APAC', 'SAM', 'ME', 'OC', 'AFR']);
 
 export const PublicationJurisdictionSchema = z.enum(['eu', 'fedramp']);
-export const PublicationProtectionModeSchema = z.enum(['none', 'password']);
+export const PublicationProtectionModeSchema = z.enum(['none', 'password', 'external']);
 export const PublicationLogStreamSchema = z.enum(['build', 'runtime']);
 export const PublishStreamLogStreamSchema = z.enum(['build', 'publish', 'runtime']);
 

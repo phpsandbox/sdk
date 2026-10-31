@@ -403,6 +403,8 @@ export type NotebookPreviewDataWithUrl =
 
 export interface SetNotebookPreviewInput {
   password: string;
+  /** External verification screen. When set, the edge disables password submission. */
+  authorizationUrl?: string;
 }
 
 export interface NotebookPreviewSessionData {
@@ -1294,6 +1296,7 @@ class NotebookPreview {
   ) {}
 
   public get(): Promise<NotebookPreviewData>;
+  /** Resolve access to a preview or edge-routed published app owned by this notebook. */
   public get(url: string): Promise<NotebookPreviewDataWithUrl>;
   public async get(url?: string): Promise<NotebookPreviewData> {
     const query = url === undefined ? '' : `?${new URLSearchParams({ url }).toString()}`;

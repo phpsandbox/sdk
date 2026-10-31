@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PHPSandbox } from '../../src/index.js';
+import { PublicationProtectionModeSchema } from '../../src/schemas/publications.js';
 
 function createPreviewClient(data: unknown = { enabled: false }) {
   const requests: Array<{ method: string; url: string; body: unknown }> = [];
@@ -40,6 +41,34 @@ describe('Notebook preview API', () => {
     expect(await notebook.preview.get(data.url)).toEqual(data);
     expect(await notebook.preview.createSession({ url: data.url })).toEqual(data);
     expect(await notebook.preview.createHandoff({ previewSessionId: 'ps_source', url: data.url })).toEqual(data);
+  });
+
+  it('configures an external verification screen without changing the access response', async () => {
+    const data = { enabled: true, token: 'signed-token', expiresAt: '2026-10-31T12:00:00Z' };
+    const { client, requests } = createPreviewClient(data);
+    const notebook = client.notebook.open({
+      id: 'notebook-123',
+      runtimeUrl: 'https://runtime.example.test',
+      gitUrl: 'https://git.example.test',
+    });
+
+    const result = await notebook.preview.setPassword({
+      password: 'machine-generated-secret',
+      authorizationUrl: 'https://access.example.test/verify',
+    });
+
+    expect(result).toEqual(data);
+    expect(requests).toEqual([
+      {
+        method: 'PUT',
+        url: 'https://api.phpsandbox.io/v1/notebook/notebook-123/preview',
+        body: {
+          password: 'machine-generated-secret',
+          authorizationUrl: 'https://access.example.test/verify',
+        },
+      },
+    ]);
+    expect(PublicationProtectionModeSchema.parse('external')).toBe('external');
   });
 
   it('passes the preview URL when resolving access', async () => {
