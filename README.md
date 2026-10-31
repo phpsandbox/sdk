@@ -582,4 +582,4 @@ Email mode presents email and code forms on the app's domain. Supply between 1 a
 
 External mode redirects visitors to the configured HTTPS URL with the app URL in `returnTo`. Your service decides whether to grant access, obtains an access URL through the authenticated API, and returns the visitor using that opaque URL. Keep API credentials on your server and validate return targets. `preview.get(url)` returns both a clean `url` and a credentialed `accessUrl`; open `accessUrl` without reconstructing it.
 
-**Breaking change:** Use `configure({ mode: 'password', password })` instead of `setPassword()` and `configure({ mode: 'public' })` instead of `disable()`; the two older methods and `SetNotebookPreviewInput` have been removed.
+**Breaking change:** Use `configure({ mode: 'password', password })` instead of `setPassword()` and `configure({ mode: 'public' })` instead of `disable()`; the two older methods and `SetNotebookPreviewInput` have been removed. Access responses now require `mode`, with email rules or an authorization URL required for the corresponding mode. Publication password updates also require `password`.

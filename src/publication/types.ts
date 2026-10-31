@@ -411,10 +411,7 @@ export interface PublicationData<TProvider extends PublicationProviderName = Pub
   updatedAt: string | null;
 }
 
-export interface UpdatePublicationProtectionInput {
-  mode: Exclude<PublicationProtectionMode, 'external'>;
-  password?: string;
-}
+export type UpdatePublicationProtectionInput = PublicationProtectionInput;
 
 export interface PublicationProtectionSessionData {
   previewSessionId: string;

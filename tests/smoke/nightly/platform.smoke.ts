@@ -187,6 +187,7 @@ describe.sequential('production platform API contract', () => {
 
     await expect(operation('read enabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toMatchObject({
       enabled: true,
+      mode: 'password',
       expiresAt: expect.any(String),
       token: expect.any(String),
     });
@@ -196,6 +197,7 @@ describe.sequential('production platform API contract', () => {
 
     await expect(operation('read disabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toMatchObject({
       enabled: false,
+      mode: 'public',
     });
   });
 

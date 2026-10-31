@@ -387,17 +387,14 @@ export interface ComposerCredentialInfo {
 
 export interface NotebookPreviewDataDisabled {
   enabled: false;
-  mode?: 'public';
+  mode: 'public';
 }
 
-export interface NotebookPreviewDataEnabled {
+export type NotebookPreviewDataEnabled = {
   enabled: true;
-  mode?: 'password' | 'email' | 'external';
-  allowedEmails?: string[];
-  authorizationUrl?: string;
   token: string;
   expiresAt: string;
-}
+} & ({ mode: 'password' } | { mode: 'email'; allowedEmails: string[] } | { mode: 'external'; authorizationUrl: string });
 
 export type NotebookPreviewData = NotebookPreviewDataDisabled | NotebookPreviewDataEnabled;
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PHPSandbox, type ConfigureNotebookPreviewInput } from '../../src/index.js';
 
-function createPreviewClient(data: unknown = { enabled: false }) {
+function createPreviewClient(data: unknown = { enabled: false, mode: 'public' }) {
   const requests: Array<{ method: string; url: string; body: unknown }> = [];
   const fetch = vi.fn(async (request: Request) => {
     const text = await request.text();
@@ -24,6 +24,7 @@ describe('Notebook preview API', () => {
   it('preserves separate clean and opaque access URLs for access, sessions, and handoffs', async () => {
     const data = {
       enabled: true,
+      mode: 'password',
       token: 'opaque-token',
       previewSessionId: 'ps_session',
       handoffId: 'ph_handoff',
