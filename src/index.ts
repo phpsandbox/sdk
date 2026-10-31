@@ -387,13 +387,14 @@ export interface ComposerCredentialInfo {
 
 export interface NotebookPreviewDataDisabled {
   enabled: false;
+  mode: 'public';
 }
 
-export interface NotebookPreviewDataEnabled {
+export type NotebookPreviewDataEnabled = {
   enabled: true;
   token: string;
   expiresAt: string;
-}
+} & ({ mode: 'password' } | { mode: 'email'; allowedEmails: string[] } | { mode: 'external'; authorizationUrl: string });
 
 export type NotebookPreviewData = NotebookPreviewDataDisabled | NotebookPreviewDataEnabled;
 
@@ -401,9 +402,12 @@ export type NotebookPreviewDataWithUrl =
   | NotebookPreviewDataDisabled
   | (NotebookPreviewDataEnabled & { url: string; accessUrl: string });
 
-export interface SetNotebookPreviewInput {
-  password: string;
-}
+/** Built-in access protection for previews and managed published apps. */
+export type ConfigureNotebookPreviewInput =
+  | { mode: 'public' }
+  | { mode: 'password'; password: string }
+  | { mode: 'email'; allowedEmails: string[] }
+  | { mode: 'external'; authorizationUrl: string };
 
 export interface NotebookPreviewSessionData {
   /** Open this URL to establish preview access. */
@@ -1294,6 +1298,7 @@ class NotebookPreview {
   ) {}
 
   public get(): Promise<NotebookPreviewData>;
+  /** Resolve access to a preview or edge-routed published app owned by this notebook. */
   public get(url: string): Promise<NotebookPreviewDataWithUrl>;
   public async get(url?: string): Promise<NotebookPreviewData> {
     const query = url === undefined ? '' : `?${new URLSearchParams({ url }).toString()}`;
@@ -1302,14 +1307,13 @@ class NotebookPreview {
     return response.data;
   }
 
-  public async setPassword(input: SetNotebookPreviewInput): Promise<NotebookPreviewData> {
-    const response = await this.client.put<NotebookPreviewData>(`/notebook/${this.notebookId}/preview`, input);
+  public async configure(input: ConfigureNotebookPreviewInput): Promise<void> {
+    if (input.mode === 'public') {
+      await this.client.delete<void>(`/notebook/${this.notebookId}/preview`);
+      return;
+    }
 
-    return response.data;
-  }
-
-  public async disable(): Promise<void> {
-    await this.client.delete<void>(`/notebook/${this.notebookId}/preview`);
+    await this.client.put<NotebookPreviewData>(`/notebook/${this.notebookId}/preview`, input);
   }
 
   public async createSession(input: CreateNotebookPreviewSessionInput): Promise<NotebookPreviewSessionData> {

@@ -253,11 +253,10 @@ export const runtimeFacadeSurfaces = {
     watch: 'telemetry.streaming',
   } satisfies SurfaceCoverage<sdk.NotebookInstance['runtime']['ports']>,
   preview: {
+    configure: 'preview',
     createHandoff: 'preview',
     createSession: 'preview',
-    disable: 'preview',
     get: 'preview',
-    setPassword: 'preview',
   } satisfies SurfaceCoverage<sdk.NotebookInstance['preview']>,
   repl: {
     eval: 'repl',
