@@ -572,12 +572,12 @@ Configure preview access and inherited access for apps published through the man
 await notebook.preview.configure({ mode: 'password', password: 'a-long-private-password' });
 await notebook.preview.configure({
   mode: 'email',
-  allowedEmails: ['person@example.com', '*@company.com'],
+  allowedEmails: ['person@example.com', '*@company.test'],
 });
 await notebook.preview.configure({ mode: 'external', authorizationUrl: 'https://auth.example.com/access' });
 await notebook.preview.configure({ mode: 'public' });
 ```
 
-Email mode presents email and code forms on the app's domain. Supply between 1 and 100 exact email addresses or domain rules such as `*@company.com`. Domain rules match that exact domain, excluding subdomains. The platform sends and verifies the codes; no custom verification service or callback configuration is required. Protected mode changes rotate the access version, invalidating previous grants and pending codes. `preview.get()` includes the current mode and email rules.
+Email mode presents email and code forms on the app's domain. Supply between 1 and 100 exact email addresses or domain rules such as `*@company.test`. Domain rules match that exact domain, excluding subdomains. The platform sends and verifies the codes; no custom verification service or callback configuration is required. Protected mode changes rotate the access version, invalidating previous grants and pending codes. `preview.get()` includes the current mode and email rules.
 
 External mode redirects visitors to the configured HTTPS URL with the app URL in `returnTo`. Your service decides whether to grant access, obtains an access URL through the authenticated API, and returns the visitor using that opaque URL. Keep API credentials on your server and validate return targets. `preview.get(url)` returns both a clean `url` and a credentialed `accessUrl`; open `accessUrl` without reconstructing it. Existing `setPassword()` and `disable()` calls remain supported.

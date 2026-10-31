@@ -75,7 +75,7 @@ describe('Notebook preview API', () => {
     { mode: 'password', password: 'test-password' },
     {
       mode: 'email',
-      allowedEmails: ['person@example.com', '*@company.com'],
+      allowedEmails: ['person@example.com', '*@company.test'],
     },
     { mode: 'external', authorizationUrl: 'https://auth.example.com/access' },
   ])('configures $mode access without synthesizing another mode', async (input) => {
