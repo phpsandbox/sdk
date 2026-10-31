@@ -175,29 +175,29 @@ describe.sequential('production platform API contract', () => {
   });
 
   test('enables, reads, and disables preview protection', async () => {
-    const cleanup = fixture!.resources.register('preview protection', () => fixture!.sandbox.preview.disable());
-    const enabled = await operation('set preview password', () =>
-      fixture!.sandbox.preview.setPassword({
+    const cleanup = fixture!.resources.register('preview protection', () =>
+      fixture!.sandbox.preview.configure({ mode: 'public' })
+    );
+    await operation('configure password access', () =>
+      fixture!.sandbox.preview.configure({
+        mode: 'password',
         password: `sdk-smoke-${fixture!.sandbox.data.id}`,
       })
     );
 
-    expect(enabled).toEqual({
+    await expect(operation('read enabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toMatchObject({
       enabled: true,
-      expiresAt: expect.any(String),
-      token: expect.any(String),
-    });
-    await expect(operation('read enabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toEqual({
-      enabled: true,
+      mode: 'password',
       expiresAt: expect.any(String),
       token: expect.any(String),
     });
 
-    await operation('disable preview protection', () => fixture!.sandbox.preview.disable());
+    await operation('configure public access', () => fixture!.sandbox.preview.configure({ mode: 'public' }));
     cleanup.complete();
 
-    await expect(operation('read disabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toEqual({
+    await expect(operation('read disabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toMatchObject({
       enabled: false,
+      mode: 'public',
     });
   });
 
@@ -205,11 +205,14 @@ describe.sequential('production platform API contract', () => {
     const previewUrl = runtimePreviewUrl(fixture!);
     const marker = `preview-${fixture!.sandbox.data.id}`;
     const targetUrl = `${previewUrl.replace(/\/$/, '')}/?sdk-smoke=${fixture!.environment.runId}`;
-    const cleanup = fixture!.resources.register('preview session protection', () => fixture!.sandbox.preview.disable());
+    const cleanup = fixture!.resources.register('preview session protection', () =>
+      fixture!.sandbox.preview.configure({ mode: 'public' })
+    );
 
     await operation('write preview marker', () => fixture!.sandbox.files.write('index.php', `<?php echo '${marker}';`));
     await operation('enable preview session protection', () =>
-      fixture!.sandbox.preview.setPassword({
+      fixture!.sandbox.preview.configure({
+        mode: 'password',
         password: `sdk-session-${fixture!.sandbox.data.id}`,
       })
     );
@@ -241,7 +244,7 @@ describe.sequential('production platform API contract', () => {
     expect(handoffResponse.ok).toBe(true);
     await expect(handoffResponse.text()).resolves.toContain(marker);
 
-    await fixture!.sandbox.preview.disable();
+    await fixture!.sandbox.preview.configure({ mode: 'public' });
     cleanup.complete();
   });
 

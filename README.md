@@ -563,3 +563,23 @@ for await (const event of readPublicationStream(response)) {
 ```
 
 `readPublicationStream` also accepts a `ReadableStream<Uint8Array>`. By default, it rejects EOF without a final result (including empty streams). Use `{ requireResult: false }` only when deliberately consuming a stream fragment. It validates recognized event payloads, throws for server error events, and ignores unknown event names and heartbeat comments. Ending iteration early cancels the stream; aborting the fetch interrupts a pending read. Disconnecting observation does not cancel the server-side deployment. `PublicationRun.events()` uses this same parser.
+
+### App access
+
+Configure preview access and inherited access for apps published through the managed edge:
+
+```ts
+await notebook.preview.configure({ mode: 'password', password: 'a-long-private-password' });
+await notebook.preview.configure({
+  mode: 'email',
+  allowedEmails: ['person@example.com', '*@company.test'],
+});
+await notebook.preview.configure({ mode: 'external', authorizationUrl: 'https://auth.example.com/access' });
+await notebook.preview.configure({ mode: 'public' });
+```
+
+Email mode presents email and code forms on the app's domain. Supply between 1 and 100 exact email addresses or domain rules such as `*@company.test`. Domain rules match that exact domain, excluding subdomains. The platform sends and verifies the codes; no custom verification service or callback configuration is required. Protected mode changes rotate the access version, invalidating previous grants and pending codes. `preview.get()` includes the current mode and email rules.
+
+External mode redirects visitors to the configured HTTPS URL with the app URL in `returnTo`. Your service decides whether to grant access, obtains an access URL through the authenticated API, and returns the visitor using that opaque URL. Keep API credentials on your server and validate return targets. `preview.get(url)` returns both a clean `url` and a credentialed `accessUrl`; open `accessUrl` without reconstructing it.
+
+**Breaking change:** Use `configure({ mode: 'password', password })` instead of `setPassword()` and `configure({ mode: 'public' })` instead of `disable()`; the two older methods and `SetNotebookPreviewInput` have been removed. Access responses now require `mode`, with email rules or an authorization URL required for the corresponding mode. Publication password updates also require `password`.
