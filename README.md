@@ -572,16 +572,12 @@ Configure preview access and inherited access for apps published through the man
 await notebook.preview.configure({ mode: 'password', password: 'a-long-private-password' });
 await notebook.preview.configure({
   mode: 'email',
-  verifier: { connectionId: 'registered-instance', resourceId: 'app-id', revision: '2f27f197-6bcc-4b14-830e-942528d9e695' },
+  allowedEmails: ['person@example.com', '*@company.com'],
 });
 await notebook.preview.configure({ mode: 'external', authorizationUrl: 'https://auth.example.com/access' });
 await notebook.preview.configure({ mode: 'public' });
 ```
 
-Email mode presents email and code forms on the app's domain. It requires a registered platform connection that owns the notebook and implements the email verification callback. The verifier owns email policy, code delivery, expiry, and attempt limits; the platform issues app access credentials after verification. Protected mode changes rotate the access version, invalidating grants for the previous notebook policy.
+Email mode presents email and code forms on the app's domain. Supply between 1 and 100 exact email addresses or domain rules such as `*@company.com`. Domain rules match that exact domain, excluding subdomains. The platform sends and verifies the codes; no custom verification service or callback configuration is required. Protected mode changes rotate the access version, invalidating previous grants and pending codes. `preview.get()` includes the current mode and email rules.
 
 External mode redirects visitors to the configured HTTPS URL with the app URL in `returnTo`. Your service decides whether to grant access, obtains an access URL through the authenticated API, and returns the visitor using that opaque URL. Keep API credentials on your server and validate return targets. `preview.get(url)` returns both a clean `url` and a credentialed `accessUrl`; open `accessUrl` without reconstructing it. Existing `setPassword()` and `disable()` calls remain supported.
-
-An email verifier implements `POST /api/internal/platform/preview/email` on its registered callback origin. The JSON body contains `operation` (`request` or `verify`), `connectionId`, `organizationId`, `notebookId`, `resourceId`, `revision`, `routeKey`, `protectionVersion`, and `browserBinding`. A request also contains `email`; verification contains `challengeId` and the six-digit `code`.
-
-Authenticate callbacks using `X-Platform-Timestamp` and `X-Platform-Signature`: the signature is the hex HMAC-SHA256 of `<timestamp>.<raw JSON body>` with the registered connection secret. Reject stale timestamps and verify the connection, organization, notebook, resource, and policy revision. Bind each challenge to the supplied browser binding, route, and protection version. Return `{ "challengeId": "<uuid>" }` for requests, including disallowed emails, and `{ "verified": true }` only after atomically consuming a valid, unexpired code. Return `{ "verified": false }` for rejected codes. The callback never receives or issues app access credentials. Unavailable or invalid callbacks deny access.

@@ -393,6 +393,8 @@ export interface NotebookPreviewDataDisabled {
 export interface NotebookPreviewDataEnabled {
   enabled: true;
   mode?: 'password' | 'email' | 'external';
+  allowedEmails?: string[];
+  authorizationUrl?: string;
   token: string;
   expiresAt: string;
 }
@@ -403,11 +405,11 @@ export type NotebookPreviewDataWithUrl =
   | NotebookPreviewDataDisabled
   | (NotebookPreviewDataEnabled & { url: string; accessUrl: string });
 
-/** Email verification is delegated to a registered platform connection. */
+/** Built-in access protection for previews and managed published apps. */
 export type ConfigureNotebookPreviewInput =
   | { mode: 'public' }
   | { mode: 'password'; password: string }
-  | { mode: 'email'; verifier: { connectionId: string; resourceId: string; revision: string } }
+  | { mode: 'email'; allowedEmails: string[] }
   | { mode: 'external'; authorizationUrl: string };
 
 export interface SetNotebookPreviewInput {

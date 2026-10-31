@@ -75,7 +75,7 @@ describe('Notebook preview API', () => {
     { mode: 'password', password: 'test-password' },
     {
       mode: 'email',
-      verifier: { connectionId: 'instance-a', resourceId: 'resource-a', revision: '2f27f197-6bcc-4b14-830e-942528d9e695' },
+      allowedEmails: ['person@example.com', '*@company.com'],
     },
     { mode: 'external', authorizationUrl: 'https://auth.example.com/access' },
   ])('configures $mode access without synthesizing another mode', async (input) => {
