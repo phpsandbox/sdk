@@ -71,7 +71,7 @@ describe('PHPSandbox', () => {
     const client = PHPSandbox.realtime('private-api-key', undefined, { fetch });
     const notebook = client.notebook.open({ id: 'abc', runtimeUrl: 'https://runtime.example.test' });
 
-    await expect(notebook.preview.disable()).rejects.toMatchObject({
+    await expect(notebook.preview.configure({ mode: 'public' })).rejects.toMatchObject({
       name: 'TransportError',
       code: 'InvalidResponse',
       message: 'PHPSandbox API returned an invalid error response (HTTP 502).',

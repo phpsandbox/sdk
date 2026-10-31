@@ -412,12 +412,6 @@ export type ConfigureNotebookPreviewInput =
   | { mode: 'email'; allowedEmails: string[] }
   | { mode: 'external'; authorizationUrl: string };
 
-export interface SetNotebookPreviewInput {
-  password: string;
-  /** External verification screen. When set, the edge disables password submission. */
-  authorizationUrl?: string;
-}
-
 export interface NotebookPreviewSessionData {
   /** Open this URL to establish preview access. */
   accessUrl: string;
@@ -1318,21 +1312,11 @@ class NotebookPreview {
 
   public async configure(input: ConfigureNotebookPreviewInput): Promise<void> {
     if (input.mode === 'public') {
-      await this.disable();
+      await this.client.delete<void>(`/notebook/${this.notebookId}/preview`);
       return;
     }
 
     await this.client.put<NotebookPreviewData>(`/notebook/${this.notebookId}/preview`, input);
-  }
-
-  public async setPassword(input: SetNotebookPreviewInput): Promise<NotebookPreviewData> {
-    const response = await this.client.put<NotebookPreviewData>(`/notebook/${this.notebookId}/preview`, input);
-
-    return response.data;
-  }
-
-  public async disable(): Promise<void> {
-    await this.client.delete<void>(`/notebook/${this.notebookId}/preview`);
   }
 
   public async createSession(input: CreateNotebookPreviewSessionInput): Promise<NotebookPreviewSessionData> {
