@@ -176,27 +176,23 @@ describe.sequential('production platform API contract', () => {
 
   test('enables, reads, and disables preview protection', async () => {
     const cleanup = fixture!.resources.register('preview protection', () => fixture!.sandbox.preview.disable());
-    const enabled = await operation('set preview password', () =>
-      fixture!.sandbox.preview.setPassword({
+    await operation('configure password access', () =>
+      fixture!.sandbox.preview.configure({
+        mode: 'password',
         password: `sdk-smoke-${fixture!.sandbox.data.id}`,
       })
     );
 
-    expect(enabled).toEqual({
-      enabled: true,
-      expiresAt: expect.any(String),
-      token: expect.any(String),
-    });
-    await expect(operation('read enabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toEqual({
+    await expect(operation('read enabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toMatchObject({
       enabled: true,
       expiresAt: expect.any(String),
       token: expect.any(String),
     });
 
-    await operation('disable preview protection', () => fixture!.sandbox.preview.disable());
+    await operation('configure public access', () => fixture!.sandbox.preview.configure({ mode: 'public' }));
     cleanup.complete();
 
-    await expect(operation('read disabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toEqual({
+    await expect(operation('read disabled preview protection', () => fixture!.sandbox.preview.get())).resolves.toMatchObject({
       enabled: false,
     });
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { PHPSandbox } from '../../src/index.js';
+import { PHPSandbox, type ConfigureNotebookPreviewInput } from '../../src/index.js';
 import { PublicationProtectionModeSchema } from '../../src/schemas/publications.js';
 
 function createPreviewClient(data: unknown = { enabled: false }) {
@@ -69,6 +69,41 @@ describe('Notebook preview API', () => {
       },
     ]);
     expect(PublicationProtectionModeSchema.parse('external')).toBe('external');
+  });
+
+  it.each<ConfigureNotebookPreviewInput>([
+    { mode: 'password', password: 'test-password' },
+    {
+      mode: 'email',
+      verifier: { connectionId: 'instance-a', resourceId: 'resource-a', revision: '2f27f197-6bcc-4b14-830e-942528d9e695' },
+    },
+    { mode: 'external', authorizationUrl: 'https://auth.example.com/access' },
+  ])('configures $mode access without synthesizing another mode', async (input) => {
+    const { client, requests } = createPreviewClient();
+    const notebook = client.notebook.open({
+      id: 'notebook-123',
+      runtimeUrl: 'https://runtime.example.test',
+      gitUrl: 'https://git.example.test',
+    });
+
+    await notebook.preview.configure(input);
+
+    expect(requests).toEqual([{ method: 'PUT', url: 'https://api.phpsandbox.io/v1/notebook/notebook-123/preview', body: input }]);
+  });
+
+  it('configures public access by removing protection', async () => {
+    const { client, requests } = createPreviewClient();
+    const notebook = client.notebook.open({
+      id: 'notebook-123',
+      runtimeUrl: 'https://runtime.example.test',
+      gitUrl: 'https://git.example.test',
+    });
+
+    await notebook.preview.configure({ mode: 'public' });
+
+    expect(requests).toEqual([
+      { method: 'DELETE', url: 'https://api.phpsandbox.io/v1/notebook/notebook-123/preview', body: undefined },
+    ]);
   });
 
   it('passes the preview URL when resolving access', async () => {

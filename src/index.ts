@@ -387,10 +387,12 @@ export interface ComposerCredentialInfo {
 
 export interface NotebookPreviewDataDisabled {
   enabled: false;
+  mode?: 'public';
 }
 
 export interface NotebookPreviewDataEnabled {
   enabled: true;
+  mode?: 'password' | 'email' | 'external';
   token: string;
   expiresAt: string;
 }
@@ -400,6 +402,13 @@ export type NotebookPreviewData = NotebookPreviewDataDisabled | NotebookPreviewD
 export type NotebookPreviewDataWithUrl =
   | NotebookPreviewDataDisabled
   | (NotebookPreviewDataEnabled & { url: string; accessUrl: string });
+
+/** Email verification is delegated to a registered platform connection. */
+export type ConfigureNotebookPreviewInput =
+  | { mode: 'public' }
+  | { mode: 'password'; password: string }
+  | { mode: 'email'; verifier: { connectionId: string; resourceId: string; revision: string } }
+  | { mode: 'external'; authorizationUrl: string };
 
 export interface SetNotebookPreviewInput {
   password: string;
@@ -1303,6 +1312,15 @@ class NotebookPreview {
     const response = await this.client.get<NotebookPreviewData>(`/notebook/${this.notebookId}/preview${query}`);
 
     return response.data;
+  }
+
+  public async configure(input: ConfigureNotebookPreviewInput): Promise<void> {
+    if (input.mode === 'public') {
+      await this.disable();
+      return;
+    }
+
+    await this.client.put<NotebookPreviewData>(`/notebook/${this.notebookId}/preview`, input);
   }
 
   public async setPassword(input: SetNotebookPreviewInput): Promise<NotebookPreviewData> {
