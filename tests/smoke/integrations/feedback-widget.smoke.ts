@@ -1,11 +1,11 @@
 import { chromium, type Browser, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import { readFeedbackReviewerSmokeEnvironment, type FeedbackReviewerSmokeEnvironment } from '../support/environment.js';
-import type { SandboxFixture } from '../support/resources.js';
-import { createSandboxFixture, operation } from '../support/resources.js';
+import type { ProjectFixture } from '../support/resources.js';
+import { createProjectFixture, operation } from '../support/resources.js';
 
 describe.sequential('production feedback widget browser contract', () => {
-  let fixture: SandboxFixture | undefined;
+  let fixture: ProjectFixture | undefined;
   let browser: Browser | undefined;
   let page: Page | undefined;
   let previewUrl: string | undefined;
@@ -13,7 +13,7 @@ describe.sequential('production feedback widget browser contract', () => {
 
   beforeAll(async () => {
     reviewer = readFeedbackReviewerSmokeEnvironment();
-    fixture = await createSandboxFixture('feedback-widget');
+    fixture = await createProjectFixture();
     previewUrl = runtimePreviewUrl(fixture);
     await operation('write feedback widget preview fixture', () =>
       fixture!.sandbox.files.write(
@@ -22,7 +22,7 @@ describe.sequential('production feedback widget browser contract', () => {
       )
     );
     await operation('configure feedback widget', () =>
-      fixture!.sandbox.feedback.configure({
+      fixture!.client.feedback.forProject(fixture!.projectId).configure({
         widget: {
           label: 'Report smoke feedback',
           targets: ['preview'],
@@ -36,7 +36,10 @@ describe.sequential('production feedback widget browser contract', () => {
   }, 360_000);
 
   afterAll(async () => {
-    await fixture?.sandbox.feedback.configure({ widget: null }).catch(() => undefined);
+    await fixture?.client.feedback
+      .forProject(fixture.projectId)
+      .configure({ widget: null })
+      .catch(() => undefined);
     await page?.close().catch(() => undefined);
     await browser?.close().catch(() => undefined);
     await fixture?.resources.cleanup();
@@ -81,7 +84,7 @@ describe.sequential('production feedback widget browser contract', () => {
     let feedbackId = '';
     await vi.waitFor(
       async () => {
-        const feedback = await fixture!.sandbox.feedback.list({ source: 'widget', status: 'open' });
+        const feedback = await fixture!.client.feedback.forProject(fixture!.projectId).list({ source: 'widget', status: 'open' });
         const submitted = feedback.data.find((candidate) => candidate.message === message);
         expect(submitted).toMatchObject({
           author: { source: 'phpsandbox' },
@@ -96,13 +99,15 @@ describe.sequential('production feedback widget browser contract', () => {
 
     await expect(
       operation('resolve widget feedback', () =>
-        fixture!.sandbox.feedback.update(feedbackId, {
+        fixture!.client.feedback.forProject(fixture!.projectId).update(feedbackId, {
           status: 'resolved',
         })
       )
     ).resolves.toMatchObject({ id: feedbackId, status: 'resolved' });
 
-    await operation('disable feedback widget', () => fixture!.sandbox.feedback.configure({ widget: null }));
+    await operation('disable feedback widget', () =>
+      fixture!.client.feedback.forProject(fixture!.projectId).configure({ widget: null })
+    );
     await expect
       .poll(
         async () => {
@@ -237,7 +242,7 @@ function sanitizedUrl(value: string): string {
   return `${url.origin}${url.pathname}`;
 }
 
-function runtimePreviewUrl(fixture: SandboxFixture): string {
+function runtimePreviewUrl(fixture: ProjectFixture): string {
   const initialized = fixture.sandbox.initialized;
   if (initialized === false || initialized.type !== 'success') {
     throw new Error('Sandbox runtime is not initialized.');

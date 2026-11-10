@@ -1,6 +1,6 @@
 {
   "name": "@phpsandbox/sdk",
-  "version": "0.6.0-canary.6",
+  "version": "0.6.0-canary.7",
   "description": "The TypeScript SDK for PHPSandbox cloud development environments",
   "keywords": [
     "cloud",

@@ -14,6 +14,7 @@ describe('publication resource leases', () => {
   test('uses immutable workflow identity and an exact optional server name', () => {
     expect(
       createPublicationResourceLease({
+        projectId: 'project-smoke',
         notebookId: 'notebook-1',
         provider: 'ssh-server',
         runAttempt: '2',
@@ -22,6 +23,7 @@ describe('publication resource leases', () => {
         timestamp: new Date('2026-08-30T00:00:00.000Z'),
       })
     ).toEqual({
+      projectId: 'project-smoke',
       createdAt: '2026-08-30T00:00:00.000Z',
       notebookId: 'notebook-1',
       provider: 'ssh-server',
@@ -34,6 +36,7 @@ describe('publication resource leases', () => {
 
   test('expires a lease only after the configured age', () => {
     const lease = createPublicationResourceLease({
+      projectId: 'project-smoke',
       notebookId: 'notebook-1',
       provider: 'laravel-cloud',
       runAttempt: '1',
@@ -56,6 +59,7 @@ describe('publication resource leases', () => {
     );
     const registry = new PublicationResourceLeaseRegistry(github, registryEnvironment, fetchImplementation);
     const lease = createPublicationResourceLease({
+      projectId: 'project-smoke',
       notebookId: 'notebook-1',
       provider: 'cloudflare-containers',
       runAttempt: '1',
@@ -77,8 +81,9 @@ describe('publication resource leases', () => {
     expect(request?.body).not.toContain('secret-token');
   });
 
-  test('releases a stale lease when its sandbox has already been deleted', async () => {
+  test('releases a stale lease when its project no longer has a publication', async () => {
     const lease = createPublicationResourceLease({
+      projectId: 'project-smoke',
       notebookId: 'deleted-notebook',
       provider: 'cloudflare-containers',
       runAttempt: '1',
@@ -86,8 +91,8 @@ describe('publication resource leases', () => {
     });
     const stored = { lease, path: 'lease.json', sha: 'lease-sha' };
     const client = {
-      notebook: {
-        get: vi.fn().mockRejectedValue(missingRemoteError('Notebook not found.')),
+      publications: {
+        forProject: vi.fn().mockReturnValue({ current: vi.fn().mockRejectedValue(missingRemoteError('Project not found.')) }),
       },
     } as unknown as PHPSandbox;
     const deleteLease = vi.fn().mockResolvedValue(undefined);
@@ -102,6 +107,7 @@ describe('publication resource leases', () => {
 
   test('continues cleanup when resources disappear during reaping', async () => {
     const lease = createPublicationResourceLease({
+      projectId: 'project-smoke',
       notebookId: 'notebook-1',
       provider: 'ssh-server',
       runAttempt: '1',
@@ -115,13 +121,12 @@ describe('publication resource leases', () => {
     };
     const notebook = {
       destroy: vi.fn().mockRejectedValue(missingRemoteError('Notebook not found.')),
-      publication: { current: vi.fn().mockResolvedValue(null) },
     };
     const server = {
       delete: vi.fn().mockRejectedValue(missingRemoteError('Server not found.')),
     };
     const client = {
-      notebook: { get: vi.fn().mockResolvedValue(notebook) },
+      publications: { forProject: vi.fn().mockReturnValue({ current: vi.fn().mockResolvedValue(null) }) },
       servers: { get: vi.fn().mockResolvedValue(server) },
     } as unknown as PHPSandbox;
     const deleteLease = vi.fn().mockResolvedValue(undefined);
@@ -132,7 +137,7 @@ describe('publication resource leases', () => {
     await expect(reapPublicationResources(client, registry, stored)).resolves.toBeUndefined();
 
     expect(server.delete).toHaveBeenCalledOnce();
-    expect(notebook.destroy).toHaveBeenCalledOnce();
+    expect(notebook.destroy).not.toHaveBeenCalled();
     expect(deleteLease).toHaveBeenCalledWith(stored);
   });
 });

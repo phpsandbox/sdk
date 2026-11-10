@@ -3,7 +3,6 @@ export { AppRuntime };
 export type { AppRuntimeOptions };
 import { identitySchema, type Identity } from './identity.js';
 export type { Identity } from './identity.js';
-import { NotebookPublication } from './publication/index.js';
 import { Filesystem, FilesystemActions, FilesystemEvents } from './filesystem.js';
 import Terminals, { TerminalEvents, TerminalActions, type SpawnOptions } from './terminal.js';
 import Lsp, { LspActions, LspEvents } from './lsp.js';
@@ -22,11 +21,11 @@ import { PHPSandboxError, RemoteError, TransportError, remoteError } from './err
 import { PublicationApi } from './publication/index.js';
 import { ServerApi } from './servers.js';
 import { RestRuntimeInvoker } from './runtime/rest.js';
-import { Feedback, FeedbackApi } from './feedback.js';
+import { FeedbackApi } from './feedback.js';
 export { Feedback, FeedbackApi } from './feedback.js';
 import { IntegrationApi, SandboxIntegrationApi } from './integrations/index.js';
 import { authenticatedRequest } from './http.js';
-import { PaymentsApi, NotebookPayments } from './payments.js';
+import { PaymentsApi } from './payments.js';
 import { CustomersApi } from './customers.js';
 export * from './customers.js';
 export * from './payments.js';
@@ -847,11 +846,8 @@ export class NotebookInstance {
   public readonly config: Config;
   public readonly secrets: NotebookSecrets;
   public readonly integrations: SandboxIntegrationApi;
-  public readonly payments: NotebookPayments;
   public readonly preview: NotebookPreview;
   public readonly mail: NotebookMail;
-  public readonly feedback: Feedback;
-  public readonly publication: NotebookPublication;
   private readonly socket: Transport | null;
   private readonly restInvoker: RestRuntimeInvoker | null;
   private downloadInvoker: RestRuntimeInvoker | null = null;
@@ -915,11 +911,8 @@ export class NotebookInstance {
     this.config = new Config(this);
     this.secrets = new NotebookSecrets(client, this.data.id);
     this.integrations = new SandboxIntegrationApi(this.data.id, client);
-    this.payments = new NotebookPayments(this.data.id, client);
     this.preview = new NotebookPreview(client, this.data.id);
     this.mail = new NotebookMail(client, this.data.id);
-    this.feedback = new Feedback(client, this.data.id);
-    this.publication = new NotebookPublication(this.data.id, client);
   }
 
   public async ready(): Promise<NotebookInitSuccessResult> {

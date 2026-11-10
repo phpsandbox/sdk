@@ -17,23 +17,23 @@ import type {
   PublicationResourceCatalog,
 } from './types.js';
 
-export class NotebookPublication {
+export class ProjectPublication {
   public readonly resources: PublicationResources;
   public constructor(
-    private readonly notebookId: string,
+    private readonly projectId: string,
     private readonly client: Client
   ) {
     this.resources = new PublicationResources(client, `${this.path}/publication/resources`);
   }
 
   private get path(): string {
-    return `/notebook/${encodeURIComponent(this.notebookId)}`;
+    return `/projects/${encodeURIComponent(this.projectId)}`;
   }
 
   public async current(): Promise<PublicationInstance | null> {
     try {
       const response = await this.client.get<PublicationData>(`${this.path}/publication`);
-      return new PublicationInstance(response.data, this.client, this.notebookId);
+      return new PublicationInstance(response.data, this.client);
     } catch (error) {
       if (RemoteError.is(error) && error.status === 404) {
         return null;
@@ -103,7 +103,7 @@ export class NotebookPublication {
       if (!['pending', 'queued', 'building', 'deploying'].includes(app.publication.status)) {
         continue;
       }
-      new PublicationRun(new PublicationInstance(app.publication, this.client, this.notebookId), this.client).start();
+      new PublicationRun(new PublicationInstance(app.publication, this.client), this.client).start();
     }
   }
 

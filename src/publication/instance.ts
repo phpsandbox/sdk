@@ -1,3 +1,4 @@
+import { ProjectPublication } from './project.js';
 import type { Client } from '../index.js';
 import { PublicationEventDataSchema, PublicationLogChunkDataSchema } from '../schemas/publications.js';
 import type { PublicationEventData, PublicationLogChunkData, PublicationStatus } from '../schemas/publications.js';
@@ -22,6 +23,10 @@ export class PublicationApi {
 
   public constructor(private readonly client: Client) {
     this.resources = new PublicationResources(client);
+  }
+
+  public forProject(projectId: string): ProjectPublication {
+    return new ProjectPublication(projectId, this.client);
   }
 
   public async get<TProvider extends PublicationProviderName = PublicationProviderName>(

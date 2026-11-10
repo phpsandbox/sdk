@@ -75,6 +75,33 @@ export interface SandboxFixture {
   readonly sandbox: NotebookInstance;
 }
 
+export interface ProjectFixture extends SandboxFixture {
+  readonly projectId: string;
+}
+
+/** A dedicated disposable project must be supplied explicitly for product-lifecycle smoke tests. */
+export async function createProjectFixture(): Promise<ProjectFixture> {
+  const projectId = process.env.PHPSANDBOX_SMOKE_PROJECT_ID;
+  const notebookId = process.env.PHPSANDBOX_SMOKE_PROJECT_NOTEBOOK_ID;
+  if (!projectId || !notebookId) {
+    throw new Error(
+      'Set PHPSANDBOX_SMOKE_PROJECT_ID and PHPSANDBOX_SMOKE_PROJECT_NOTEBOOK_ID to a dedicated disposable project.'
+    );
+  }
+  const environment = readSmokeEnvironment();
+  const client = createClient(environment);
+  const resources = new ResourceRegistry();
+  const sandbox = await operation('open project main sandbox', () => client.notebook.get(notebookId));
+  resources.register('project runtime connection', async () => sandbox.dispose());
+  try {
+    await operation('initialize project sandbox', () => sandbox.ready(), INITIALIZATION_TIMEOUT_MS);
+  } catch (error) {
+    sandbox.dispose();
+    throw error;
+  }
+  return { client, environment, resources, sandbox, projectId };
+}
+
 export async function createSandboxFixture(
   label: string,
   input: Pick<CreateNotebookInput, 'import'> = {}

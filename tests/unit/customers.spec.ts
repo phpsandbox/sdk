@@ -33,16 +33,16 @@ describe('Customers', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('lists an SDK-only notebook without opening realtime transport', async () => {
+  it('lists an explicit project without opening realtime transport', async () => {
     const result = { space: null, customers: [], journeys: [], messages: [], total: 0 };
     const fetch = vi.fn(async (request: Request) => {
-      expect(request.url).toBe('https://api.example.test/v1/platform/customers/sandboxes/sdk-only/test?search=Alex&page=2');
+      expect(request.url).toBe('https://api.example.test/v1/platform/projects/sdk-only/customers/test?search=Alex&page=2');
       return Response.json({ data: result });
     });
     vi.stubGlobal('fetch', fetch);
     const client = PHPSandbox.rest('hfp_example', 'https://api.example.test/v1');
 
-    await expect(client.customers.forNotebook('sdk-only').list('test', { search: 'Alex', page: 2 })).resolves.toEqual(result);
+    await expect(client.customers.forProject('sdk-only').list('test', { search: 'Alex', page: 2 })).resolves.toEqual(result);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 

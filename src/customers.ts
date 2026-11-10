@@ -216,9 +216,9 @@ export class CustomerRuntime {
   }
 
   /** Inspect the workspace and environment selected by this app credential. */
-  public async context(): Promise<{ id: string; notebookId: string; mode: CustomerMode }> {
+  public async context(): Promise<{ id: string; projectId: string; notebookId: string; mode: CustomerMode }> {
     return z
-      .object({ id: z.string(), notebookId: z.string(), mode: customerModeSchema })
+      .object({ id: z.string(), projectId: z.string(), notebookId: z.string(), mode: customerModeSchema })
       .parse((await this.client.get<unknown>('/platform/customers/runtime/context')).data);
   }
 
@@ -310,14 +310,14 @@ export class CustomersApi {
   public constructor(private readonly client: Client) {
     this.runtime = new CustomerRuntime(client);
   }
-  public forNotebook(notebookId: string): NotebookCustomers {
-    return new NotebookCustomers(notebookId, this.client);
+  public forProject(projectId: string): ProjectCustomers {
+    return new ProjectCustomers(projectId, this.client);
   }
 }
 
-export class NotebookCustomers {
+export class ProjectCustomers {
   public constructor(
-    private readonly notebookId: string,
+    private readonly projectId: string,
     private readonly client: Client
   ) {}
 
@@ -374,6 +374,6 @@ export class NotebookCustomers {
   }
 
   private path(mode: CustomerMode): string {
-    return `/platform/customers/sandboxes/${encodeURIComponent(this.notebookId)}/${mode}`;
+    return `/platform/projects/${encodeURIComponent(this.projectId)}/customers/${mode}`;
   }
 }

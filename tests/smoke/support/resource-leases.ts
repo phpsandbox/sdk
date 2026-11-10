@@ -1,4 +1,4 @@
-import { RemoteError, type NotebookInstance, type PHPSandbox } from '@phpsandbox/sdk';
+import { RemoteError, type PHPSandbox } from '@phpsandbox/sdk';
 import { z } from 'zod';
 import type { GitHubSmokeEnvironment, PublicationSmokeProvider, SmokeResourceRegistryEnvironment } from './environment.js';
 import { operation } from './resources.js';
@@ -8,6 +8,7 @@ const leaseDirectory = '.sdk-smoke/resource-leases';
 const PublicationResourceLeaseSchema = z.object({
   createdAt: z.iso.datetime(),
   notebookId: z.string().min(1),
+  projectId: z.string().min(1),
   provider: z.enum(['cloudflare-containers', 'laravel-cloud', 'ssh-server']),
   runAttempt: z.string().regex(/^\d+$/),
   runId: z.string().regex(/^[A-Za-z0-9_-]+$/),
@@ -146,6 +147,7 @@ export class PublicationResourceLeaseRegistry {
 
 export function createPublicationResourceLease(input: {
   readonly notebookId: string;
+  readonly projectId: string;
   readonly provider: PublicationSmokeProvider;
   readonly runAttempt: string;
   readonly runId: string;
@@ -155,6 +157,7 @@ export function createPublicationResourceLease(input: {
   return {
     createdAt: (input.timestamp ?? new Date()).toISOString(),
     notebookId: input.notebookId,
+    projectId: input.projectId,
     provider: input.provider,
     runAttempt: input.runAttempt,
     runId: input.runId,
@@ -175,12 +178,7 @@ export async function reapPublicationResources(
   const { lease } = stored;
   console.log(`Reaping ${lease.provider} resources for workflow ${lease.runId}.${lease.runAttempt}.`);
 
-  const notebook = await operationAllowingMissing('read abandoned publication sandbox', () =>
-    client.notebook.get(lease.notebookId)
-  );
-  if (notebook !== undefined) {
-    await reapNotebookPublication(notebook, lease.provider);
-  }
+  await reapProjectPublication(client, lease.projectId, lease.provider);
 
   if (lease.provider === 'ssh-server' && lease.server !== undefined) {
     const serverId = lease.server.id ?? (await findServerIdByExactName(client, lease.server.name));
@@ -191,14 +189,17 @@ export async function reapPublicationResources(
     }
   }
 
-  if (notebook !== undefined) {
-    await operationAllowingMissing('delete abandoned publication sandbox', () => notebook.destroy());
-  }
   await operation('release reaped resource lease', () => registry.delete(stored));
 }
 
-async function reapNotebookPublication(notebook: NotebookInstance, expectedProvider: PublicationSmokeProvider): Promise<void> {
-  const publication = await operationAllowingMissing('read abandoned publication', () => notebook.publication.current());
+async function reapProjectPublication(
+  client: PHPSandbox,
+  projectId: string,
+  expectedProvider: PublicationSmokeProvider
+): Promise<void> {
+  const publication = await operationAllowingMissing('read abandoned publication', () =>
+    client.publications.forProject(projectId).current()
+  );
   if (publication === undefined || publication === null) {
     return;
   }
