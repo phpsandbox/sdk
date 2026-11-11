@@ -119,7 +119,7 @@ describe('Publications', () => {
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch: fetch });
     const notebook = openNotebook(client, 'nb_123');
     try {
-      const publication = await notebook.publication.current();
+      const publication = await client.publications.forProject('project-1').current();
       const run = publication!.follow();
       await expect(run.result()).resolves.toMatchObject({
         success: true,
@@ -185,7 +185,7 @@ describe('Publications', () => {
           );
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-    const application = await openNotebook(client, 'nb_123').publication.publish({
+    const application = await client.publications.forProject('project-1').publish({
       reviewId: 'review-one',
       proposal: 'signed-proposal',
     });
@@ -193,7 +193,7 @@ describe('Publications', () => {
       throw new Error('Expected an accepted publishing proposal');
     }
     expect(application.id).toBe('project');
-    expect(requests[0].url).toBe('https://api.phpsandbox.io/v1/notebook/nb_123/publication');
+    expect(requests[0].url).toBe('https://api.phpsandbox.io/v1/projects/project-1/publication');
     await expect(requests[0].json()).resolves.toEqual({ reviewId: 'review-one', proposal: 'signed-proposal' });
     expect(requests[1].url).toBe('https://runtime.phpsandbox.io/publish/pub_123');
     expect(requests).toHaveLength(2);
@@ -222,7 +222,7 @@ describe('Publications', () => {
       );
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-    const application = await openNotebook(client, 'nb_123').publication.publish({
+    const application = await client.publications.forProject('project-1').publish({
       reviewId: 'native-review',
       proposal: 'signed-proposal',
     });
@@ -241,10 +241,10 @@ describe('Publications', () => {
       .mockResolvedValueOnce(errorResponse(404, 'NotFound', 'No publication.'));
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
 
-    await expect(openNotebook(client, 'nb_123').publication.current()).resolves.toMatchObject({
+    await expect(client.publications.forProject('project-1').current()).resolves.toMatchObject({
       data: { id: 'pub_123' },
     });
-    await expect(openNotebook(client, 'nb_456').publication.current()).resolves.toBeNull();
+    await expect(client.publications.forProject('project-1').current()).resolves.toBeNull();
   });
 
   it('an existing publication instance cannot bypass a fresh saved-app review', async () => {
@@ -255,7 +255,7 @@ describe('Publications', () => {
       return jsonResponse(publicationData());
     });
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
-    const publication = await openNotebook(client, 'nb_123').publication.current();
+    const publication = await client.publications.forProject('project-1').current();
     expect(publication).not.toHaveProperty('publish');
     expect(requests.map((request) => request.method)).toEqual(['GET']);
   });
@@ -339,10 +339,10 @@ describe('Publications', () => {
     const client = PHPSandbox.realtime('token', 'https://api.phpsandbox.io/v1', { fetch });
     const notebook = openNotebook(client, 'nb_123');
     try {
-      await expect(notebook.publication.catalog('laravel-cloud')).resolves.toMatchObject({
+      await expect(client.publications.forProject('project-1').catalog('laravel-cloud')).resolves.toMatchObject({
         regions: [{ id: 'eu-central-1', label: 'Frankfurt' }],
       });
-      const original = await notebook.publication.current();
+      const original = await client.publications.forProject('project-1').current();
       const updated = await original!.configureLaravelCloud(setup);
       expect(updated).not.toBe(original);
       expect(updated.data.provider).toMatchObject({ setup });
@@ -350,12 +350,12 @@ describe('Publications', () => {
       expect(requests).toEqual([
         {
           method: 'GET',
-          url: 'https://api.phpsandbox.io/v1/notebook/nb_123/publication/catalog?provider=laravel-cloud',
+          url: 'https://api.phpsandbox.io/v1/projects/project-1/publication/catalog?provider=laravel-cloud',
           body: '',
         },
         {
           method: 'GET',
-          url: 'https://api.phpsandbox.io/v1/notebook/nb_123/publication',
+          url: 'https://api.phpsandbox.io/v1/projects/project-1/publication',
           body: '',
         },
         {

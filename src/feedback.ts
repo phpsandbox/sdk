@@ -134,8 +134,4 @@ export class FeedbackApi {
   public forProject(projectId: string): Feedback {
     return new Feedback(this.client, projectId);
   }
-
-  public forNotebook(notebookId: string): Feedback {
-    return new Feedback(this.client, notebookId);
-  }
 }

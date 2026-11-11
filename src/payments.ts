@@ -27,7 +27,7 @@ const accessSchema = z.object({
   recoveryEndsAt: z.string().nullable().default(null),
 });
 export type PaymentsAccess = z.infer<typeof accessSchema>;
-const applicationsSchema = z.object({
+export const paymentApplicationsSchema = z.object({
   notebookId: z.string(),
   applications: z.array(
     z.object({
@@ -39,11 +39,11 @@ const applicationsSchema = z.object({
     })
   ),
 });
-export type PaymentApplicationsData = z.infer<typeof applicationsSchema>;
+export type PaymentApplicationsData = z.infer<typeof paymentApplicationsSchema>;
 const bindingSchema = z.object({
   target: z.enum(['preview', 'publication']).optional(),
   id: z.string(),
-  notebookId: z.string(),
+  projectId: z.string(),
   applicationId: z.string().nullable(),
   mode: paymentModeSchema,
   revision: z.number().int(),
@@ -161,13 +161,13 @@ export class PaymentsApi {
     this.runtime = new PaymentRuntime(client);
   }
 
-  public forNotebook(notebookId: string): NotebookPayments {
-    return new NotebookPayments(notebookId, this.client);
+  public forProject(projectId: string): ProjectPayments {
+    return new ProjectPayments(projectId, this.client);
   }
 
-  public async applications(notebookId: string): Promise<PaymentApplicationsData> {
-    return applicationsSchema.parse(
-      (await this.client.get<unknown>(`/notebook/${encodeURIComponent(notebookId)}/payments/applications`)).data
+  public async applications(projectId: string): Promise<PaymentApplicationsData> {
+    return paymentApplicationsSchema.parse(
+      (await this.client.get<unknown>(`/platform/payments/projects/${encodeURIComponent(projectId)}/applications`)).data
     );
   }
 
@@ -190,14 +190,14 @@ export class PaymentsApi {
   }
 }
 
-export class NotebookPayments {
+export class ProjectPayments {
   public constructor(
-    private readonly notebookId: string,
+    private readonly projectId: string,
     private readonly client: Client
   ) {}
 
   private path(mode: PaymentMode): string {
-    return `/platform/payments/sandboxes/${encodeURIComponent(this.notebookId)}/${mode}`;
+    return `/platform/payments/projects/${encodeURIComponent(this.projectId)}/${mode}`;
   }
 
   public async get(mode: PaymentMode = 'test'): Promise<PaymentBindingData | null> {

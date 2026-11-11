@@ -1,4 +1,4 @@
-export { NotebookPublication } from './notebook.js';
+export { ProjectPublication } from './project.js';
 export { PublicationApi, PublicationInstance } from './instance.js';
 export { PublicationRun } from './run.js';
 export type * from './types.js';

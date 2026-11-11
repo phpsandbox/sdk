@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PHPSandbox } from '../../src/index.js';
 
-describe('sandbox.feedback', () => {
+describe('project feedback', () => {
   it('preserves author and context and sends the same idempotency key on retries', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (request: Request) => {
@@ -34,7 +34,7 @@ describe('sandbox.feedback', () => {
     }
   });
 
-  it('uses one notebook-scoped interface for configuration, ingestion, and management', async () => {
+  it('uses one project-scoped interface for configuration, ingestion, and management', async () => {
     const requests: Array<{ method: string; url: string; body: unknown }> = [];
     const fetch = vi.fn(async (request: Request) => {
       expect(request.headers.get('authorization')).toBe('Bearer token');
@@ -62,50 +62,50 @@ describe('sandbox.feedback', () => {
       return Response.json({ data: { id: 'feedback-1', status: 'open' } });
     }) as unknown as typeof globalThis.fetch;
     const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
-    const sandbox = await client.notebook.get('sandbox-1');
+    const feedback = client.feedback.forProject('project-1');
 
-    await sandbox.feedback.configure({
+    await feedback.configure({
       widget: { targets: ['preview', 'publication'], types: ['bug', 'suggestion'] },
     });
-    await sandbox.feedback.configuration();
-    await sandbox.feedback.submit({
+    await feedback.configuration();
+    await feedback.submit({
       type: 'bug',
       message: 'Save failed',
       author: { externalId: 'user-42' },
     });
-    await sandbox.feedback.list({ status: 'open', page: 2 });
-    await sandbox.feedback.get('feedback-1');
-    await sandbox.feedback.update('feedback-1', { status: 'resolved' });
+    await feedback.list({ status: 'open', page: 2 });
+    await feedback.get('feedback-1');
+    await feedback.update('feedback-1', { status: 'resolved' });
 
-    expect(requests.slice(1)).toEqual([
+    expect(requests).toEqual([
       {
         method: 'PUT',
-        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback/configuration',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/project-1/feedback/configuration',
         body: { widget: { targets: ['preview', 'publication'], types: ['bug', 'suggestion'] } },
       },
       {
         method: 'GET',
-        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback/configuration',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/project-1/feedback/configuration',
         body: undefined,
       },
       {
         method: 'POST',
-        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/project-1/feedback',
         body: { type: 'bug', message: 'Save failed', author: { externalId: 'user-42' } },
       },
       {
         method: 'GET',
-        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback?status=open&page=2',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/project-1/feedback?status=open&page=2',
         body: undefined,
       },
       {
         method: 'GET',
-        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback/feedback-1',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/project-1/feedback/feedback-1',
         body: undefined,
       },
       {
         method: 'PATCH',
-        url: 'https://api.phpsandbox.io/v1/platform/projects/sandbox-1/feedback/feedback-1',
+        url: 'https://api.phpsandbox.io/v1/platform/projects/project-1/feedback/feedback-1',
         body: { status: 'resolved' },
       },
     ]);
@@ -119,7 +119,7 @@ describe('sandbox.feedback', () => {
     const client = PHPSandbox.rest('standard-token', 'https://api.example.test/v1', { fetch });
 
     await client.feedback.forProject('project/1').list();
-    await client.feedback.forNotebook('notebook/1').list();
+    await client.feedback.forProject('notebook/1').list();
 
     expect(requests.map((request) => request.url)).toEqual([
       'https://api.example.test/v1/platform/projects/project%2F1/feedback',

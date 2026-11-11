@@ -21,8 +21,8 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    await nb.publication.prepare({ expectedRevision: 3, appIds: ['stable-api-id'] });
-    expect(requests[1]?.url).toBe('https://api.example/v1/notebook/nb/publication/plan');
+    await client.publications.forProject('project-1').prepare({ expectedRevision: 3, appIds: ['stable-api-id'] });
+    expect(requests[1]?.url).toBe('https://api.example/v1/projects/project-1/publication/plan');
     expect(requests[1]?.method).toBe('POST');
     expect(JSON.parse(await requests[1]!.text())).toEqual({ expectedRevision: 3, appIds: ['stable-api-id'] });
     nb.dispose();
@@ -48,12 +48,14 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    const config = await nb.publication.configuration();
+    const config = await client.publications.forProject('project-1').configuration();
     expect(config.deployments[0]?.publication.id).toBe('still-running');
-    await nb.publication.updateConfiguration({ expectedRevision: 4, operations: [{ op: 'remove-app', appId: 'removed' }] });
+    await client.publications
+      .forProject('project-1')
+      .updateConfiguration({ expectedRevision: 4, operations: [{ op: 'remove-app', appId: 'removed' }] });
     expect(requests.slice(1).map((request) => [request.method, request.url])).toEqual([
-      ['GET', 'https://api.example/v1/notebook/nb/publication/configuration'],
-      ['PATCH', 'https://api.example/v1/notebook/nb/publication/configuration'],
+      ['GET', 'https://api.example/v1/projects/project-1/publication/configuration'],
+      ['PATCH', 'https://api.example/v1/projects/project-1/publication/configuration'],
     ]);
     expect(await requests[2]!.json()).toEqual({ expectedRevision: 4, operations: [{ op: 'remove-app', appId: 'removed' }] });
     nb.dispose();
@@ -77,7 +79,9 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    expect(await nb.publication.publish({ reviewId: 'shown', proposal: 'signed', appIds: ['frontend'] })).toEqual(pending);
+    expect(
+      await client.publications.forProject('project-1').publish({ reviewId: 'shown', proposal: 'signed', appIds: ['frontend'] })
+    ).toEqual(pending);
     expect(requests).toHaveLength(2);
     expect(await requests[1].clone().json()).toEqual({ reviewId: 'shown', proposal: 'signed', appIds: ['frontend'] });
     nb.dispose();
@@ -131,23 +135,25 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    expect(await nb.publication.publish({ reviewId: 'review-1', proposal: 'signed-proposal' })).toMatchObject({ id: 'app-1' });
+    expect(
+      await client.publications.forProject('project-1').publish({ reviewId: 'review-1', proposal: 'signed-proposal' })
+    ).toMatchObject({ id: 'app-1' });
     expect(
       await requests
         .find((request) => request.url.endsWith('/publication'))!
         .clone()
         .json()
     ).toEqual({ reviewId: 'review-1', proposal: 'signed-proposal' });
-    await nb.publication.application('app-1');
-    await nb.publication.retryApplication('app-1');
-    await nb.publication.destroyApplication('app-1', { deleteResources: true });
+    await client.publications.forProject('project-1').application('app-1');
+    await client.publications.forProject('project-1').retryApplication('app-1');
+    await client.publications.forProject('project-1').destroyApplication('app-1', { deleteResources: true });
     expect(requests.slice(1).map((request) => [request.method, request.url])).toEqual([
-      ['POST', 'https://api.example/v1/notebook/nb/publication'],
+      ['POST', 'https://api.example/v1/projects/project-1/publication'],
       ['GET', 'https://runtime.example/publish/component-1'],
-      ['GET', 'https://api.example/v1/notebook/nb/publication/application/app-1'],
-      ['POST', 'https://api.example/v1/notebook/nb/publication/application/app-1/retry'],
+      ['GET', 'https://api.example/v1/projects/project-1/publication/application/app-1'],
+      ['POST', 'https://api.example/v1/projects/project-1/publication/application/app-1/retry'],
       ['GET', 'https://runtime.example/publish/component-1'],
-      ['DELETE', 'https://api.example/v1/notebook/nb/publication/application/app-1?deleteResources=1'],
+      ['DELETE', 'https://api.example/v1/projects/project-1/publication/application/app-1?deleteResources=1'],
     ]);
     nb.dispose();
   });
@@ -180,10 +186,10 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    await nb.publication.publish({ reviewId: 'frontend-review', proposal: 'signed-proposal' });
+    await client.publications.forProject('project-1').publish({ reviewId: 'frontend-review', proposal: 'signed-proposal' });
     expect(requests.map((request) => request.url)).toEqual([
       'https://api.example/v1/notebook/nb',
-      'https://api.example/v1/notebook/nb/publication',
+      'https://api.example/v1/projects/project-1/publication',
     ]);
     nb.dispose();
   });
@@ -205,20 +211,20 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    await nb.publication.catalog('ssh-server', 'server/a');
-    await nb.publication.catalog('laravel-cloud');
-    await nb.publication.catalog('cloudflare-containers');
+    await client.publications.forProject('project-1').catalog('ssh-server', 'server/a');
+    await client.publications.forProject('project-1').catalog('laravel-cloud');
+    await client.publications.forProject('project-1').catalog('cloudflare-containers');
     expect(requests.slice(1).map((request) => ({ url: request.url, method: request.method }))).toEqual([
       {
-        url: 'https://api.example/v1/notebook/nb/publication/catalog?provider=ssh-server&serverId=server%2Fa',
+        url: 'https://api.example/v1/projects/project-1/publication/catalog?provider=ssh-server&serverId=server%2Fa',
         method: 'GET',
       },
       {
-        url: 'https://api.example/v1/notebook/nb/publication/catalog?provider=laravel-cloud',
+        url: 'https://api.example/v1/projects/project-1/publication/catalog?provider=laravel-cloud',
         method: 'GET',
       },
       {
-        url: 'https://api.example/v1/notebook/nb/publication/catalog?provider=cloudflare-containers',
+        url: 'https://api.example/v1/projects/project-1/publication/catalog?provider=cloudflare-containers',
         method: 'GET',
       },
     ]);
@@ -258,14 +264,14 @@ describe('publication planning', () => {
       }),
     });
     const nb = await client.notebook.get('nb');
-    await nb.publication.readiness();
+    await client.publications.forProject('project-1').readiness();
     const input: PublicationApplicationPlanInput = { expectedRevision: 4, appIds: ['backend'] };
-    const plan = await nb.publication.prepare(input);
+    const plan = await client.publications.forProject('project-1').prepare(input);
     expect(plan.review.ready).toBe(false);
     expect(requests.slice(1)).toEqual([
-      { url: 'https://api.example/v1/notebook/nb/publication/readiness', method: 'GET', body: '' },
+      { url: 'https://api.example/v1/projects/project-1/publication/readiness', method: 'GET', body: '' },
       {
-        url: 'https://api.example/v1/notebook/nb/publication/plan',
+        url: 'https://api.example/v1/projects/project-1/publication/plan',
         method: 'POST',
         body: JSON.stringify(input),
       },

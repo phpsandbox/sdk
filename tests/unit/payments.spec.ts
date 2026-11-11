@@ -5,16 +5,16 @@ import { PHPSandbox } from '../../src/index.js';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('managed payments', () => {
-  it('addresses a sandbox without fetching or starting its runtime', async () => {
+  it('addresses a project without fetching or starting its runtime', async () => {
     const fetch = vi.fn().mockResolvedValue(Response.json({ data: null }));
     vi.stubGlobal('fetch', fetch);
     const sdk = PHPSandbox.rest('hfp_example', 'https://api.example.test/v1');
-    expect(await sdk.payments.forNotebook('sdk-only').get('test')).toBeNull();
+    expect(await sdk.payments.forProject('sdk-only').get('test')).toBeNull();
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(fetch.mock.calls[0]?.[0].url).toContain('/platform/payments/sandboxes/sdk-only/test');
+    expect(fetch.mock.calls[0]?.[0].url).toContain('/platform/payments/projects/sdk-only/test');
   });
 
-  it('lists payment applications through the ownership-checked notebook endpoint', async () => {
+  it('lists payment applications through the ownership-checked project endpoint', async () => {
     const data = {
       notebookId: 'sdk-only',
       applications: [
@@ -29,7 +29,7 @@ describe('managed payments', () => {
     };
     const fetch = vi.fn(async (request: Request) => {
       expect(request.method).toBe('GET');
-      expect(request.url).toBe('https://api.example.test/v1/notebook/sdk-only/payments/applications');
+      expect(request.url).toBe('https://api.example.test/v1/platform/payments/projects/sdk-only/applications');
       expect(request.headers.get('authorization')).toBe('Bearer hfp_example');
       return Response.json({ data });
     });
@@ -93,7 +93,7 @@ describe('managed payments', () => {
       successPath: '/thanks',
       cancelPath: '/course',
     };
-    const payments = PHPSandbox.rest('hfp_example', 'https://api.example.test/v1').payments.forNotebook('sandbox-1');
+    const payments = PHPSandbox.rest('hfp_example', 'https://api.example.test/v1').payments.forProject('sandbox-1');
     await expect(payments.checkout(input, 'test')).resolves.toEqual(transaction);
     await expect(payments.checkout(input, 'test')).resolves.toEqual(transaction);
     expect(fetch).toHaveBeenCalledTimes(2);
@@ -126,15 +126,15 @@ describe('recurring payments', () => {
         return Response.json({ data: subscription });
       })
     );
-    const payments = PHPSandbox.rest('hfp_example', 'https://api.example.test/v1').payments.forNotebook('sandbox-1');
+    const payments = PHPSandbox.rest('hfp_example', 'https://api.example.test/v1').payments.forProject('sandbox-1');
     const input = { requestId: 'request-1', orderId: 'order-1', priceId: 'price-1', successPath: '/account', cancelPath: '/' };
     await payments.subscribe(input, 'live');
     await payments.subscription('sub-1', 'live');
     await payments.cancelSubscription('sub-1', 'live');
     expect(requests.map((request) => [request.method, new URL(request.url).pathname])).toEqual([
-      ['POST', '/v1/platform/payments/sandboxes/sandbox-1/live/subscriptions'],
-      ['GET', '/v1/platform/payments/sandboxes/sandbox-1/live/subscriptions/sub-1'],
-      ['POST', '/v1/platform/payments/sandboxes/sandbox-1/live/subscriptions/sub-1/cancel'],
+      ['POST', '/v1/platform/payments/projects/sandbox-1/live/subscriptions'],
+      ['GET', '/v1/platform/payments/projects/sandbox-1/live/subscriptions/sub-1'],
+      ['POST', '/v1/platform/payments/projects/sandbox-1/live/subscriptions/sub-1/cancel'],
     ]);
     expect(await requests[0]?.json()).toEqual(input);
     expect(await requests[2]?.json()).toEqual({});

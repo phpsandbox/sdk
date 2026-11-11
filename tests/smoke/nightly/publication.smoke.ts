@@ -4,10 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, test, vi } from 'vitest';
-import type { CleanupHandle, SandboxFixture } from '../support/resources.js';
-import { createSandboxFixture, operation } from '../support/resources.js';
+import type { CleanupHandle, ProjectFixture } from '../support/resources.js';
+import { createProjectFixture, operation } from '../support/resources.js';
 import {
   createPublicationResourceLease,
+  cleanupProjectPublication,
   PublicationResourceLeaseRegistry,
   type StoredPublicationResourceLease,
 } from '../support/resource-leases.js';
@@ -19,6 +20,7 @@ import type {
   PublishStreamEvent,
   PublishStreamResult,
   ServerInstance,
+  Integration,
 } from '@phpsandbox/sdk';
 
 const executeFile = promisify(execFile);
@@ -29,7 +31,7 @@ const rookInstallerUrl = 'https://install.phpsandbox.io/rook';
 
 describe.sequential('production publication provider contract', () => {
   let environment: PublicationSmokeEnvironment | undefined;
-  let fixture: SandboxFixture | undefined;
+  let fixture: ProjectFixture | undefined;
   let publication: PublicationInstance | undefined;
   let publicationCleanup: CleanupHandle | undefined;
   let publicationEvents: PublishStreamEvent[] | undefined;
@@ -57,20 +59,14 @@ describe.sequential('production publication provider contract', () => {
       if (environment.provider === 'laravel-cloud') {
         await verifyLaravelCloudCredential(environment);
       }
-      fixture = await createSandboxFixture(`publication-${environment.provider}`, {
-        import: {
-          auth: { accessToken: environment.github.token },
-          branch: 'main',
-          provider: 'github',
-          repo: `https://github.com/${environment.repository}`,
-        },
-      });
+      fixture = await createProjectFixture();
       const serverName = environment.provider === 'ssh-server' ? `SDK Rook ${fixture.environment.runId}` : undefined;
       resourceLeaseRegistry = new PublicationResourceLeaseRegistry(environment.github, environment.resourceRegistry);
       resourceLease = await operation('reserve publication smoke resources', () =>
         resourceLeaseRegistry!.create(
           createPublicationResourceLease({
             notebookId: fixture!.sandbox.data.id,
+            projectId: fixture!.projectId,
             provider: environment!.provider,
             runAttempt: fixture!.environment.workflowAttempt,
             runId: fixture!.environment.workflowRunId,
@@ -102,11 +98,7 @@ describe.sequential('production publication provider contract', () => {
                 authorization: { type: 'token', token: environment!.laravelCloudApiKey! },
               })
             );
-        await operation('attach Laravel Cloud integration to sandbox', () =>
-          fixture!.sandbox.integrations.attach({
-            integration,
-          })
-        );
+        await operation('attach Laravel Cloud integration to sandbox', () => attachSmokeIntegration(fixture!, integration));
       }
 
       if (environment.provider === 'cloudflare-containers') {
@@ -125,11 +117,7 @@ describe.sequential('production publication provider contract', () => {
                 authorization: { type: 'token', token: environment!.cloudflareApiToken! },
               })
             );
-        await operation('attach Cloudflare integration to sandbox', () =>
-          fixture!.sandbox.integrations.attach({
-            integration,
-          })
-        );
+        await operation('attach Cloudflare integration to sandbox', () => attachSmokeIntegration(fixture!, integration));
       }
 
       if (environment.provider === 'ssh-server') {
@@ -213,26 +201,78 @@ describe.sequential('production publication provider contract', () => {
                   sleepAfter: '10m',
                 },
               };
+      const publisher = activeFixture.client.publications.forProject(activeFixture.projectId);
+      const before = await operation('inspect smoke app configuration', () => publisher.configuration());
+      if (
+        before.apps.some((entry) => entry.routing.managedAddress.slug === slug) ||
+        before.deployments.some((entry) => entry.publication.slug === slug)
+      ) {
+        throw new Error('This smoke run identity already has publishing resources. Use a new run identity.');
+      }
+
+      resourceLease = await operation('reserve smoke app identity before configuration', () =>
+        resourceLeaseRegistry!.update(resourceLease!, {
+          ...resourceLease!.lease,
+          appSlug: slug,
+        })
+      );
+      publicationCleanup = activeFixture.resources.register('leased smoke app and publication', () =>
+        cleanupProjectPublication(activeFixture.client, requireStageValue(resourceLease, 'smoke resource lease').lease)
+      );
       const configuration = await operation('save smoke app', () =>
-        activeFixture.sandbox.publication.updateConfiguration({ expectedRevision: 0, operations: [{ op: 'add-app', app }] })
+        publisher.updateConfiguration({ expectedRevision: before.revision, operations: [{ op: 'add-app', app }] })
+      );
+      const savedApp = requireStageValue(
+        configuration.apps.find((entry) => entry.routing.managedAddress.slug === slug),
+        'saved smoke app'
+      );
+      resourceLease = await operation('record smoke app identity', () =>
+        resourceLeaseRegistry!.update(resourceLease!, {
+          ...resourceLease!.lease,
+          appId: savedApp.id,
+        })
       );
       const review = await operation('review saved smoke app', () =>
-        activeFixture.sandbox.publication.prepare({ expectedRevision: configuration.revision })
+        activeFixture.client.publications
+          .forProject(fixture!.projectId)
+          .prepare({ expectedRevision: configuration.revision, appIds: [savedApp.id] })
       );
       if (!review.review.ready) {
         throw new Error(review.review.blockers.map((blocker) => blocker.message).join('; '));
       }
+      resourceLease = await operation('record smoke publication intent', () =>
+        resourceLeaseRegistry!.update(resourceLease!, {
+          ...resourceLease!.lease,
+          publicationRequested: true,
+        })
+      );
       const application = await operation('confirm publication review', () =>
-        activeFixture.sandbox.publication.publish({ reviewId: review.review.id, proposal: review.review.proposal })
+        activeFixture.client.publications
+          .forProject(fixture!.projectId)
+          .publish({ reviewId: review.review.id, proposal: review.review.proposal })
       );
       if ('confirmationRequired' in application) {
+        resourceLease = await operation('clear unpublished smoke intent', () =>
+          resourceLeaseRegistry!.update(resourceLease!, {
+            ...resourceLease!.lease,
+            publicationRequested: false,
+          })
+        );
         throw new Error('Publishing setup changed; a new confirmation is required.');
       }
-      const appPublication = requireStageValue(application.apps[0], 'confirmed app publication');
+      const appPublication = requireStageValue(
+        application.apps.find((entry) => entry.appId === savedApp.id),
+        'confirmed app publication'
+      );
+      resourceLease = await operation('record smoke publication identity', () =>
+        resourceLeaseRegistry!.update(resourceLease!, {
+          ...resourceLease!.lease,
+          publicationId: appPublication.publication.id,
+        })
+      );
       publication = await operation('read smoke app publication', () =>
         activeFixture.client.publications.get(appPublication.publication.id)
       );
-      publicationCleanup = activeFixture.resources.register(`publication ${publication.data.id}`, () => publication!.destroy());
       const run = publication.follow();
       const eventsPromise = collectEvents(run.events());
       void eventsPromise.catch(() => undefined);
@@ -260,7 +300,9 @@ describe.sequential('production publication provider contract', () => {
     const activeEnvironment = requireStageValue(environment, 'provider smoke environment');
     const activeFixture = requireStageValue(fixture, 'sandbox fixture');
     const activePublication = requireStageValue(publication, 'healthy publication');
-    const current = await operation('read current notebook publication', () => activeFixture.sandbox.publication.current());
+    const current = await operation('read current notebook publication', () =>
+      activeFixture.client.publications.forProject(fixture!.projectId).current()
+    );
     expect(current?.data.id).toBe(activePublication.data.id);
     const fetched = await operation('get publication by id', () =>
       activeFixture.client.publications.get(activePublication.data.id)
@@ -318,6 +360,10 @@ describe.sequential('production publication provider contract', () => {
     const activeEnvironment = requireStageValue(environment, 'provider smoke environment');
     const activePublication = requireStageValue(publication, 'healthy publication');
     await operation('destroy publication', () => activePublication.destroy(), 300_000);
+    await cleanupProjectPublication(
+      requireStageValue(fixture, 'project fixture').client,
+      requireStageValue(resourceLease, 'smoke resource lease').lease
+    );
     publicationCleanup?.complete();
 
     if (activeEnvironment.provider === 'ssh-server') {
@@ -335,7 +381,9 @@ describe.sequential('production publication provider contract', () => {
     const activeFixture = requireStageValue(fixture, 'sandbox fixture');
     const activePublication = requireStageValue(publication, 'destroyed publication');
     await expect(
-      operation('read destroyed current publication', () => activeFixture.sandbox.publication.current())
+      operation('read destroyed current publication', () =>
+        activeFixture.client.publications.forProject(fixture!.projectId).current()
+      )
     ).resolves.toBeNull();
     await expectPublicationRouteRemoved(activePublication.data.url);
     if (activeEnvironment.provider === 'laravel-cloud') {
@@ -390,7 +438,7 @@ function publicationProvider(
   }
 }
 
-function publicationSlug(fixture: SandboxFixture, environment: PublicationSmokeEnvironment): string {
+function publicationSlug(fixture: ProjectFixture, environment: PublicationSmokeEnvironment): string {
   const runId = fixture.environment.runId.replaceAll('.', '-');
   return `sdk-${environment.provider.replaceAll(/[^a-z0-9]/g, '-')}-${runId}`.slice(0, 63);
 }
@@ -530,4 +578,13 @@ async function commandSucceeds(command: string, args: readonly string[]): Promis
   } catch {
     return false;
   }
+}
+
+async function attachSmokeIntegration(fixture: ProjectFixture, integration: Integration): Promise<void> {
+  const bindings = await fixture.sandbox.integrations.list();
+  if (bindings.some((binding) => binding.data.integration.id === integration.data.id)) {
+    return;
+  }
+
+  await fixture.sandbox.integrations.attach({ integration });
 }

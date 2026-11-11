@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
-import type { SandboxFixture } from '../support/resources.js';
-import { createSandboxFixture, createTrackedNotebook, operation } from '../support/resources.js';
+import type { ProjectFixture } from '../support/resources.js';
+import { createProjectFixture, createTrackedNotebook, operation } from '../support/resources.js';
 
 describe.sequential('production platform API contract', () => {
-  let fixture: SandboxFixture | undefined;
+  let fixture: ProjectFixture | undefined;
 
   beforeAll(async () => {
-    fixture = await createSandboxFixture('platform');
+    fixture = await createProjectFixture();
   });
 
   afterAll(async () => {
@@ -26,7 +26,7 @@ describe.sequential('production platform API contract', () => {
     const message = `Feedback smoke for ${fixture!.sandbox.data.id}`;
 
     const configuration = await operation('configure feedback widget', () =>
-      fixture!.sandbox.feedback.configure({
+      fixture!.client.feedback.forProject(fixture!.projectId).configure({
         widget: {
           label: 'Send feedback',
           targets: ['preview'],
@@ -41,7 +41,7 @@ describe.sequential('production platform API contract', () => {
     });
 
     const submitted = await operation('submit notebook feedback', () =>
-      fixture!.sandbox.feedback.submit({
+      fixture!.client.feedback.forProject(fixture!.projectId).submit({
         author: { externalId },
         message,
         metadata: { runId: fixture!.environment.runId },
@@ -50,13 +50,15 @@ describe.sequential('production platform API contract', () => {
     );
     expect(submitted).toMatchObject({ message, source: 'sdk', status: 'open', type: 'bug' });
 
-    await expect(operation('get notebook feedback', () => fixture!.sandbox.feedback.get(submitted.id))).resolves.toMatchObject({
+    await expect(
+      operation('get notebook feedback', () => fixture!.client.feedback.forProject(fixture!.projectId).get(submitted.id))
+    ).resolves.toMatchObject({
       id: submitted.id,
       message,
     });
 
     const openFeedback = await operation('list open SDK feedback', () =>
-      fixture!.sandbox.feedback.list({
+      fixture!.client.feedback.forProject(fixture!.projectId).list({
         source: 'sdk',
         status: 'open',
       })
@@ -65,14 +67,16 @@ describe.sequential('production platform API contract', () => {
 
     await expect(
       operation('resolve notebook feedback', () =>
-        fixture!.sandbox.feedback.update(submitted.id, {
+        fixture!.client.feedback.forProject(fixture!.projectId).update(submitted.id, {
           status: 'resolved',
         })
       )
     ).resolves.toMatchObject({ id: submitted.id, status: 'resolved' });
 
     await expect(
-      operation('disable feedback widget', () => fixture!.sandbox.feedback.configure({ widget: null }))
+      operation('disable feedback widget', () =>
+        fixture!.client.feedback.forProject(fixture!.projectId).configure({ widget: null })
+      )
     ).resolves.toEqual({ widget: null });
   });
 
@@ -280,7 +284,9 @@ describe.sequential('production platform API contract', () => {
 
   test('reads mail, publication, and server state without creating external resources', async () => {
     const mail = await operation('read notebook mail state', () => fixture!.sandbox.mail.status());
-    const publication = await operation('read current publication', () => fixture!.sandbox.publication.current());
+    const publication = await operation('read current publication', () =>
+      fixture!.client.publications.forProject(fixture!.projectId).current()
+    );
     const servers = await operation('list account servers', () => fixture!.client.servers.list());
 
     expect(mail).toEqual(expect.objectContaining({ enabled: expect.any(Boolean) }));
@@ -289,7 +295,7 @@ describe.sequential('production platform API contract', () => {
   });
 });
 
-function runtimePreviewUrl(fixture: SandboxFixture): string {
+function runtimePreviewUrl(fixture: ProjectFixture): string {
   const initialized = fixture.sandbox.initialized;
   if (initialized === false || initialized.type !== 'success') {
     throw new Error('Sandbox runtime is not initialized.');

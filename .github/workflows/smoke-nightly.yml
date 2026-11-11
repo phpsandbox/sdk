@@ -25,8 +25,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: comprehensive-production-smoke
+  group: production-sdk-project-fixtures
   cancel-in-progress: false
+
+env:
+  PHPSANDBOX_SMOKE_PROJECT_FIXTURES: ${{ vars.PHPSANDBOX_SMOKE_PROJECT_FIXTURES }}
 
 jobs:
   smoke:
@@ -73,6 +76,7 @@ jobs:
           PHPSANDBOX_SMOKE_GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
           PHPSANDBOX_SMOKE_TOKEN: ${{ secrets.PHPSANDBOX_SMOKE_TOKEN }}
           PHPSANDBOX_SMOKE_TRANSPORT: ${{ matrix.transport }}
+          PHPSANDBOX_SMOKE_PROJECT_FIXTURE: ${{ matrix.transport }}
         run: npm run smoke:nightly
 
   publications:
@@ -122,6 +126,7 @@ jobs:
           PHPSANDBOX_SMOKE_GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
           PHPSANDBOX_SMOKE_LARAVEL_CLOUD_API_KEY: ${{ secrets.LARAVEL_CLOUD_API_KEY }}
           PHPSANDBOX_SMOKE_PUBLICATION_PROVIDER: ${{ matrix.provider }}
+          PHPSANDBOX_SMOKE_PROJECT_FIXTURE: ${{ matrix.provider }}
           PHPSANDBOX_SMOKE_PUBLICATION_REPOSITORY: phpsandbox/sdk-smoke-fixtures
           PHPSANDBOX_SMOKE_RESOURCE_REGISTRY: phpsandbox/sdk-smoke-fixtures
           PHPSANDBOX_SMOKE_RESOURCE_REGISTRY_BRANCH: smoke-resource-registry
@@ -199,4 +204,5 @@ jobs:
           PHPSANDBOX_SMOKE_REVIEWER_USERNAME: ${{ secrets.PHPSANDBOX_SMOKE_REVIEWER_USERNAME }}
           PHPSANDBOX_SMOKE_TOKEN: ${{ secrets.PHPSANDBOX_SMOKE_TOKEN }}
           PHPSANDBOX_SMOKE_TRANSPORT: http
+          PHPSANDBOX_SMOKE_PROJECT_FIXTURE: feedback-widget
         run: npm run smoke:feedback-widget

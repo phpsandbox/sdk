@@ -172,7 +172,6 @@ Each `NotebookInstance` exposes service clients:
 - `notebook.auth` (`Auth`)
 - `notebook.services` (`Services`)
 - `notebook.mail` (`NotebookMail`)
-- `notebook.feedback` (`Feedback`)
 
 Notes:
 
@@ -401,27 +400,39 @@ await notebook.mail.delete(mail.hash);
 await notebook.mail.disable();
 ```
 
+### Product features
+
+Projects own the product lifecycle. Address Customers, Payments, feedback, and publishing with an existing project ID; creating a standalone compute sandbox does not create a project.
+
+This replaces `notebook.feedback`, `notebook.payments`, `notebook.publication`, and the `forNotebook` helpers. Use a project ID explicitly; sandbox IDs are not aliases for projects.
+
+```ts
+const customers = client.customers.forProject('PROJECT_ID');
+const payments = client.payments.forProject('PROJECT_ID');
+const publishing = client.publications.forProject('PROJECT_ID');
+```
+
 ### Feedback
 
 ```ts
 // Feedback uses the same API token as the rest of the SDK.
-// You can also address it directly with client.feedback.forProject(projectId)
-// or client.feedback.forNotebook(notebookId), without fetching a notebook.
-await notebook.feedback.configure({
+// Product features require an existing project ID, not a sandbox ID.
+const projectFeedback = client.feedback.forProject('PROJECT_ID');
+await projectFeedback.configure({
   widget: {
     targets: ['preview', 'publication'],
     types: ['bug', 'suggestion', 'question'],
   },
 });
 
-const feedback = await notebook.feedback.submit({
+const feedback = await projectFeedback.submit({
   type: 'bug',
   message: 'Saving the profile failed.',
   author: { externalId: 'customer-42', email: 'ada@example.com' },
   context: { url: 'https://app.example.com/profile', path: '/profile' },
 });
 
-await notebook.feedback.update(feedback.id, { status: 'resolved' });
+await projectFeedback.update(feedback.id, { status: 'resolved' });
 ```
 
 The server-side SDK uses the same PHPSandbox API token as the rest of the sandbox. Set `widget: null` to remove the optional popout without disabling API ingestion.
@@ -479,42 +490,38 @@ MIT
 
 ### Publishing apps
 
-Save your app configuration, prepare a proposal for the apps you want to publish, and submit that proposal after explicit confirmation. Use `notebook.secrets` for production secrets and `notebook.publication.catalog` to discover destinations and available resources.
+Save your app configuration, prepare a proposal for the apps you want to publish, and submit that proposal after explicit confirmation. Use `notebook.secrets` for production secrets and `client.publications.forProject(projectId).catalog` to discover destinations and available resources.
 
 ```ts
-const notebook = await client.notebook.get('SANDBOX_ID');
-try {
-  const configuration = await notebook.publication.updateConfiguration({
-    expectedRevision: 0,
-    operations: [{ op: 'add-app', app: {
-      name: 'Backend', kind: 'http', root: '.',
-      build: { mode: 'dockerfile', context: '.', dockerfile: { source: 'project', path: 'Dockerfile' } },
-      runtime: { mode: 'container', port: 3333, healthCheck: { path: '/' } },
-      destination: { provider: 'ssh-server', serverId: 'OWNED_SERVER_ID' },
-      routing: { mode: 'managed' }, resourceIds: [],
-    } }],
+const publisher = client.publications.forProject('PROJECT_ID');
+const configuration = await publisher.updateConfiguration({
+  expectedRevision: 0,
+  operations: [{ op: 'add-app', app: {
+    name: 'Backend', kind: 'http', root: '.',
+    build: { mode: 'dockerfile', context: '.', dockerfile: { source: 'project', path: 'Dockerfile' } },
+    runtime: { mode: 'container', port: 3333, healthCheck: { path: '/' } },
+    destination: { provider: 'ssh-server', serverId: 'OWNED_SERVER_ID' },
+    routing: { mode: 'managed' }, resourceIds: [],
+  } }],
+});
+const appIds = [configuration.apps[0].id];
+const plan = await publisher.prepare({
+  expectedRevision: configuration.revision, appIds,
+});
+if (!plan.review.ready) {
+  console.log(plan.review.blockers);
+} else {
+  // Show this proposal to the user and wait for their confirmation.
+  const result = await publisher.publish({
+    reviewId: plan.review.id, proposal: plan.review.proposal, appIds,
   });
-  const appIds = [configuration.apps[0].id];
-  const plan = await notebook.publication.prepare({
-    expectedRevision: configuration.revision, appIds,
-  });
-  if (!plan.review.ready) {
-    console.log(plan.review.blockers);
+  if ('confirmationRequired' in result) {
+    // Show the changes and updated proposal; obtain a new confirmation.
+    console.log(result.changes, result.plan);
   } else {
-    // Show this proposal to the user and wait for their confirmation.
-    const result = await notebook.publication.publish({
-      reviewId: plan.review.id, proposal: plan.review.proposal, appIds,
-    });
-    if ('confirmationRequired' in result) {
-      // Show the changes and updated proposal; obtain a new confirmation.
-      console.log(result.changes, result.plan);
-    } else {
-      const current = await notebook.publication.application(result.id);
-      console.log(current.status); // publishing, healthy, partial, failed, or deleted
-    }
+    const current = await publisher.application(result.id);
+    console.log(current.status); // publishing, healthy, partial, failed, or deleted
   }
-} finally {
-  notebook.dispose();
 }
 ```
 
