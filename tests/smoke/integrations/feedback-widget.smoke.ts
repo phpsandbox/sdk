@@ -87,7 +87,7 @@ describe.sequential('production feedback widget browser contract', () => {
         const feedback = await fixture!.client.feedback.forProject(fixture!.projectId).list({ source: 'widget', status: 'open' });
         const submitted = feedback.data.find((candidate) => candidate.message === message);
         expect(submitted).toMatchObject({
-          author: { source: 'phpsandbox' },
+          author: { source: 'external' },
           source: 'widget',
           status: 'open',
           type: 'suggestion',
