@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 const DEFAULT_API_URL = 'https://api.phpsandbox.io/v1';
 
 export type SmokeTransport = 'http' | 'realtime';
@@ -205,4 +207,44 @@ export function readSmokeEnvironment(): SmokeEnvironment {
     workflowAttempt,
     workflowRunId,
   };
+}
+
+/** Workflow targets use separate mutable projects; local runs may supply one explicit pair. */
+export function readProjectFixtureEnvironment(environment: NodeJS.ProcessEnv = process.env): {
+  projectId: string;
+  notebookId: string;
+} {
+  const pair = z.object({ projectId: z.string().trim().min(1), notebookId: z.string().trim().min(1) });
+  const target = environment.PHPSANDBOX_SMOKE_PROJECT_FIXTURE;
+  if (target) {
+    const encoded = environment.PHPSANDBOX_SMOKE_PROJECT_FIXTURES;
+    if (!encoded) {
+      throw new Error(
+        'Configure PHPSANDBOX_SMOKE_PROJECT_FIXTURES with dedicated disposable projects before running project smoke coverage.'
+      );
+    }
+
+    const fixtures = z.record(z.string(), pair).parse(JSON.parse(encoded));
+    const projects = new Set<string>();
+    const notebooks = new Set<string>();
+    for (const fixture of Object.values(fixtures)) {
+      if (projects.has(fixture.projectId) || notebooks.has(fixture.notebookId)) {
+        throw new Error('Smoke targets must use separate projects and main notebooks to prevent concurrent fixture changes.');
+      }
+
+      projects.add(fixture.projectId);
+      notebooks.add(fixture.notebookId);
+    }
+
+    const selected = fixtures[target];
+    if (!selected) {
+      throw new Error(`Configure a dedicated disposable project fixture for ${target}.`);
+    }
+    return selected;
+  }
+
+  return pair.parse({
+    projectId: environment.PHPSANDBOX_SMOKE_PROJECT_ID,
+    notebookId: environment.PHPSANDBOX_SMOKE_PROJECT_NOTEBOOK_ID,
+  });
 }

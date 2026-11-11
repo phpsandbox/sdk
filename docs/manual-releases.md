@@ -60,3 +60,13 @@ node --test scripts/releases/release.test.mjs
 npm run check
 ./node_modules/.bin/oxfmt --check scripts/releases
 ```
+
+## Live project smoke prerequisites
+
+Project smoke coverage requires preconfigured, disposable project workspaces. Tests mutate their main notebook, feedback configuration, provider integrations, and test-owned publishing configuration. They retain the project and main notebook. Publication fixtures must contain the source from the configured publication fixture repository and its expected Dockerfile and marker endpoint.
+
+Set the repository variable `PHPSANDBOX_SMOKE_PROJECT_FIXTURES` to a JSON object with `http`, `realtime`, `cloudflare-containers`, `ssh-server`, `laravel-cloud`, and `feedback-widget` entries. Each entry has `{ "projectId": "PROJECT_ID", "notebookId": "MAIN_NOTEBOOK_ID" }`. Every target must have a separate project and notebook; the suite rejects shared fixtures. The workflow selects its target automatically. Fixture provisioning and this repository variable must be completed before enabling project smoke coverage; source changes do not create them.
+
+Local runs may instead set `PHPSANDBOX_SMOKE_PROJECT_ID` and `PHPSANDBOX_SMOKE_PROJECT_NOTEBOOK_ID`. Use a unique `GITHUB_RUN_ID` for each local publication run so its reserved slug and resource lease remain distinct. Configuration revisions are read before changes; cleanup removes only the app and deployment reserved by that run, preserving other apps and resource definitions. If a publish response is lost and its outcome is not visible, cleanup retains the lease for later recovery instead of deleting another run's current publication.
+
+The nightly workflow and resource reaper share one workflow concurrency group. Targets inside the nightly workflow use separate fixtures. Resource leases use version 2 and record the reserved app slug before writes; before switching formats, let older smoke runs finish and confirm the registry has no earlier-format leases. Resolve any actual outstanding leases explicitly before enabling the new reaper.

@@ -1,5 +1,5 @@
 import { PHPSandbox, type CreateNotebookInput, type NotebookInstance, type PHPSandboxClientOptions } from '@phpsandbox/sdk';
-import { readSmokeEnvironment, type SmokeEnvironment } from './environment.js';
+import { readSmokeEnvironment, readProjectFixtureEnvironment, type SmokeEnvironment } from './environment.js';
 
 const OPERATION_TIMEOUT_MS = 120_000;
 const INITIALIZATION_TIMEOUT_MS = 300_000;
@@ -81,13 +81,7 @@ export interface ProjectFixture extends SandboxFixture {
 
 /** A dedicated disposable project must be supplied explicitly for product-lifecycle smoke tests. */
 export async function createProjectFixture(): Promise<ProjectFixture> {
-  const projectId = process.env.PHPSANDBOX_SMOKE_PROJECT_ID;
-  const notebookId = process.env.PHPSANDBOX_SMOKE_PROJECT_NOTEBOOK_ID;
-  if (!projectId || !notebookId) {
-    throw new Error(
-      'Set PHPSANDBOX_SMOKE_PROJECT_ID and PHPSANDBOX_SMOKE_PROJECT_NOTEBOOK_ID to a dedicated disposable project.'
-    );
-  }
+  const { projectId, notebookId } = readProjectFixtureEnvironment();
   const environment = readSmokeEnvironment();
   const client = createClient(environment);
   const resources = new ResourceRegistry();

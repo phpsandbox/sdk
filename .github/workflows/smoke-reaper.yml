@@ -20,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-smoke-resource-reaper
+  group: production-sdk-project-fixtures
   cancel-in-progress: false
 
 jobs:

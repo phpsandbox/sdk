@@ -9,6 +9,10 @@ const PublicationResourceLeaseSchema = z.object({
   createdAt: z.iso.datetime(),
   notebookId: z.string().min(1),
   projectId: z.string().min(1),
+  appSlug: z.string().min(1).optional(),
+  appId: z.string().min(1).optional(),
+  publicationId: z.string().min(1).optional(),
+  publicationRequested: z.boolean(),
   provider: z.enum(['cloudflare-containers', 'laravel-cloud', 'ssh-server']),
   runAttempt: z.string().regex(/^\d+$/),
   runId: z.string().regex(/^[A-Za-z0-9_-]+$/),
@@ -18,7 +22,7 @@ const PublicationResourceLeaseSchema = z.object({
       name: z.string().min(1),
     })
     .optional(),
-  version: z.literal(1),
+  version: z.literal(2),
 });
 
 export type PublicationResourceLease = z.infer<typeof PublicationResourceLeaseSchema>;
@@ -148,6 +152,7 @@ export class PublicationResourceLeaseRegistry {
 export function createPublicationResourceLease(input: {
   readonly notebookId: string;
   readonly projectId: string;
+  readonly appSlug?: string;
   readonly provider: PublicationSmokeProvider;
   readonly runAttempt: string;
   readonly runId: string;
@@ -158,11 +163,13 @@ export function createPublicationResourceLease(input: {
     createdAt: (input.timestamp ?? new Date()).toISOString(),
     notebookId: input.notebookId,
     projectId: input.projectId,
+    ...(input.appSlug === undefined ? {} : { appSlug: input.appSlug }),
+    publicationRequested: false,
     provider: input.provider,
     runAttempt: input.runAttempt,
     runId: input.runId,
     ...(input.serverName === undefined ? {} : { server: { name: input.serverName } }),
-    version: 1,
+    version: 2,
   };
 }
 
@@ -178,7 +185,7 @@ export async function reapPublicationResources(
   const { lease } = stored;
   console.log(`Reaping ${lease.provider} resources for workflow ${lease.runId}.${lease.runAttempt}.`);
 
-  await reapProjectPublication(client, lease.projectId, lease.provider);
+  await cleanupProjectPublication(client, lease);
 
   if (lease.provider === 'ssh-server' && lease.server !== undefined) {
     const serverId = lease.server.id ?? (await findServerIdByExactName(client, lease.server.name));
@@ -192,25 +199,61 @@ export async function reapPublicationResources(
   await operation('release reaped resource lease', () => registry.delete(stored));
 }
 
-async function reapProjectPublication(
-  client: PHPSandbox,
-  projectId: string,
-  expectedProvider: PublicationSmokeProvider
-): Promise<void> {
-  const publication = await operationAllowingMissing('read abandoned publication', () =>
-    client.publications.forProject(projectId).current()
-  );
-  if (publication === undefined || publication === null) {
+/** Recover only resources reserved by this run, including writes whose responses were lost. */
+export async function cleanupProjectPublication(client: PHPSandbox, lease: PublicationResourceLease): Promise<void> {
+  const appSlug = lease.appSlug;
+  if (!appSlug) {
     return;
   }
 
-  if (publication.data.provider.name !== expectedProvider) {
-    throw new Error(
-      `Refusing to delete publication ${publication.data.id}: expected provider ${expectedProvider}, ` +
-        `received ${publication.data.provider.name}.`
-    );
+  const publisher = client.publications.forProject(lease.projectId);
+  const configuration = await operationAllowingMissing('inspect leased publication inventory', () => publisher.configuration());
+  const owned = configuration?.deployments.filter(({ publication }) => publication.slug === appSlug) ?? [];
+  if (owned.length > 1) {
+    throw new Error(`More than one deployment uses reserved smoke slug ${appSlug}.`);
   }
-  await operationAllowingMissing(`destroy abandoned ${expectedProvider} publication`, () => publication.destroy(), 300_000);
+  const deployment = owned[0];
+  if (deployment && lease.publicationId && deployment.publication.id !== lease.publicationId) {
+    throw new Error('Reserved smoke slug does not match the recorded publication.');
+  }
+  if (deployment?.appId && lease.appId && deployment.appId !== lease.appId) {
+    throw new Error('Reserved smoke publication does not match the recorded app.');
+  }
+  const publicationId = lease.publicationId ?? deployment?.publication.id;
+  if (publicationId) {
+    const publication = await operationAllowingMissing('read leased publication', () => client.publications.get(publicationId));
+    if (publication) {
+      if (publication.data.slug !== appSlug || publication.data.provider.name !== lease.provider) {
+        throw new Error('Refusing to delete a publication outside this smoke resource lease.');
+      }
+      if (publication.data.status !== 'deleted') {
+        await operationAllowingMissing('destroy leased publication', () => publication.destroy(), 300_000);
+      }
+    }
+  } else if (lease.publicationRequested) {
+    throw new Error('Publication outcome is not visible yet. Retain the lease and retry cleanup later.');
+  }
+
+  // Configuration edits use the latest revision and never remove other apps or resource definitions.
+  const latest =
+    publicationId && configuration
+      ? await operationAllowingMissing('inspect leased app configuration', () => publisher.configuration())
+      : configuration;
+  const apps = latest?.apps.filter((app) => app.routing.managedAddress.slug === appSlug) ?? [];
+  const app = apps[0];
+  if (!latest || !app) {
+    return;
+  }
+  if (apps.length !== 1 || (lease.appId && app.id !== lease.appId) || app.destination.provider !== lease.provider) {
+    throw new Error('Refusing to remove app configuration outside this smoke resource lease.');
+  }
+
+  await operation('remove leased app configuration', () =>
+    publisher.updateConfiguration({
+      expectedRevision: latest.revision,
+      operations: [{ op: 'remove-app', appId: app.id }],
+    })
+  );
 }
 
 async function findServerIdByExactName(client: PHPSandbox, name: string): Promise<string | undefined> {
