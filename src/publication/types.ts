@@ -71,6 +71,8 @@ export interface PublicationReadiness {
   warnings: string[];
   configuration?: PublicationConfigurationField[];
   defaultBuild?: 'laravel' | 'dockerfile' | 'unresolved' | null;
+  /** Existing project Dockerfile selected for container publishing. */
+  defaultDockerfile?: string | null;
 }
 export interface PublicationConfigurationField {
   name: string;
