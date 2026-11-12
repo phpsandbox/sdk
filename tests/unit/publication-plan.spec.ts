@@ -4,6 +4,7 @@ import {
   PHPSandbox,
   type LaravelCloudSetupInput,
   type PublicationApplicationPlanInput,
+  type PublicationReadiness,
 } from '../../src/index.js';
 
 describe('publication planning', () => {
@@ -246,6 +247,35 @@ describe('publication planning', () => {
     expect(setup.database.mode).toBe('create');
     expect(laravelCloudSetupForRepublish(setup)).toEqual(setup);
   });
+  it('preserves a discovered project Dockerfile while retaining native framework readiness', async () => {
+    const expected: PublicationReadiness = {
+      repository: null,
+      branch: null,
+      sourceProvider: null,
+      requirements: [],
+      productionVariables: [],
+      missingVariables: [],
+      warnings: [],
+      defaultBuild: 'laravel',
+      defaultDockerfile: '.psb/deploy/Dockerfile',
+    };
+    const requests: Request[] = [];
+    const client = PHPSandbox.rest('token', 'https://api.example.test/v1', {
+      fetch: async (input, init) => {
+        const request = new Request(input, init);
+        requests.push(request);
+        expect(request.method).toBe('GET');
+        expect(new URL(request.url).pathname).toBe('/v1/projects/course/publication/readiness');
+        return Response.json({ data: expected });
+      },
+    });
+
+    const readiness = await client.publications.forProject('course').readiness();
+
+    expect(readiness).toEqual(expected);
+    expect(requests).toHaveLength(1);
+  });
+
   it('uses the shared readiness and planning endpoints without starting a deployment', async () => {
     const requests: Array<{ url: string; method: string; body: string }> = [];
     const client = PHPSandbox.rest('token', 'https://api.example/v1', {
