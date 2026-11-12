@@ -48,6 +48,34 @@ describe('publication domains', () => {
       },
     ]);
   });
+  it.each([
+    { cloudflareStrategy: 'none', allowDowntime: false },
+    { cloudflareStrategy: 'dns', allowDowntime: true },
+    { cloudflareStrategy: 'dns_proxy', allowDowntime: false },
+  ] as const)('passes domain creation options without dropping false values: $cloudflareStrategy', async (options) => {
+    const domain = { id: 'domain-demo', hostname: 'course.example.com', status: 'pending' };
+    let body: unknown;
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      if (request.method === 'GET' && request.url.endsWith('/publications/pub')) {
+        return Response.json({ data: { id: 'pub' } });
+      }
+      if (request.method === 'POST' && request.url.endsWith('/publications/pub/domains')) {
+        body = await request.json();
+        return Response.json({ data: domain });
+      }
+      throw new Error(`Unexpected request: ${request.method} ${request.url}`);
+    });
+    const client = PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', { fetch });
+    const publication = await client.publications.get('pub');
+
+    const created = await publication.domains.create('course.example.com', options);
+
+    expect(created).toEqual(domain);
+    expect(body).toEqual({ hostname: 'course.example.com', ...options });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it('sets the application address and reports that publication is required', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

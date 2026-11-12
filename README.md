@@ -533,6 +533,21 @@ Inspect deployment, runtime and routing outcomes for each selected app; a partia
 
 Shared managed-resource creation currently starts with one app. After creation, update the resource definition to `reuse` with the catalog resource ID before attaching other apps. Simultaneous first-time shared-resource creation is unsupported.
 
+#### Custom domains
+
+For a healthy Laravel Cloud publication, choose the DNS setup when creating the domain:
+
+```ts
+const publication = await client.publications.get('PUBLICATION_ID');
+const domain = await publication.domains.create('app.example.com', {
+  cloudflareStrategy: 'dns_proxy',
+  allowDowntime: false,
+});
+console.log(domain.dnsInstructions);
+```
+
+Use `none` for another DNS provider, `dns` for Cloudflare DNS only, or `dns_proxy` for Cloudflare's orange-cloud proxy. `allowDowntime: false` prepares verification before traffic moves; `true` allows routing first. Omitted options preserve the existing `none` / uninterrupted defaults. These optional settings require an API version that supports domain DNS and transfer choices. Existing provider domains are inspected rather than reconfigured.
+
 #### Browser publishing streams through your backend
 
 Keep service-account credentials on your server. After authorizing project access and checking the requested publishing attempt, open the original SSE bytes with `publication.stream()`. Return the SDK's standard `Response` directly from your framework:

@@ -427,6 +427,14 @@ export interface PublicationDnsRecord {
   purpose?: 'ownership' | 'certificate' | 'traffic';
 }
 
+/** Optional Laravel Cloud DNS and domain transfer settings. */
+export interface PublicationDomainCreateOptions {
+  /** Use Cloudflare DNS only, Cloudflare's proxy, or another DNS provider. */
+  cloudflareStrategy?: 'none' | 'dns' | 'dns_proxy';
+  /** Allow routing before verification. Defaults to false for an uninterrupted transfer. */
+  allowDowntime?: boolean;
+}
+
 export interface PublicationDomainData {
   id: string;
   publicationId: string | null;

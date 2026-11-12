@@ -1,5 +1,5 @@
 import type { Client } from '../index.js';
-import type { PublicationDomainData } from './types.js';
+import type { PublicationDomainCreateOptions, PublicationDomainData } from './types.js';
 
 export class PublicationDomains {
   public constructor(
@@ -11,8 +11,14 @@ export class PublicationDomains {
     return (await this.client.get<PublicationDomainData[]>(this.path())).data;
   }
 
-  public async create(hostname: string): Promise<PublicationDomainData> {
-    return (await this.client.post<PublicationDomainData>(this.path(), { hostname })).data;
+  public async create(hostname: string, options: PublicationDomainCreateOptions = {}): Promise<PublicationDomainData> {
+    return (
+      await this.client.post<PublicationDomainData>(this.path(), {
+        hostname,
+        cloudflareStrategy: options.cloudflareStrategy,
+        allowDowntime: options.allowDowntime,
+      })
+    ).data;
   }
 
   public async refresh(id: string): Promise<PublicationDomainData> {
