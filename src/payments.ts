@@ -347,6 +347,18 @@ export class PaymentRuntime {
     );
   }
 
+  /** Attach a verified app customer to an unlinked one-time purchase. Existing links cannot be replaced. */
+  public async linkCustomer(
+    id: string,
+    input: { orderId: string; customerId: string }
+  ): Promise<{ transactionId: string; customerId: string }> {
+    const response = await this.client.put<unknown>(
+      `/platform/payments/runtime/transactions/${encodeURIComponent(id)}/customer`,
+      input
+    );
+    return z.object({ transactionId: z.string(), customerId: z.string() }).parse(response.data);
+  }
+
   public async subscribe(input: CreatePaymentCheckoutInput): Promise<PaymentSubscriptionData> {
     return subscriptionSchema.parse((await this.client.post<unknown>('/platform/payments/runtime/subscriptions', input)).data);
   }

@@ -314,6 +314,7 @@ export const paymentFacadeSurfaces = {
   } satisfies SurfaceCoverage<sdk.ProjectPayments>,
   runtime: {
     verifyEvent: 'app.contracts',
+    linkCustomer: 'payments.contracts',
     subscribe: 'payments.provider',
     subscription: 'payments.provider',
     cancelSubscription: 'payments.provider',

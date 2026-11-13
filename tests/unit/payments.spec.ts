@@ -5,6 +5,29 @@ import { PHPSandbox } from '../../src/index.js';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('managed payments', () => {
+  it('links a purchase with the explicit order and customer identity through the app credential', async () => {
+    const data = { transactionId: 'purchase-1', customerId: 'customer-1' };
+    const fetch = vi.fn(async (request: Request) => {
+      expect(request.method).toBe('PUT');
+      expect(request.url).toBe('https://api.example.test/v1/platform/payments/runtime/transactions/purchase-1/customer');
+      expect(request.headers.get('authorization')).toBe('Bearer happ_example');
+      expect(await request.json()).toEqual({ orderId: 'order-1', customerId: 'customer-1' });
+      return Response.json({ data });
+    });
+    vi.stubGlobal('fetch', fetch);
+    const runtime = PHPSandbox.rest('happ_example', 'https://api.example.test/v1').payments.runtime;
+
+    await expect(runtime.linkCustomer('purchase-1', { orderId: 'order-1', customerId: 'customer-1' })).resolves.toEqual(data);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a malformed customer-link response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ data: { transactionId: 'purchase-1' } })));
+    const runtime = PHPSandbox.rest('happ_example', 'https://api.example.test/v1').payments.runtime;
+
+    await expect(runtime.linkCustomer('purchase-1', { orderId: 'order-1', customerId: 'customer-1' })).rejects.toThrow();
+  });
+
   it('addresses a project without fetching or starting its runtime', async () => {
     const fetch = vi.fn().mockResolvedValue(Response.json({ data: null }));
     vi.stubGlobal('fetch', fetch);
