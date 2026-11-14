@@ -57,7 +57,7 @@ PHPSandbox.rest('token', 'https://api.phpsandbox.io/v1', {
 
 ## App server integration
 
-Apps hosted on PHPSandbox can use one environment-scoped identity for Customers and Payments:
+Apps hosted on PHPSandbox can use one environment-scoped identity for Customers, Payments, and feedback:
 
 ```ts
 import { PHPSandbox } from '@phpsandbox/sdk';
@@ -76,9 +76,18 @@ const checkout = await platform.payments.checkout({
   successPath: '/thanks',
   cancelPath: '/account',
 });
+await platform.feedback.submit({
+  type: 'question',
+  message: feedback.message,
+  author: { externalId: account.customerExternalId },
+}, { idempotencyKey: feedback.id });
 ```
 
-Persist an opaque UUID on each app account for its external customer identity; separate databases must not reuse sequential IDs. Initialize this client only on the app server. It reads the provisioned app configuration and exposes only app runtime capabilities, without notebook or organization administration. Production uses its own identity and never falls back to development. Select `{ mode: 'test' }` once for an intentional sandbox run. Runtimes without `process.env` can supply server bindings through `{ env }`.
+Persist an opaque UUID on each app account for its external customer identity; separate databases must not reuse sequential IDs. Initialize this client only on the app server. It reads the provisioned app configuration and exposes only connected app runtime capabilities, without notebook or organization administration. Production uses its own identity and never falls back to development. Use `{ mode: 'test' }` only in development. Runtimes without `process.env` can supply server bindings through `{ env }`.
+
+Connect feedback before publishing using your builder client: `await client.feedback.forProject('PROJECT_ID').provision('live')`. Use `test` for development previews. The app credential can submit feedback but cannot read the seller inbox or change feedback status. Save messages in your app first and forward with a stable idempotency key so a temporary delivery failure does not lose the buyer's message or create duplicates.
+
+The SDK is optional: any backend, including PHP, can send the same JSON payload to `POST /v1/platform/feedback/runtime` with the environment's app credential in `Authorization: Bearer APP_TOKEN` and a stable `Idempotency-Key` header. Keep that credential on the server; buyers sign in to your app and do not need a PHPSandbox account.
 
 Applications can configure their own organization conversion stages and one event follow-up. Configuration never activates a journey:
 

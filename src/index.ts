@@ -22,7 +22,7 @@ import { PublicationApi } from './publication/index.js';
 import { ServerApi } from './servers.js';
 import { RestRuntimeInvoker } from './runtime/rest.js';
 import { FeedbackApi } from './feedback.js';
-export { Feedback, FeedbackApi } from './feedback.js';
+export { Feedback, FeedbackApi, FeedbackRuntime } from './feedback.js';
 import { IntegrationApi, SandboxIntegrationApi } from './integrations/index.js';
 import { authenticatedRequest } from './http.js';
 import { PaymentsApi } from './payments.js';

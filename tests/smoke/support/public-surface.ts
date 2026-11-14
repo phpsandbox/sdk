@@ -8,6 +8,7 @@ export const sdkRuntimeExports = {
   AppRuntime: 'app.contracts',
   Feedback: 'feedback',
   FeedbackApi: 'feedback',
+  FeedbackRuntime: 'feedback',
   CustomersApi: 'customers.contracts',
   CustomerRuntime: 'customers.contracts',
   ProjectCustomers: 'customers.contracts',

@@ -2,6 +2,23 @@ import { describe, expect, it, vi } from 'vitest';
 import { PHPSandbox } from '../../src/index.js';
 
 describe('project feedback', () => {
+  it('provisions feedback through the management client for an explicit app environment', async () => {
+    const fetch = vi.fn(async (request: Request) => {
+      expect(request.method).toBe('POST');
+      expect(request.url).toBe('https://api.example.test/v1/platform/projects/project-1/feedback/connection');
+      expect(await request.json()).toEqual({ mode: 'live' });
+      return Response.json({ data: { projectId: 'project-1', mode: 'live', runtimeConfigured: true } });
+    });
+    const client = PHPSandbox.rest('management-token', 'https://api.example.test/v1', { fetch });
+
+    await expect(client.feedback.forProject('project-1').provision('live')).resolves.toEqual({
+      projectId: 'project-1',
+      mode: 'live',
+      runtimeConfigured: true,
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves author and context and sends the same idempotency key on retries', async () => {
     const requests: Request[] = [];
     const fetch = vi.fn(async (request: Request) => {

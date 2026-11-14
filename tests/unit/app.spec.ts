@@ -53,6 +53,30 @@ it('selects production explicitly and never falls back to a development credenti
   expect(PHPSandbox.app({ mode: 'test', env: { ...base, NODE_ENV: 'production' } }).mode).toBe('test');
 });
 
+it('submits feedback with the app credential and preserves its retry identity without seller inbox access', async () => {
+  const requests: Request[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (request: Request) => {
+      requests.push(request);
+      expect(request.method).toBe('POST');
+      expect(request.url).toBe('https://api.example.test/v1/platform/feedback/runtime');
+      expect(request.headers.get('authorization')).toBe(`Bearer ${token}`);
+      expect(request.headers.get('idempotency-key')).toBe('feedback-one');
+      expect(await request.json()).toEqual({ type: 'question', message: 'Can I grow mint?' });
+      return Response.json({ data: { id: 'feedback-one' } });
+    })
+  );
+  const platform = PHPSandbox.app({ env: base });
+
+  await platform.feedback.submit({ type: 'question', message: 'Can I grow mint?' }, { idempotencyKey: 'feedback-one' });
+  await platform.feedback.submit({ type: 'question', message: 'Can I grow mint?' }, { idempotencyKey: 'feedback-one' });
+
+  expect(requests).toHaveLength(2);
+  expect(platform.feedback).not.toHaveProperty('list');
+  expect(platform.feedback).not.toHaveProperty('update');
+});
+
 it('verifies a payment callback using the same app credential', async () => {
   const platform = PHPSandbox.app({ env: base });
   const timestamp = Math.floor(Date.now() / 1000);
