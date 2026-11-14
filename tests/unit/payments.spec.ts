@@ -5,6 +5,44 @@ import { PHPSandbox } from '../../src/index.js';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('managed payments', () => {
+  it('forwards deployment-specific checkout URLs with the existing app credential', async () => {
+    const input = {
+      requestId: 'request-1',
+      orderId: 'order-1',
+      priceId: 'price-1',
+      successUrl: 'https://shop.example.com/complete',
+      cancelUrl: 'https://shop.example.com/cancel',
+      callbackUrl: 'https://shop.example.com/events',
+    };
+    const fetch = vi.fn(async (request: Request) => {
+      expect(request.url).toBe('https://api.example.test/v1/platform/payments/runtime/checkouts');
+      expect(request.headers.get('authorization')).toBe('Bearer happ_example');
+      expect(await request.json()).toEqual(input);
+      return Response.json({
+        data: {
+          id: 'purchase-1',
+          bindingId: 'binding-1',
+          priceId: 'price-1',
+          orderId: 'order-1',
+          amount: 100,
+          currency: 'eur',
+          feeAmount: 0,
+          refundedAmount: 0,
+          revision: 0,
+          status: 'pending',
+          checkoutUrl: 'https://checkout.example.com/session',
+          deliveredAt: null,
+        },
+      });
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    const result = await PHPSandbox.rest('happ_example', 'https://api.example.test/v1').payments.runtime.checkout(input);
+
+    expect(result.id).toBe('purchase-1');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('links a purchase with the explicit order and customer identity through the app credential', async () => {
     const data = { transactionId: 'purchase-1', customerId: 'customer-1' };
     const fetch = vi.fn(async (request: Request) => {
