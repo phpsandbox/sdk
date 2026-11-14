@@ -141,14 +141,29 @@ export interface CreatePaymentPriceInput {
   amount: number;
   currency: string;
 }
-export interface CreatePaymentCheckoutInput {
+export type CreatePaymentCheckoutInput = {
   customerId?: string;
   requestId: string;
   orderId: string;
   priceId: string;
-  successPath: string;
-  cancelPath: string;
-}
+} & (
+  | {
+      successUrl: string;
+      cancelUrl: string;
+      callbackUrl: string;
+      successPath?: never;
+      cancelPath?: never;
+    }
+  | {
+      /** @deprecated Supply absolute return and callback URLs for deployment-specific routing. */
+      successPath: string;
+      /** @deprecated Supply absolute return and callback URLs for deployment-specific routing. */
+      cancelPath: string;
+      successUrl?: never;
+      cancelUrl?: never;
+      callbackUrl?: never;
+    }
+);
 export interface RefundPaymentInput {
   requestId: string;
   amount?: number;
