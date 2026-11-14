@@ -1,6 +1,7 @@
 import type { Client } from './index.js';
 import { CustomerRuntime } from './customers.js';
 import { PaymentRuntime, type PaymentMode } from './payments.js';
+import { FeedbackRuntime } from './feedback.js';
 
 export interface AppRuntimeOptions {
   /** Defaults to live in production and test otherwise. There is no fallback between modes. */
@@ -19,7 +20,7 @@ export function resolveAppConfiguration(options: AppRuntimeOptions) {
   const url = environment.PHPSANDBOX_APP_API_URL;
   if (!token || !/^happ_[a-f0-9]{64}$/.test(token) || !url) {
     throw new Error(
-      `Connect your app's ${mode === 'live' ? 'production' : 'development'} platform environment before using Customers or Payments.`
+      `Connect your app's ${mode === 'live' ? 'production' : 'development'} platform environment before using platform services.`
     );
   }
   return { mode, token, url };
@@ -29,6 +30,7 @@ export function resolveAppConfiguration(options: AppRuntimeOptions) {
 export class AppRuntime {
   public readonly customers: CustomerRuntime;
   public readonly payments: PaymentRuntime;
+  public readonly feedback: FeedbackRuntime;
 
   public constructor(
     client: Client,
@@ -37,5 +39,6 @@ export class AppRuntime {
   ) {
     this.customers = new CustomerRuntime(client);
     this.payments = new PaymentRuntime(client, { token, mode });
+    this.feedback = new FeedbackRuntime(client);
   }
 }

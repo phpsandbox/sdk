@@ -1,4 +1,5 @@
 import type { Client, PaginatedApiResponse } from './index.js';
+import { z } from 'zod';
 
 export type FeedbackType = 'bug' | 'suggestion' | 'question' | 'other';
 export type FeedbackStatus = 'open' | 'queued' | 'resolved' | 'archived';
@@ -94,6 +95,16 @@ export class Feedback {
     return response.data;
   }
 
+  /** Install the environment-scoped server credential for feedback submission. */
+  public async provision(
+    mode: 'test' | 'live'
+  ): Promise<{ projectId: string; mode: 'test' | 'live'; runtimeConfigured: boolean }> {
+    const response = await this.client.post<unknown>(this.path('/connection'), { mode });
+    return z
+      .object({ projectId: z.string(), mode: z.enum(['test', 'live']), runtimeConfigured: z.boolean() })
+      .parse(response.data);
+  }
+
   public async submit(input: SubmitFeedbackInput, options: SubmitFeedbackOptions = {}): Promise<FeedbackData> {
     const response = await this.client.post<FeedbackData>(this.path(), input, options);
 
@@ -124,6 +135,16 @@ export class Feedback {
 
   private path(suffix = ''): string {
     return `/platform/projects/${encodeURIComponent(this.identifier)}/feedback${suffix}`;
+  }
+}
+
+/** Submit app feedback without access to project management or the seller inbox. */
+export class FeedbackRuntime {
+  public constructor(private readonly client: Client) {}
+
+  public async submit(input: SubmitFeedbackInput, options: SubmitFeedbackOptions = {}): Promise<FeedbackData> {
+    const response = await this.client.post<FeedbackData>('/platform/feedback/runtime', input, options);
+    return response.data;
   }
 }
 
