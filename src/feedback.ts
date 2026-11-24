@@ -56,6 +56,8 @@ export interface FeedbackData {
   context: {
     url: string | null;
     path: string | null;
+    /** Omitted by older API versions. */
+    imageUrls?: string[];
     publication: {
       id: string;
       releaseId: string | null;
